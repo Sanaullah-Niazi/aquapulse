@@ -1,0 +1,26 @@
+name: Bug report
+description: Something does not work as the SRS says it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: requirement
+    attributes:
+      label: Related requirement (optional)
+      placeholder: e.g. FR-24
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. docker compose up -d\n2. ..."
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: macOS 15, Docker Desktop 4.x, commit abc123

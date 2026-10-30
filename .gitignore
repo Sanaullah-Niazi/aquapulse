@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------
+# AquaPulse .gitignore
+# Rule of thumb: never commit secrets, generated files or caches.
+# ---------------------------------------------------------------
+
+# --- Secrets and local settings (NEVER commit these) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+infra/certs/
+firmware/**/secrets.h
+mobile/android/app/google-services.json
+mobile/ios/Runner/GoogleService-Info.plist
+**/firebase-service-account*.json
+
+# --- macOS ---
+.DS_Store
+
+# --- Editors ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Node / web ---
+node_modules/
+dist/
+.vite/
+playwright-report/
+test-results/
+
+# --- Flutter / Android ---
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+mobile/android/.gradle/
+mobile/android/local.properties
+*.apk
+*.aab
+
+# --- PlatformIO (ESP32 firmware) ---
+firmware/**/.pio/
+
+# --- Runtime data ---
+data/
+backups/
+*.log

@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest a new feature or a change to the requirements
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+  - type: input
+    id: requirement
+    attributes:
+      label: Related requirement (optional)
+      placeholder: e.g. FR-58

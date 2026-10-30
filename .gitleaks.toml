@@ -1,0 +1,6 @@
+# gitleaks configuration: use all built-in secret rules.
+# Add an [allowlist] entry here only for proven false positives, with a comment why.
+title = "AquaPulse gitleaks config"
+
+[extend]
+useDefault = true

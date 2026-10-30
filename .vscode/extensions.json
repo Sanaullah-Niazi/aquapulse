@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "ms-azuretools.vscode-docker",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "dart-code.flutter",
+    "platformio.platformio-ide",
+    "wokwi.wokwi-vscode",
+    "bierner.markdown-mermaid",
+    "editorconfig.editorconfig",
+    "eamodio.gitlens"
+  ]
+}

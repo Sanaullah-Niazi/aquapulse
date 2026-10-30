@@ -275,7 +275,7 @@ async def mark_overdue(
 ) -> int:
     """Bills past their due date and not fully paid become overdue (run by the worker).
 
-    Reminder emails before and after the due date come in M7 (FR-38)."""
+    Reminder emails before and after the due date: reminders.py (FR-38)."""
     today = local_today(building.timezone, now)
     result = await session.execute(
         update(Bill)

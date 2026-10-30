@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -18,13 +19,13 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import AuditEntry
+from .models import AuditCheck, AuditEntry
 
 GENESIS = b"\x00" * 32  # "previous hash" of the very first entry
 _LOCK_ID = 7_465_621  # any fixed number: one writer at a time keeps the chain in order
 
 
-def _digest(entry: AuditEntry) -> bytes:
+def _digest(entry: Any) -> bytes:  # an AuditEntry, or a row with its columns
     content = {
         "at": entry.at.isoformat(),
         "actor_id": str(entry.actor_id) if entry.actor_id else None,
@@ -77,10 +78,43 @@ async def record(
 
 async def verify_chain(session: AsyncSession) -> tuple[bool, int | None]:
     """Check every entry. Returns (ok, id of the first broken entry)."""
-    prev = GENESIS
-    result = await session.stream_scalars(select(AuditEntry).order_by(AuditEntry.id))
+    ok, broken, _ = await _walk(session)
+    return ok, broken
+
+
+async def _walk(session: AsyncSession) -> tuple[bool, int | None, int]:
+    prev, count = GENESIS, 0
+    # Plain rows instead of ORM objects: about 3 times faster (FR-73 criterion 2).
+    columns = [getattr(AuditEntry, c) for c in _COLUMNS]
+    result = await session.stream(select(*columns).order_by(AuditEntry.id).execution_options(
+        yield_per=5000))  # fmt: skip
     async for entry in result:
+        count += 1
         if entry.prev_hash != prev or _digest(entry) != entry.hash:
-            return False, entry.id
+            return False, entry.id, count
         prev = entry.hash
-    return True, None
+    return True, None, count
+
+
+_COLUMNS = ("id", "at", "actor_id", "actor_role", "ip", "action", "target_type", "target_id",
+            "building_id", "details", "prev_hash", "hash")  # fmt: skip
+
+
+async def check_chain(
+    session: AsyncSession, requested_by: uuid.UUID | None = None, at: datetime | None = None
+) -> AuditCheck:
+    """Verify the whole chain and keep the result (daily by the worker, or on
+    demand by a System Admin). The caller commits."""
+    started = time.perf_counter()
+    ok, broken, count = await _walk(session)
+    check = AuditCheck(
+        at=at or datetime.now(UTC),
+        ok=ok,
+        entries=count,
+        first_broken_id=broken,
+        seconds=round(time.perf_counter() - started, 3),
+        requested_by=requested_by,
+    )
+    session.add(check)
+    await session.flush()
+    return check

@@ -1,9 +1,10 @@
-"""System Admin: owner accounts and the full audit log (FR-20, FR-28, FR-55)."""
+"""System Admin: owner accounts, the full audit log and its check (FR-20, FR-28,
+FR-55, FR-73), and emails that could not be delivered (FR-60)."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,10 +12,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit
+from ..alerts.store import audit_signal_saved
 from ..db import get_session
 from ..deps import Caller, require
-from ..models import AuditEntry, User
-from ..schemas import AuditOut, AuditVerifyOut, OwnerIn, OwnerPatch, UserOut
+from ..models import AuditCheck, AuditEntry, Notification, User
+from ..schemas import (
+    AuditOut,
+    AuditVerifyOut,
+    NotificationOut,
+    OwnerIn,
+    OwnerPatch,
+    UserOut,
+)
 from ..security.passwords import hash_password, password_problem
 from .auth import revoke_all_sessions
 
@@ -117,6 +126,35 @@ async def all_audit(
 
 @router.post("/audit/verify", response_model=AuditVerifyOut)
 async def verify_audit(session: Session, caller: Admin):
-    """Re-calculate every hash: proves no audit entry was changed or removed."""
-    ok, broken = await audit.verify_chain(session)
-    return AuditVerifyOut(ok=ok, first_broken_id=broken)
+    """Re-calculate every hash now: proves no audit entry was changed or removed.
+    The worker also does this every day; GET /admin/audit/checks lists the results."""
+    check = await audit.check_chain(session, caller.id)
+    await audit_signal_saved(session, check, datetime.now(UTC))
+    return check
+
+
+@router.get("/audit/checks", response_model=list[AuditVerifyOut])
+async def audit_checks(
+    session: Session, caller: Admin, limit: Annotated[int, Query(ge=1, le=100)] = 30
+):
+    """The latest audit chain checks, newest first (daily and on demand)."""
+    return list(
+        await session.scalars(select(AuditCheck).order_by(AuditCheck.at.desc()).limit(limit))
+    )
+
+
+@router.get("/notifications", response_model=list[NotificationOut])
+async def notifications(
+    session: Session,
+    caller: Admin,
+    status_: Annotated[str, Query(alias="status", pattern="^(pending|sent|failed)$")] = "failed",
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+):
+    """Emails by status, newest first. "failed" = not delivered after 3 retries (FR-60)."""
+    query = (
+        select(Notification)
+        .where(Notification.status == status_)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+    )
+    return list(await session.scalars(query))

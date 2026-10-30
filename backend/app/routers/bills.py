@@ -45,6 +45,8 @@ from ..schemas import (
     PaymentIn,
     PaymentOut,
     ReverseIn,
+    UnpaidOut,
+    UnpaidTotalOut,
     VoidIn,
 )
 
@@ -258,6 +260,51 @@ async def my_bills(session: Session, caller: ResidentOnly):
     )
     currencies = {code: await _currency(session, code) for code in {b.currency_code for b in bills}}
     return [summary_out(b, currencies[b.currency_code]) for b in bills]
+
+
+@router.get("/bills/unpaid", response_model=UnpaidOut, responses={404: {}})
+async def unpaid_bills(
+    session: Session, caller: OwnerOrAdmin, building_id: uuid.UUID | None = None
+):
+    """Every bill that still has something to pay, oldest due date first, with
+    the totals per currency (FR-38). Owners: all their buildings, or one."""
+    query = (
+        select(Bill).where(Bill.status.in_(lifecycle.OPEN)).order_by(Bill.due_date, Bill.bill_no)
+    )
+    if building_id is not None:
+        await visible_building(session, caller, building_id)
+        query = query.where(Bill.building_id == building_id)
+    elif caller.role == "owner":
+        query = query.where(
+            Bill.building_id.in_(select(Building.id).where(Building.owner_id == caller.id))
+        )
+    bills = list(await session.scalars(query))
+    currencies = {code: await _currency(session, code) for code in {b.currency_code for b in bills}}
+    totals: dict[str, UnpaidTotalOut] = {}
+    for bill in bills:
+        currency = currencies[bill.currency_code]
+        total = totals.setdefault(
+            currency.code,
+            UnpaidTotalOut(
+                currency_code=currency.code,
+                bills=0,
+                amount=Decimal(0),
+                overdue_amount=Decimal(0),
+                amount_text="",
+            ),
+        )
+        outstanding = bill.total - bill.amount_paid
+        total.bills += 1
+        total.amount += outstanding
+        if bill.status == "overdue":
+            total.overdue_amount += outstanding
+    for code, total in totals.items():
+        currency = currencies[code]
+        total.amount_text = format_money(total.amount, currency.symbol, currency.minor_units)
+    return UnpaidOut(
+        bills=[summary_out(b, currencies[b.currency_code]) for b in bills],
+        totals=sorted(totals.values(), key=lambda t: t.currency_code),
+    )
 
 
 @router.get("/bills/{bill_id}", response_model=BillOut, responses={404: {}})

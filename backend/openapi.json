@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AquaPulse API",
-    "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, tariffs, bills and payments, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
-    "version": "0.6.0"
+    "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, tariffs, bills and payments, alerts and notifications, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
+    "version": "0.7.0"
   },
   "paths": {
     "/api/healthz": {
@@ -747,7 +747,7 @@
           "admin"
         ],
         "summary": "Verify Audit",
-        "description": "Re-calculate every hash: proves no audit entry was changed or removed.",
+        "description": "Re-calculate every hash now: proves no audit entry was changed or removed.\nThe worker also does this every day; GET /admin/audit/checks lists the results.",
         "operationId": "verify_audit_api_v1_admin_audit_verify_post",
         "responses": {
           "200": {
@@ -766,6 +766,127 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/admin/audit/checks": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Audit Checks",
+        "description": "The latest audit chain checks, newest first (daily and on demand).",
+        "operationId": "audit_checks_api_v1_admin_audit_checks_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditVerifyOut"
+                  },
+                  "title": "Response Audit Checks Api V1 Admin Audit Checks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/notifications": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Notifications",
+        "description": "Emails by status, newest first. \"failed\" = not delivered after 3 retries (FR-60).",
+        "operationId": "notifications_api_v1_admin_notifications_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(pending|sent|failed)$",
+              "default": "failed",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationOut"
+                  },
+                  "title": "Response Notifications Api V1 Admin Notifications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/buildings": {
@@ -3157,6 +3278,65 @@
         ]
       }
     },
+    "/api/v1/bills/unpaid": {
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Unpaid Bills",
+        "description": "Every bill that still has something to pay, oldest due date first, with\nthe totals per currency (FR-38). Owners: all their buildings, or one.",
+        "operationId": "unpaid_bills_api_v1_bills_unpaid_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnpaidOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/bills/{bill_id}": {
       "get": {
         "tags": [
@@ -3773,6 +3953,488 @@
           }
         }
       }
+    },
+    "/api/v1/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List Alerts",
+        "description": "Alerts you may see, newest first.",
+        "operationId": "list_alerts_api_v1_alerts_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: open or acknowledged; false: closed",
+              "title": "Active"
+            },
+            "description": "true: open or acknowledged; false: closed"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(info|warning|critical)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "name": "building_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Building Id"
+            }
+          },
+          {
+            "name": "home_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertOut"
+                  },
+                  "title": "Response List Alerts Api V1 Alerts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{alert_id}": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Get Alert",
+        "operationId": "get_alert_api_v1_alerts__alert_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{alert_id}/acknowledge": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Acknowledge",
+        "description": "\"I have seen it.\" Records who and when (FR-59 criterion 3). The alert\nstays until it is resolved, or the problem is gone for 10 minutes.",
+        "operationId": "acknowledge_api_v1_alerts__alert_id__acknowledge_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{alert_id}/resolve": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Resolve",
+        "description": "Close an alert by hand, e.g. after fixing the problem. If the problem is\nstill there, the next reading opens a new alert.",
+        "operationId": "resolve_api_v1_alerts__alert_id__resolve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertResolveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/alert-rules": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Get Rules",
+        "description": "Every built-in rule: on or off, its numbers and their safe limits, and\nwho gets an email for each severity.",
+        "operationId": "get_rules_api_v1_buildings__building_id__alert_rules_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRulesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Change Rules",
+        "description": "Switch rules on or off and change their numbers, within safe limits.\nOnly what you send changes (to go back to a default, send the default\nvalue). Audited. The worker uses the new settings within 10 seconds.",
+        "operationId": "change_rules_api_v1_buildings__building_id__alert_rules_patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRulesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRulesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "My Prefs",
+        "operationId": "my_prefs_api_v1_me_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPrefsOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Change My Prefs",
+        "description": "Which alerts also come by email: this severity and above, or \"off\".\nIn-app alerts are always on. Takes effect for the next alert.",
+        "operationId": "change_my_prefs_api_v1_me_notifications_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPrefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPrefsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -3805,6 +4467,388 @@
             "token": "the code from the email"
           }
         ]
+      },
+      "AlertOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved",
+              "auto_resolved"
+            ],
+            "title": "State"
+          },
+          "building_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Building Id",
+            "description": "null = a system alert"
+          },
+          "home_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Id"
+          },
+          "tank_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tank Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "The reading that last matched the rule"
+          },
+          "seen_count": {
+            "type": "integer",
+            "title": "Seen Count",
+            "description": "How many times the problem was seen (de-duplicated)"
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opened At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "cleared_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared At",
+            "description": "Problem gone since (auto-resolved 10 min later)"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "acknowledged_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule",
+          "severity",
+          "state",
+          "building_id",
+          "home_id",
+          "tank_id",
+          "device_id",
+          "title",
+          "message",
+          "value",
+          "seen_count",
+          "opened_at",
+          "last_seen_at",
+          "cleared_at",
+          "acknowledged_at",
+          "acknowledged_by",
+          "resolved_at",
+          "resolved_by"
+        ],
+        "title": "AlertOut"
+      },
+      "AlertResolveIn": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Note",
+            "description": "What was done, for the audit log",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AlertResolveIn"
+      },
+      "AlertRuleOut": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "about": {
+            "type": "string",
+            "title": "About",
+            "description": "home, tank or device"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Values"
+          },
+          "limits": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Limits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule",
+          "title",
+          "severity",
+          "about",
+          "description",
+          "enabled",
+          "values",
+          "limits"
+        ],
+        "title": "AlertRuleOut"
+      },
+      "AlertRulesIn": {
+        "properties": {
+          "rules": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Rules"
+          },
+          "recipients": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "resident"
+                    ]
+                  },
+                  "type": "array"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "info",
+                    "warning",
+                    "critical"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipients"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AlertRulesIn",
+        "description": "Only what you send changes, e.g. {\"rules\": {\"ph_unsafe\": {\"low\": 6.8}}}.",
+        "example": {
+          "recipients": {
+            "info": [
+              "owner"
+            ],
+            "warning": [
+              "owner",
+              "resident"
+            ]
+          },
+          "rules": {
+            "high_usage": {
+              "enabled": false
+            },
+            "ph_unsafe": {
+              "high": 8.2,
+              "low": 6.8
+            }
+          }
+        }
+      },
+      "AlertRulesOut": {
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleOut"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "recipients": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Recipients",
+            "description": "Who is emailed for each severity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rules",
+          "recipients"
+        ],
+        "title": "AlertRulesOut"
       },
       "AuditOut": {
         "properties": {
@@ -3926,12 +4970,44 @@
               }
             ],
             "title": "First Broken Id"
+          },
+          "entries": {
+            "type": "integer",
+            "title": "Entries",
+            "description": "How many entries were checked"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds",
+            "description": "How long the check took"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By",
+            "description": "null = the daily check by the worker"
           }
         },
         "type": "object",
         "required": [
           "ok",
-          "first_broken_id"
+          "first_broken_id",
+          "entries",
+          "seconds",
+          "at",
+          "requested_by"
         ],
         "title": "AuditVerifyOut"
       },
@@ -5868,6 +6944,138 @@
         ],
         "title": "MessageOut"
       },
+      "NotificationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "alert_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "bill_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "channel",
+          "kind",
+          "alert_id",
+          "bill_id",
+          "status",
+          "attempts",
+          "last_error",
+          "created_at",
+          "sent_at"
+        ],
+        "title": "NotificationOut",
+        "description": "One email (FR-60). The address and the text are not shown here."
+      },
+      "NotificationPrefsIn": {
+        "properties": {
+          "alert_email_min": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "critical",
+              "off"
+            ],
+            "title": "Alert Email Min"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "alert_email_min"
+        ],
+        "title": "NotificationPrefsIn"
+      },
+      "NotificationPrefsOut": {
+        "properties": {
+          "alert_email_min": {
+            "type": "string",
+            "title": "Alert Email Min",
+            "description": "Alerts of this severity and above also by email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_email_min"
+        ],
+        "title": "NotificationPrefsOut"
+      },
       "OccupancyOut": {
         "properties": {
           "id": {
@@ -7044,6 +8252,66 @@
           "expires_in"
         ],
         "title": "TokensOut"
+      },
+      "UnpaidOut": {
+        "properties": {
+          "bills": {
+            "items": {
+              "$ref": "#/components/schemas/BillSummaryOut"
+            },
+            "type": "array",
+            "title": "Bills"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/UnpaidTotalOut"
+            },
+            "type": "array",
+            "title": "Totals",
+            "description": "One line per currency (FR-38)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bills",
+          "totals"
+        ],
+        "title": "UnpaidOut"
+      },
+      "UnpaidTotalOut": {
+        "properties": {
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "bills": {
+            "type": "integer",
+            "title": "Bills"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount",
+            "description": "Still to pay"
+          },
+          "overdue_amount": {
+            "type": "string",
+            "title": "Overdue Amount",
+            "description": "Of which past the due date"
+          },
+          "amount_text": {
+            "type": "string",
+            "title": "Amount Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency_code",
+          "bills",
+          "amount",
+          "overdue_amount",
+          "amount_text"
+        ],
+        "title": "UnpaidTotalOut"
       },
       "UserOut": {
         "properties": {

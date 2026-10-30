@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M6 of 12).**
+> 🚧 **Status: under active development (milestone M7 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -42,8 +42,8 @@ flowchart LR
 | M3 Backend core (auth, roles, audit) | ✅ done |
 | M4 Live data and valve control | ✅ done |
 | M5 Secure MQTT and HTTPS | ✅ done |
-| M6 Billing and payments | 🚧 in progress |
-| M7 Alerts and notifications | ⏳ |
+| M6 Billing and payments | ✅ done |
+| M7 Alerts and notifications | 🚧 in progress |
 | M8 Web app | ⏳ |
 | M9 Android app | ⏳ |
 | M10 AI: leak detection and forecasting | ⏳ |
@@ -132,12 +132,22 @@ Guide: [docs/milestones/M5-secure-mqtt-https.md](docs/milestones/M5-secure-mqtt-
 
 Guide: [docs/milestones/M6-billing.md](docs/milestones/M6-billing.md).
 
+**Alerts and notifications (M7).** The right people hear about water problems within a minute.
+
+- A rule engine in the worker with 9 rules (unsafe pH, hot or freezing water, device offline, tank low or overflowing, pump dry-run, high daily use, failed valve command, stuck sensor). It hears each reading through PostgreSQL `LISTEN/NOTIFY` and needs several bad readings in a row, so 7 normal simulated days raise no alerts.
+- One problem is one alert (a de-duplication key): open → acknowledged → resolved, or auto-resolved 10 minutes after the problem stops.
+- In-app (live WebSocket) and email, through a queue with 3 retries (10 s, 30 s, 90 s); failures are visible to the System Admin. Each person picks from which severity they get emails; each owner picks who gets which severity and tunes the rules within safe limits.
+- Bill reminders 3 days before, on, and 7 days after the due date, each sent once; an unpaid list with totals per currency.
+- A tamper-evident audit log: every entry's SHA-256 hash covers the previous one. The worker checks the chain daily (100,000 entries in about 5 s) and raises a critical alert if anything was changed.
+
+Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
+
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6); AI later (M3+)
+backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
 web/         React web app / PWA                                              (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

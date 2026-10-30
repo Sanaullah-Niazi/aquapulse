@@ -86,7 +86,7 @@ async def test_hash_chain_detects_a_changed_entry(client, make):
     admin = await make.user("sysadmin")
     headers = await make.headers(admin)
     r = await client.post("/api/v1/admin/audit/verify", headers=headers)
-    assert r.json() == {"ok": True, "first_broken_id": None}
+    assert (r.json()["ok"], r.json()["first_broken_id"]) == (True, None)
 
     # A database superuser switches the guard off and edits history...
     owner_engine = create_async_engine(get_settings().db_url(owner=True, database=TEST_DB))

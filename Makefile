@@ -168,11 +168,23 @@ restart-check: ## Restart everything and check it is all healthy again within 90
 # M6: Billing and payments
 # ---------------------------------------------------------------
 
-worker-logs: ## Follow the worker's logs: monthly bills, overdue bills (Ctrl+C to stop)
+worker-logs: ## Follow the worker's logs: bills, alerts, emails, audit checks (Ctrl+C to stop)
 	docker compose logs -f --tail=50 worker
 
 MONTH ?=
 bills: ## Make last month's draft bills for every building now: make bills (or MONTH=2026-09)
 	docker compose exec api python -m app.bills $(MONTH)
+
+# ---------------------------------------------------------------
+# M7: Alerts and notifications
+# ---------------------------------------------------------------
+
+TYPE ?= temp_spike
+MINUTES ?= 5
+problem: ## Cause a real problem for the alert engine: make problem (or TYPE=ph_drift DEVICE=home-b01-02 MINUTES=30)
+	docker compose exec simulator aquapulse-sim scenario $(TYPE) $(DEVICE) --minutes $(MINUTES) $(if $(filter temp_spike,$(TYPE)),--params '{"deltaC": 25}')
+
+alerts: ## List the newest alerts (open ones first) straight from the database
+	@docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT severity, state, rule, COALESCE(device_id, '"'"'-'"'"') AS device, opened_at::timestamp(0) AS opened, seen_count AS seen, left(message, 60) AS message FROM alerts ORDER BY state IN ('"'"'open'"'"', '"'"'acknowledged'"'"') DESC, opened_at DESC LIMIT 20"'
 
 test: sim-test api-test ## Run all tests (grows with each milestone)

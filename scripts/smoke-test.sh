@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 to M6).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M7).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -21,6 +21,9 @@
 #                  revoke its password, the broker refuses it within 10 s (M5)
 #   - Billing:     a tariff, a month of readings, a generated KWD bill with
 #                  the right total, its PDF, a part payment and the rest (M6)
+#   - Alerts:      a real hot-water problem opens one alert, an email reaches
+#                  Mailpit, the owner acknowledges and resolves it; the audit
+#                  chain is checked on demand (M7)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -37,7 +40,7 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 to M6)"
+echo "AquaPulse smoke test (M1 to M7)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
@@ -451,6 +454,91 @@ if grep -q "PAID partially_paid paid" <<<"$m6_out"; then
   pass "Billing: cash part payment -> partially paid; bank transfer of the rest -> paid"
 else
   fail "Billing: payments: $(grep PAID <<<"$m6_out" || tail -n 3 <<<"$m6_out")"
+fi
+
+# 11. Alerts (M7) ----------------------------------------------------------------
+# A real problem on demo unit 05: the simulator makes its water about 25 °C
+# hotter. The worker's rule engine must open ONE "temperature" alert, email
+# the owner (in Mailpit) and let the owner acknowledge and resolve it. Then
+# the System Admin checks the audit chain on demand.
+echo "  (alerts: waiting up to 2 minutes for 5 hot readings in a row...)"
+m7_out="$(docker compose exec -T api python - <<'PY' 2>&1
+import json, os, time, urllib.parse, urllib.request
+from datetime import UTC, datetime
+
+API, SIM, MAIL = "http://127.0.0.1:8000/api/v1", "http://simulator:8090", "http://mailpit:8025"
+
+def call(method, url, body=None, token=None):
+    request = urllib.request.Request(url if url.startswith("http") else API + url, method=method,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"} | ({"Authorization": "Bearer " + token} if token else {}))
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.load(response)
+
+def login(email):
+    return call("POST", "/auth/login", {"email": email, "password": os.environ["DEMO_PASSWORD"]})["access_token"]
+
+owner = login("owner@example.com")
+building = next(b for b in call("GET", "/buildings", token=owner) if b["name"] == "AquaPulse Demo Tower")
+home = next(h for h in call("GET", f"/buildings/{building['id']}/homes", token=owner) if h["unit_no"] == "05")
+started = datetime.now(UTC)
+scenario = call("POST", f"{SIM}/scenarios", {"type": "temp_spike", "device": "home-b01-05",
+                                             "minutes": 5, "params": {"deltaC": 25}})
+alert = None
+try:
+    for _ in range(120):
+        time.sleep(1)
+        found = call("GET", "/alerts?" + urllib.parse.urlencode(
+            {"home_id": home["id"], "active": "true", "severity": "warning"}), token=owner)
+        alert = next((a for a in found if a["rule"] == "temp_abnormal"), None)
+        if alert:
+            break
+finally:
+    call("DELETE", f"{SIM}/scenarios/{scenario['id']}")
+if alert is None:
+    print("ALERT none")
+else:
+    print("ALERT", alert["rule"], alert["severity"], alert["state"], round(alert["value"]))
+    seconds = (datetime.fromisoformat(alert["opened_at"]) - started).total_seconds()
+    print("SECONDS", round(seconds))
+    subject = None
+    for _ in range(30):  # the worker sends every 5 seconds
+        query = urllib.parse.quote('to:owner@example.com subject:"unit 05"')
+        for message in call("GET", f"{MAIL}/api/v1/search?query={query}")["messages"]:
+            if datetime.fromisoformat(message["Created"].replace("Z", "+00:00")) >= started:
+                subject = message["Subject"]
+        if subject:
+            break
+        time.sleep(1)
+    print("EMAIL", subject)
+    acked = call("POST", f"/alerts/{alert['id']}/acknowledge", {}, token=owner)
+    resolved = call("POST", f"/alerts/{alert['id']}/resolve", {"note": "smoke test"}, token=owner)
+    print("CLOSED", acked["state"], resolved["state"])
+admin = login("admin@example.com")
+check = call("POST", "/admin/audit/verify", token=admin)
+print("AUDIT", check["ok"], check["entries"], check["seconds"])
+PY
+)"
+if grep -q "ALERT temp_abnormal warning open" <<<"$m7_out"; then
+  pass "Alerts: hot water on unit 05 opened a warning alert $(grep SECONDS <<<"$m7_out" | cut -d' ' -f2) s after it started ($(grep ALERT <<<"$m7_out" | cut -d' ' -f5) °C)"
+else
+  fail "Alerts: no temperature alert: $(grep ALERT <<<"$m7_out" || tail -n 3 <<<"$m7_out")"
+fi
+if grep -q "EMAIL \[AquaPulse\] Warning: Water temperature abnormal (unit 05" <<<"$m7_out"; then
+  pass "Alerts: email to the owner is in Mailpit (http://localhost:8025)"
+else
+  fail "Alerts: email: $(grep EMAIL <<<"$m7_out" || tail -n 3 <<<"$m7_out")"
+fi
+if grep -q "CLOSED acknowledged resolved" <<<"$m7_out"; then
+  pass "Alerts: the owner acknowledged it, then resolved it"
+else
+  fail "Alerts: acknowledge/resolve: $(grep CLOSED <<<"$m7_out" || tail -n 3 <<<"$m7_out")"
+fi
+read -r _ audit_ok audit_n audit_s <<<"$(grep '^AUDIT' <<<"$m7_out")"
+if [ "${audit_ok:-}" = "True" ]; then
+  pass "Audit chain: all $audit_n entries checked, nothing changed (${audit_s} s)"
+else
+  fail "Audit chain: $(grep AUDIT <<<"$m7_out" || tail -n 3 <<<"$m7_out")"
 fi
 
 echo ""

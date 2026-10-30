@@ -73,7 +73,7 @@ jobs:
         run: uv run pytest
 
   backend:
-    name: Backend lint + API, ingestor and billing tests (M3 to M6)
+    name: Backend lint + API, ingestor, billing and alert tests (M3 to M7)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -116,7 +116,7 @@ jobs:
         run: docker compose down -v
 
   stack:
-    name: Docker stack smoke + live MQTT + TLS tests (M1 to M6)
+    name: Docker stack smoke + live MQTT + TLS tests (M1 to M7)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

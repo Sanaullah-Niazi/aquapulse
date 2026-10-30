@@ -22,7 +22,7 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 
 | ID | Threat (short) | Status at M5 | Evidence (what proves it) |
 |----|----------------|--------------|---------------------------|
-| T-01 | Fake device sends fake readings | **Done**: own password per device (32 random bytes, only a hash stored), TLS, a device may only publish on its own topics. Anomaly alerts **Later** (M7). | `tests/broker/test_broker_acl.py`, smoke "home-test-01 may not publish to home-b01-02's topic" |
+| T-01 | Fake device sends fake readings | **Done**: own password per device (32 random bytes, only a hash stored), TLS, a device may only publish on its own topics. Rule alerts for impossible readings (pH, temperature, stuck sensor) **Done** (M7); AI anomaly detection **Later** (M10). | `tests/broker/test_broker_acl.py`, smoke "home-test-01 may not publish to home-b01-02's topic" |
 | T-02 | Someone sends "close valve" to many homes | **Done**: only the `commander` account may publish commands; the ingestor's reading account cannot; devices cannot. Commands expire after 30 s. | `test_only_the_command_account_can_send_commands`, M4 command tests |
 | T-03 | Sniffing MQTT on the Wi-Fi | **Done**: TLS 1.2+ only (1.3 negotiated), modern ciphers only, port 1883 closed. | `tests/broker/test_broker_tls.py`, `make tls-check` (testssl.sh) |
 | T-04 | Recorded command replayed | **Done**: cmdId dedupe + expiry (M4), and TLS stops recording. | M4 command tests, simulator FR-13 tests |
@@ -34,11 +34,11 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 | T-10 | XSS in the web app | **Partly**: strict CSP and nosniff on every page from Caddy (M5). The web app itself is **Later** (M8). | smoke "security headers", `infra/caddy/Caddyfile` |
 | T-11 | Bills changed afterwards | **Done** (M6): issued bills are never edited, only voided with a reason (audited) and replaced; the API's database role cannot DELETE bills or payments; tariff changes are new versions and cannot reach back into issued months. | `tests/billing/test_bill_lifecycle.py`, `test_tariff_configuration_with_versioning.py` |
 | T-12 | Fake "payment success" | **Done** (M6): only a Stripe webhook with a valid signature marks a bill paid (the return page changes nothing); bad signatures are refused and logged; each Stripe session is recorded once; only test keys are accepted. | `tests/billing/test_stripe.py` |
-| T-13 | Owner denies cutting off water | **Partly**: reason required, audit log with user, IP, time (M3, M4). Hash chain **Later** (M7). | `tests/api/test_audit_log.py`, valve-lock tests |
-| T-14 | Admin deletes audit entries | **Partly**: the API's database role cannot UPDATE/DELETE audit rows. Hash chain **Later** (M7). | smoke "the API's database role cannot delete history" |
+| T-13 | Owner denies cutting off water | **Done**: reason required, audit log with user, IP, time (M3, M4); every entry is hash-chained to the one before, so an entry changed later is found by the daily check (M7). | `tests/api/test_audit_log.py`, valve-lock tests, `tests/security/test_tamper_evident_audit_chain.py` |
+| T-14 | Admin deletes audit entries | **Done**: the API's database role cannot UPDATE/DELETE audit rows (M3). A database superuser could, but the SHA-256 hash chain shows the first changed or missing entry; the worker checks it daily and opens a critical alert for System Admins (M7). | smoke "the API's database role cannot delete history" and "Audit chain", `tests/security/test_tamper_evident_audit_chain.py` |
 | T-15 | Flooding the broker | **Partly**: 2 KB message limit, max 1000 connections, max keepalive 120 s, login required before anything, the ingestor queue pushes back instead of growing. Docker resource limits **Later** (M12). | `infra/mosquitto/mosquitto.conf` |
 | T-16 | Expensive API queries | **Done**: 7 days raw / 400 days aggregates, rate limits. | `tests/api/test_live_data_and_consumption.py` |
-| T-17 | Water cut off wrongly | **Partly**: owner lock needs a reason and emails the residents, everything audited (M4). Non-payment shut-off only with the owner's policy, an overdue bill and a 48-hour warning (M6). Auto shut-off limits **Later** (M7). | `tests/api/test_valve_control.py`, `tests/billing/test_nonpayment_shutoff.py` |
+| T-17 | Water cut off wrongly | **Partly**: owner lock needs a reason and emails the residents, everything audited (M4). Non-payment shut-off only with the owner's policy, an overdue bill and a 48-hour warning (M6). Automatic shut-off on a leak (FR-61) and its once-per-hour limit **Later** (M10). | `tests/api/test_valve_control.py`, `tests/billing/test_nonpayment_shutoff.py` |
 | T-18 | Pump run with empty sump | **Done** in the simulator (device-side safety overrides commands); real firmware **Later** (M11). | simulator tank tests |
 | T-19 | Building average reveals a neighbour | **Later** (M9). | |
 | T-20 | Secrets in logs or backups | **Partly**: logs never contain payloads, passwords or tokens; device passwords are never stored in plain text or logged (M5). Encrypted backups **Later** (M12). | `tests/security/test_log_redaction.py`, `test_plain_password_is_never_stored_or_logged` |
@@ -89,7 +89,7 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 | Risk | Why it is acceptable now | When |
 |------|--------------------------|------|
 | One server = single point of failure (T-15) | Portfolio project, documented | M12 (backups, monitoring) |
-| A DB superuser could rewrite the audit log | Hash chain not built yet | M7 |
+| A DB superuser could rewrite the **whole** audit log, recomputing every hash | The chain finds any change to old entries, but someone with full control could rebuild it from the start. Fix: copy the latest hash somewhere else each day (backup, email) | M12 (backups) |
 | No 2FA yet | No public deployment yet | M8 |
 
 Next review: **M12**, before the public demo.

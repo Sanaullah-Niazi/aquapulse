@@ -1,5 +1,5 @@
 """Database tables (SRS section 7.1). M3: people and places. M4: devices and readings.
-M6: tariffs, bills, payments.
+M6: tariffs, bills, payments. M7: alerts, notifications, bill reminders.
 
 Every table uses UUID keys, so IDs in URLs cannot be guessed by counting.
 """
@@ -59,6 +59,11 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(String(32))
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # M7 (FR-60): email alerts of this severity and above ("off" = none).
+    # In-app alerts are always on. More choices come with the apps (FR-52).
+    alert_email_min: Mapped[str] = mapped_column(
+        String(8), nullable=False, server_default="warning"
+    )
     created_at: Mapped[datetime] = _now()
 
 
@@ -91,6 +96,15 @@ class Building(Base):
     )
     # M6: issue new monthly bills automatically instead of leaving them as drafts.
     bills_auto_issue: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # M7 (FR-62): the owner's changes to the built-in alert rules, e.g.
+    # {"ph_unsafe": {"enabled": true, "low": 6.0}}, and who is emailed for
+    # each severity. Empty = the defaults in app/alerts/rules.py.
+    alert_rules: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    alert_recipients: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     created_at: Mapped[datetime] = _now()
 
     homes: Mapped[list[Home]] = relationship(back_populates="building")
@@ -596,3 +610,107 @@ class CheckoutSession(Base):
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = _now()
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ----- M7: alerts, notifications, bill reminders, audit checks -----
+
+SEVERITIES = ("info", "warning", "critical")
+ALERT_STATES = ("open", "acknowledged", "resolved", "auto_resolved")
+OPEN_ALERT_STATES = ("open", "acknowledged")
+
+
+class Alert(Base):
+    """One problem, from the moment a rule sees it until it is resolved (FR-58, FR-59).
+
+    The dedupe key (e.g. "ph_unsafe:home-b01-03") makes one ongoing problem ONE
+    alert: while an alert with that key is open or acknowledged, new readings
+    only update it. When the condition is gone for 10 minutes, the worker
+    auto-resolves it.
+    """
+
+    __tablename__ = "alerts"
+    __table_args__ = (
+        CheckConstraint(f"severity IN {SEVERITIES}", name="severity_valid"),
+        CheckConstraint(f"state IN {ALERT_STATES}", name="state_valid"),
+        Index("one_open_alert_per_problem", "dedupe_key", unique=True,
+              postgresql_where=text("state IN ('open', 'acknowledged')")),
+        Index("alerts_building_opened", "building_id", "opened_at"),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    rule: Mapped[str] = mapped_column(String(24), nullable=False)
+    severity: Mapped[str] = mapped_column(String(8), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    dedupe_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # null building = a system alert (e.g. the audit chain), for System Admins.
+    building_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("buildings.id"))
+    home_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("homes.id"), index=True)
+    tank_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tanks.id"))
+    device_id: Mapped[str | None] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    value: Mapped[float | None] = mapped_column(Float)  # the reading that last matched
+    seen_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+
+class Notification(Base):
+    """One message to one person by one channel, with its delivery attempts (FR-60).
+
+    The worker sends pending ones; a failure is tried again after 10 s, 30 s
+    and 90 s. After that it stays "failed", visible to System Admins.
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'sent', 'failed')", name="status_valid"),
+        Index("notifications_due", "next_attempt_at", postgresql_where=text("status = 'pending'")),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email (push: M9)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # alert, bill_reminder
+    alert_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("alerts.id"), index=True)
+    bill_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"))
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="pending")
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(String(200))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _now()
+
+
+class BillReminder(Base):
+    """A reminder that was sent (FR-38). The key makes each one happen once."""
+
+    __tablename__ = "bill_reminders"
+    __table_args__ = (
+        CheckConstraint("kind IN ('before_due', 'due_today', 'after_due')", name="kind_valid"),
+    )
+
+    bill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bills.id"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12), primary_key=True)
+    sent_at: Mapped[datetime] = _now()
+
+
+class AuditCheck(Base):
+    """The result of each audit chain check (FR-73): daily, or on demand."""
+
+    __tablename__ = "audit_checks"
+
+    id: Mapped[uuid.UUID] = _id()
+    at: Mapped[datetime] = _now()
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    entries: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    first_broken_id: Mapped[int | None] = mapped_column(BigInteger)
+    seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))  # null = daily

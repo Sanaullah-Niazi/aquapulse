@@ -361,8 +361,32 @@ class AuditOut(Out):
 
 
 class AuditVerifyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     ok: bool
     first_broken_id: int | None
+    entries: int = Field(description="How many entries were checked")
+    seconds: float = Field(description="How long the check took")
+    at: datetime
+    requested_by: uuid.UUID | None = Field(description="null = the daily check by the worker")
+
+
+class NotificationOut(BaseModel):
+    """One email (FR-60). The address and the text are not shown here."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    channel: str
+    kind: str
+    alert_id: uuid.UUID | None
+    bill_id: uuid.UUID | None
+    status: str
+    attempts: int
+    last_error: str | None
+    created_at: datetime
+    sent_at: datetime | None
 
 
 # ----- live data and consumption (M4) -----
@@ -777,6 +801,19 @@ class BillSummaryOut(BaseModel):
     issued_at: datetime | None
 
 
+class UnpaidTotalOut(BaseModel):
+    currency_code: str
+    bills: int
+    amount: Decimal = Field(description="Still to pay")
+    overdue_amount: Decimal = Field(description="Of which past the due date")
+    amount_text: str
+
+
+class UnpaidOut(BaseModel):
+    bills: list[BillSummaryOut]
+    totals: list[UnpaidTotalOut] = Field(description="One line per currency (FR-38)")
+
+
 class BillOut(BillSummaryOut):
     month_days: int
     reading_start: Decimal | None
@@ -855,3 +892,84 @@ class CheckoutOut(BaseModel):
     currency_code: str
     test_mode: bool = True
     note: str = "Test mode, no real money. Test card: 4242 4242 4242 4242"
+
+
+# ----- alerts and notifications (M7) -----
+
+
+class AlertOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    rule: str
+    severity: Literal["info", "warning", "critical"]
+    state: Literal["open", "acknowledged", "resolved", "auto_resolved"]
+    building_id: uuid.UUID | None = Field(description="null = a system alert")
+    home_id: uuid.UUID | None
+    tank_id: uuid.UUID | None
+    device_id: str | None
+    title: str
+    message: str
+    value: float | None = Field(description="The reading that last matched the rule")
+    seen_count: int = Field(description="How many times the problem was seen (de-duplicated)")
+    opened_at: datetime
+    last_seen_at: datetime
+    cleared_at: datetime | None = Field(
+        description="Problem gone since (auto-resolved 10 min later)"
+    )
+    acknowledged_at: datetime | None
+    acknowledged_by: uuid.UUID | None
+    resolved_at: datetime | None
+    resolved_by: uuid.UUID | None
+
+
+class AlertResolveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str = Field("", max_length=300, description="What was done, for the audit log")
+
+
+Recipient = Literal["owner", "resident"]
+
+
+class AlertRulesIn(BaseModel):
+    """Only what you send changes, e.g. {"rules": {"ph_unsafe": {"low": 6.8}}}."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "rules": {"ph_unsafe": {"low": 6.8, "high": 8.2}, "high_usage": {"enabled": False}},
+                "recipients": {"info": ["owner"], "warning": ["owner", "resident"]},
+            }
+        },
+    )
+
+    rules: dict[str, dict[str, float | int | bool]] = Field(default_factory=dict)
+    recipients: dict[Literal["info", "warning", "critical"], list[Recipient]] | None = None
+
+
+class AlertRuleOut(BaseModel):
+    rule: str
+    title: str
+    severity: str
+    about: str = Field(description="home, tank or device")
+    description: str
+    enabled: bool
+    values: dict[str, float]
+    limits: dict[str, dict[str, float | str]]
+
+
+class AlertRulesOut(BaseModel):
+    rules: list[AlertRuleOut]
+    recipients: dict[str, list[str]] = Field(description="Who is emailed for each severity")
+
+
+class NotificationPrefsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alert_email_min: Literal["info", "warning", "critical", "off"]
+
+
+class NotificationPrefsOut(BaseModel):
+    alert_email_min: str = Field(description="Alerts of this severity and above also by email")

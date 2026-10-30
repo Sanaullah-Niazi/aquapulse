@@ -78,7 +78,7 @@ async def grant_rights(settings: Settings, database: str) -> None:
         await _sql(conn, "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I", user)
         # The exceptions: history may only grow, and the schema version is not the API's business.
         await _sql(conn, "REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM %I", user)
-        await _sql(conn, "REVOKE DELETE, TRUNCATE ON bills, payments FROM %I", user)
+        await _sql(conn, "REVOKE DELETE, TRUNCATE ON bills, payments, alerts FROM %I", user)
         await _sql(conn, "REVOKE ALL ON alembic_version FROM %I", user)
     await engine.dispose()
 

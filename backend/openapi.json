@@ -115,7 +115,7 @@
           "auth"
         ],
         "summary": "Login Form",
-        "description": "Same as /login, as an HTML form. Used by Swagger's **Authorize** button\n(type your email in the *username* box).",
+        "description": "Same as /login, as an HTML form. Used by Swagger's **Authorize** button\n(type your email in the *username* box; with two-factor login on, put the\n6-digit code in the *client_secret* box).",
         "operationId": "login_form_api_v1_auth_token_post",
         "requestBody": {
           "content": {
@@ -465,6 +465,218 @@
           },
           "422": {
             "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/2fa/setup": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Two Factor Setup",
+        "description": "Step 1: a new secret for the authenticator app. Nothing changes until step 2.",
+        "operationId": "two_factor_setup_api_v1_me_2fa_setup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoFactorSetupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorSetupOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/2fa/enable": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Two Factor Enable",
+        "description": "Step 2: type the code the app shows. Returns 10 recovery codes, shown only now.",
+        "operationId": "two_factor_enable_api_v1_me_2fa_enable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoFactorCodeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/2fa/recovery-codes": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Two Factor New Codes",
+        "description": "10 new recovery codes (the old ones stop working). Needs password and code.",
+        "operationId": "two_factor_new_codes_api_v1_me_2fa_recovery_codes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoFactorDisableIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/2fa/disable": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Two Factor Disable",
+        "description": "Switch two-factor login off. Needs the password and a current code.",
+        "operationId": "two_factor_disable_api_v1_me_2fa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoFactorDisableIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1743,7 +1955,7 @@
           "live data and consumption"
         ],
         "summary": "Home Telemetry",
-        "description": "Raw readings, oldest first: at most 7 days per call (default: the last hour).",
+        "description": "Raw readings, oldest first: at most 7 days per call (default: the last hour).\nWith `every`, one averaged reading per period instead (a 7-day chart needs\na few hundred points, not 60,000).",
         "operationId": "home_telemetry_api_v1_homes__home_id__telemetry_get",
         "security": [
           {
@@ -1794,6 +2006,26 @@
               ],
               "title": "To"
             }
+          },
+          {
+            "name": "every",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 86400,
+                  "minimum": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Average per this many seconds (for charts)",
+              "title": "Every"
+            },
+            "description": "Average per this many seconds (for charts)"
           }
         ],
         "responses": {
@@ -4395,7 +4627,7 @@
           "alerts"
         ],
         "summary": "Change My Prefs",
-        "description": "Which alerts also come by email: this severity and above, or \"off\".\nIn-app alerts are always on. Takes effect for the next alert.",
+        "description": "Which alerts also come by email (FR-52): this severity and above (or \"off\"),\nalert types never by email, and quiet hours when non-critical emails wait.\nIn-app alerts are always on. Takes effect for the next alert.",
         "operationId": "change_my_prefs_api_v1_me_notifications_patch",
         "requestBody": {
           "content": {
@@ -4419,6 +4651,75 @@
             }
           },
           "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/homes/{home_id}/comparison": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Comparison",
+        "description": "This home's litres in a month, last month, and the building average per\nperson (only with 3 or more occupied homes). Months not over yet count until today.",
+        "operationId": "comparison_api_v1_homes__home_id__comparison_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM",
+              "title": "Month"
+            },
+            "description": "YYYY-MM"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
@@ -4428,12 +4729,59 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/bill-estimate": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Bill Estimate",
+        "description": "What this month's water costs so far, with the building's real tariff.\nNot a bill: the real one is made after the month ends (FR-35).",
+        "operationId": "bill_estimate_api_v1_homes__home_id__bill_estimate_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillEstimateOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -5010,6 +5358,75 @@
           "requested_by"
         ],
         "title": "AuditVerifyOut"
+      },
+      "BillEstimateOut": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "title": "To"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "litres": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Litres"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "total_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Text"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "from",
+          "to",
+          "currency_code"
+        ],
+        "title": "BillEstimateOut"
       },
       "BillLineOut": {
         "properties": {
@@ -6058,6 +6475,78 @@
         ],
         "title": "CommandOut"
       },
+      "ComparisonOut": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "title": "Until",
+            "description": "Last day counted (today for this month)"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          },
+          "previous_month_litres": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Month Litres",
+            "description": "None if you did not live here last month"
+          },
+          "people_in_home": {
+            "type": "integer",
+            "title": "People In Home"
+          },
+          "litres_per_person": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Litres Per Person"
+          },
+          "building_litres_per_person": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Building Litres Per Person",
+            "description": "Only shown with 3 or more occupied homes (FR-49)"
+          },
+          "occupied_homes": {
+            "type": "integer",
+            "title": "Occupied Homes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "until",
+          "litres",
+          "people_in_home",
+          "litres_per_person",
+          "occupied_homes"
+        ],
+        "title": "ComparisonOut"
+      },
       "ConsumptionOut": {
         "properties": {
           "granularity": {
@@ -6542,6 +7031,28 @@
                 "type": "null"
               }
             ]
+          },
+          "unit_no": {
+            "type": "string",
+            "title": "Unit No",
+            "default": ""
+          },
+          "building_name": {
+            "type": "string",
+            "title": "Building Name",
+            "default": ""
+          },
+          "ph_safe_low": {
+            "type": "number",
+            "title": "Ph Safe Low",
+            "description": "Below this the water is unsafe (alert rules)",
+            "default": 6.5
+          },
+          "ph_safe_high": {
+            "type": "number",
+            "title": "Ph Safe High",
+            "description": "Above this the water is unsafe",
+            "default": 8.5
           }
         },
         "type": "object",
@@ -6813,6 +7324,19 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Password"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Only with two-factor login on (FR-70): the 6-digit code, or a recovery code"
           }
         },
         "additionalProperties": false,
@@ -6880,6 +7404,12 @@
             "type": "array",
             "title": "Home Ids",
             "default": []
+          },
+          "two_factor": {
+            "type": "boolean",
+            "title": "Two Factor",
+            "description": "Two-factor login is on (FR-70)",
+            "default": false
           }
         },
         "type": "object",
@@ -7045,22 +7575,77 @@
       "NotificationPrefsIn": {
         "properties": {
           "alert_email_min": {
-            "type": "string",
-            "enum": [
-              "info",
-              "warning",
-              "critical",
-              "off"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "info",
+                  "warning",
+                  "critical",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "Alert Email Min"
+          },
+          "email_muted_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Muted Rules",
+            "description": "Alert types you never want by email (in the app they still show)"
+          },
+          "quiet_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet From",
+            "description": "Quiet hours start (building time)"
+          },
+          "quiet_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Until",
+            "description": "Quiet hours end"
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "alert_email_min"
-        ],
-        "title": "NotificationPrefsIn"
+        "title": "NotificationPrefsIn",
+        "examples": [
+          {
+            "alert_email_min": "warning",
+            "email_muted_rules": [
+              "high_usage"
+            ],
+            "quiet_from": "22:00",
+            "quiet_until": "07:00"
+          }
+        ]
       },
       "NotificationPrefsOut": {
         "properties": {
@@ -7068,6 +7653,39 @@
             "type": "string",
             "title": "Alert Email Min",
             "description": "Alerts of this severity and above also by email"
+          },
+          "email_muted_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Email Muted Rules",
+            "default": []
+          },
+          "quiet_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet From",
+            "description": "Non-critical emails wait until quiet hours end (FR-52)"
+          },
+          "quiet_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Until"
           }
         },
         "type": "object",
@@ -7527,6 +8145,23 @@
           "rssi"
         ],
         "title": "ReadingOut"
+      },
+      "RecoveryCodesOut": {
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recovery Codes",
+            "description": "Shown once. Each works one time."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "RecoveryCodesOut"
       },
       "RefreshIn": {
         "properties": {
@@ -8252,6 +8887,82 @@
           "expires_in"
         ],
         "title": "TokensOut"
+      },
+      "TwoFactorCodeIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "TwoFactorCodeIn"
+      },
+      "TwoFactorDisableIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "title": "Code"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "password"
+        ],
+        "title": "TwoFactorDisableIn"
+      },
+      "TwoFactorSetupIn": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "TwoFactorSetupIn"
+      },
+      "TwoFactorSetupOut": {
+        "properties": {
+          "secret": {
+            "type": "string",
+            "title": "Secret",
+            "description": "Type this into the authenticator app if you cannot scan"
+          },
+          "otpauth_url": {
+            "type": "string",
+            "title": "Otpauth Url"
+          },
+          "qr_svg": {
+            "type": "string",
+            "title": "Qr Svg",
+            "description": "The same as a QR code (SVG) to scan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "secret",
+          "otpauth_url",
+          "qr_svg"
+        ],
+        "title": "TwoFactorSetupOut"
       },
       "UnpaidOut": {
         "properties": {

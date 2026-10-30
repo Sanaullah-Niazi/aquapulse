@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M7 of 12).**
+> 🚧 **Status: under active development (milestone M8 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -43,8 +43,8 @@ flowchart LR
 | M4 Live data and valve control | ✅ done |
 | M5 Secure MQTT and HTTPS | ✅ done |
 | M6 Billing and payments | ✅ done |
-| M7 Alerts and notifications | 🚧 in progress |
-| M8 Web app | ⏳ |
+| M7 Alerts and notifications | ✅ done |
+| M8 Web app | 🚧 in progress (part 1 of 3) |
 | M9 Android app | ⏳ |
 | M10 AI: leak detection and forecasting | ⏳ |
 | M11 ESP32 firmware and hardware | ⏳ |
@@ -142,13 +142,23 @@ Guide: [docs/milestones/M6-billing.md](docs/milestones/M6-billing.md).
 
 Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
 
+**Web app (M8, part 1 of 3).** A React web app you can install on your phone (PWA), at https://localhost:8443/app/.
+
+- Log in with an optional second step: a 6-digit code from any free authenticator app, plus 10 one-time recovery codes.
+- Residents see their home live (litres today and this month, water running, pH with a Safe / Check / Unsafe label, temperature, the bill so far), turn their water off and on, compare with last month and with the anonymous building average per person, follow pH and temperature live, and open their bills (PDF, pay online in Stripe test mode).
+- Everyone can change their details and password, and choose which alert emails they get, with quiet hours (critical alerts always come at once).
+- Works from 360 px phones to big screens, light and dark, keyboard and screen-reader friendly. Playwright clicks through it at phone and desktop size and runs an axe accessibility check on every screen.
+- Part 2 adds the owner screens, part 3 the System Admin console and the guide to put it on your own website.
+
+Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
+
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
 backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
-web/         React web app / PWA                                              (M8)
+web/         React web app / PWA: resident screens, login with 2FA        (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)
 infra/       Mosquitto, Caddy, certificates, backups                          (M1+)

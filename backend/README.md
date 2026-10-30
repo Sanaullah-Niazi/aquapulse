@@ -1,7 +1,7 @@
 # backend/
 
 The AquaPulse API (M3), the MQTT ingestor (M4), broker-auth (M5) and the worker for bills and alerts (M6, M7): one image with four start commands.
-Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-live-data.md), [M5](../docs/milestones/M5-secure-mqtt-https.md), [M6](../docs/milestones/M6-billing.md), [M7](../docs/milestones/M7-alerts.md).
+Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-live-data.md), [M5](../docs/milestones/M5-secure-mqtt-https.md), [M6](../docs/milestones/M6-billing.md), [M7](../docs/milestones/M7-alerts.md), [M8](../docs/milestones/M8-web-app.md).
 
 ## Code map
 
@@ -19,8 +19,9 @@ Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-
 | `app/security/tokens.py` | Ed25519 JWT access tokens, random one-time tokens |
 | `app/security/ratelimit.py` | Sliding-window rate limits |
 | `app/security/mqtt_passwords.py` | Device passwords, Mosquitto-format hashes, simulator passwords (M5) |
+| `app/security/totp.py` | Two-factor login: authenticator codes, the secret stored encrypted, one-time recovery codes (M8) |
 | `app/brokerauth.py` | broker-auth (`python -m app.brokerauth`): writes the broker's password list from the database (M5) |
-| `app/routers/` | The endpoints: `auth`, `me`, `admin`, `buildings`, `residents`, `health`; M4: `live`, `valves`, `tanks`, `stream` (WebSocket); M5: `devices` (register, rotate, revoke); M6: `tariffs`, `bills` (bills, payments, Stripe checkout and webhook); M7: `alerts` (alerts, rule settings, email choice) |
+| `app/routers/` | The endpoints: `auth`, `me`, `admin`, `buildings`, `residents`, `health`; M4: `live`, `valves`, `tanks`, `stream` (WebSocket); M5: `devices` (register, rotate, revoke); M6: `tariffs`, `bills` (bills, payments, Stripe checkout and webhook); M7: `alerts` (alerts, rule settings, email choice); M8: `myhome` (comparison, bill so far), 2FA in `me`, email choices per alert type and quiet hours |
 | `app/billing/` | M6: `money.py` rounding and formatting, `engine.py` the bill calculation (pure, no database), `periods.py` months and stays, `generate.py` monthly bills from readings, `lifecycle.py` issue/void/payments/overdue, `pdf.py` + `templates/bill.html` PDF bills, `stripe_pay.py` Stripe test mode; M7: `reminders.py` bill reminders |
 | `app/alerts/` | M7: `rules.py` the 9 rules and safe limits, `detect.py` readings in, problems out (pure, no database), `store.py` alerts and queued emails, `engine.py` runs it all in the worker, `deliver.py` sends emails with retries |
 | `app/worker.py` | The worker (`python -m app.worker`): last month's bills on the 1st, overdue bills every minute (M6); the alert engine, reminders, email sending and the daily audit chain check (M7) |

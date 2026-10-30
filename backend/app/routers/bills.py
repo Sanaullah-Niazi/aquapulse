@@ -527,15 +527,15 @@ async def checkout(bill_id: uuid.UUID, session: Session, caller: ResidentOnly):
         raise HTTPException(http.HTTP_409_CONFLICT, f"A {bill.status} bill cannot be paid")
     currency = await _currency(session, bill.currency_code)
     amount_minor = stripe_minor(bill.total - bill.amount_paid, currency.minor_units)
-    public = get_settings().public_url.rstrip("/")
+    app = get_settings().web_app_url  # back to the bill in the web app (R-06)
     page = await pay.create_checkout(
         bill_id=str(bill.id),
         description=f"Water bill {bill.bill_no} ({bill.month:%B %Y}) - TEST MODE, no real money",
         amount_minor=amount_minor,
         currency=currency.code,
         customer_email=caller.user.email,
-        success_url=f"{public}/pay/done.html?bill={bill.id}",
-        cancel_url=f"{public}/pay/cancelled.html?bill={bill.id}",
+        success_url=f"{app}/bills/{bill.id}?payment=done",
+        cancel_url=f"{app}/bills/{bill.id}?payment=cancelled",
     )
     amount = from_minor(amount_minor, currency.minor_units)
     session.add(

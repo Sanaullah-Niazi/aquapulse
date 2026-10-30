@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit
 from .. import events as bus
-from ..alerts.rules import check, describe, settings_for
+from ..alerts.rules import AUDIT_RULE, RULES, check, describe, settings_for
 from ..alerts.store import alert_event
 from ..db import get_session
 from ..deps import NOT_FOUND, Caller, active_occupancy_filter, require, visible_building
@@ -224,12 +224,33 @@ async def change_rules(
 
 @router.get("/me/notifications", response_model=NotificationPrefsOut)
 async def my_prefs(caller: AnyRole):
-    return NotificationPrefsOut(alert_email_min=caller.user.alert_email_min)
+    return NotificationPrefsOut.model_validate(caller.user)
 
 
-@router.patch("/me/notifications", response_model=NotificationPrefsOut)
+@router.patch("/me/notifications", response_model=NotificationPrefsOut, responses={422: {}})
 async def change_my_prefs(body: NotificationPrefsIn, caller: AnyRole):
-    """Which alerts also come by email: this severity and above, or "off".
+    """Which alerts also come by email (FR-52): this severity and above (or "off"),
+    alert types never by email, and quiet hours when non-critical emails wait.
     In-app alerts are always on. Takes effect for the next alert."""
-    caller.user.alert_email_min = body.alert_email_min  # saved with the request
-    return NotificationPrefsOut(alert_email_min=caller.user.alert_email_min)
+    sent = body.model_dump(exclude_unset=True)
+    unknown = set(sent.get("email_muted_rules") or []) - set(RULES) - {AUDIT_RULE.id}
+    if unknown:
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown alert type: {', '.join(sorted(unknown))}"
+        )
+    quiet = {k: sent[k] for k in ("quiet_from", "quiet_until") if k in sent}
+    if quiet and (
+        len(quiet) == 1 or (quiet["quiet_from"] is None) != (quiet["quiet_until"] is None)
+    ):
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Set both quiet_from and quiet_until (or both to null for no quiet hours)",
+        )
+    if quiet.get("quiet_from") is not None and quiet["quiet_from"] == quiet["quiet_until"]:
+        raise HTTPException(http.HTTP_422_UNPROCESSABLE_CONTENT, "Quiet hours need a length")
+    for field, value in sent.items():
+        if value is not None or field.startswith("quiet_"):
+            setattr(
+                caller.user, field, sorted(set(value)) if field == "email_muted_rules" else value
+            )
+    return NotificationPrefsOut.model_validate(caller.user)

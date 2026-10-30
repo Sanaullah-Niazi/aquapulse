@@ -134,7 +134,7 @@ async def test_checkout_asks_stripe_for_the_exact_amount(client, make, world, st
     assert (params["amount_minor"], params["currency"]) == (54000, "PKR")
     assert "TEST MODE" in params["description"] and bill["bill_no"] in params["description"]
     assert params["customer_email"] == world.resident.email
-    assert params["success_url"].endswith(f"/pay/done.html?bill={bill['id']}")
+    assert params["success_url"].endswith(f"/app/bills/{bill['id']}?payment=done")
     assert "payment.checkout_started" in await audit_actions(target_id=bill["id"])
     # Criterion 3: being sent back to the success page changes nothing; only the webhook does.
     assert (await _bill(client, make, world, bill))["status"] == "issued"

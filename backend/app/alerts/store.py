@@ -200,8 +200,26 @@ async def recipients(session: AsyncSession, alert: Alert) -> list[User]:
     return [
         u
         for u in users
-        if u.alert_email_min != "off" and SEVERITY_ORDER[u.alert_email_min] <= wanted
+        if u.alert_email_min != "off"
+        and SEVERITY_ORDER[u.alert_email_min] <= wanted
+        and alert.rule not in (u.email_muted_rules or [])  # FR-52: "never by email"
     ]
+
+
+def after_quiet_hours(person: User, timezone: str, now: datetime) -> datetime:
+    """When a non-critical email may go out (FR-52): now, or the end of the
+    person's quiet hours (in the building's time). Hours may cross midnight,
+    like 22:00 to 07:00."""
+    start, end = person.quiet_from, person.quiet_until
+    if start is None or end is None:
+        return now
+    local = now.astimezone(ZoneInfo(timezone))
+    clock = local.time().replace(tzinfo=None)
+    quiet = start <= clock < end if start < end else (clock >= start or clock < end)
+    if not quiet:
+        return now
+    day = local.date() if clock < end else local.date() + timedelta(days=1)
+    return datetime.combine(day, end, ZoneInfo(timezone)).astimezone(UTC)
 
 
 async def _where(session: AsyncSession, alert: Alert) -> str:
@@ -226,10 +244,14 @@ async def queue_emails(session: AsyncSession, alert: Alert, now: datetime) -> in
     body = (
         f"{alert.title} - {where}\n\n{alert.message}\n\n"
         f"Severity: {alert.severity}\nStarted: {alert.opened_at:%Y-%m-%d %H:%M} UTC\n\n"
-        f"Open AquaPulse to see and acknowledge it: {get_settings().public_url}\n\n"
-        "You get this email because of your alert settings "
-        "(PATCH /api/v1/me/notifications). Alerts are always shown in the app.\n"
+        f"Open AquaPulse to see and acknowledge it: {get_settings().web_app_url}/alerts\n\n"
+        "You get this email because of your notification settings "
+        "(Profile > Notifications in the app). Alerts are always shown in the app.\n"
     )
+    timezone = None
+    if alert.building_id is not None and alert.severity != "critical":
+        building = await session.get(Building, alert.building_id)
+        timezone = building.timezone if building else None
     for person in people:
         session.add(
             Notification(
@@ -239,7 +261,8 @@ async def queue_emails(session: AsyncSession, alert: Alert, now: datetime) -> in
                 alert_id=alert.id,
                 subject=subject,
                 body=body,
-                next_attempt_at=now,
+                # Critical alerts ignore quiet hours (FR-52 criterion 1).
+                next_attempt_at=after_quiet_hours(person, timezone, now) if timezone else now,
             )
         )
     return len(people)

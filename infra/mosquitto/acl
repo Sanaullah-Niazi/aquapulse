@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------
+# Mosquitto access rules (M5, SRS FR-11). Anything not allowed here is
+# refused. "read" = may subscribe and receive, "write" = may publish.
+# ---------------------------------------------------------------
+
+# --- Server accounts: each one can only do its own job ---
+
+# The ingestor reads what devices send. It can NOT send commands.
+user ingestor
+topic read aquapulse/v1/dev/+/telemetry
+topic read aquapulse/v1/dev/+/status
+topic read aquapulse/v1/dev/+/state
+topic read aquapulse/v1/dev/+/ack
+
+# The command sender (inside the ingestor service) may only send commands.
+user commander
+topic write aquapulse/v1/dev/+/cmd
+
+# Read-only account for health checks, `make mqtt-watch` and tests.
+user monitor
+topic read $SYS/#
+topic read aquapulse/#
+
+# --- Devices ---
+# "pattern" rules apply to every account; %u is replaced by the username,
+# which for a device is its device ID. So home-b01-03 may publish only to
+# aquapulse/v1/dev/home-b01-03/... and subscribe only to its own cmd topic.
+# It cannot touch another home's topics, or subscribe to # (FR-11 crit. 2, 3).
+pattern write aquapulse/v1/dev/%u/telemetry
+pattern write aquapulse/v1/dev/%u/status
+pattern write aquapulse/v1/dev/%u/state
+pattern write aquapulse/v1/dev/%u/ack
+pattern read aquapulse/v1/dev/%u/cmd

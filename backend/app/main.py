@@ -18,11 +18,25 @@ import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from . import __version__, db
-from .routers import admin, auth, buildings, health, live, me, residents, stream, tanks, valves
+from .config import get_settings
+from .routers import (
+    admin,
+    auth,
+    buildings,
+    devices,
+    health,
+    live,
+    me,
+    residents,
+    stream,
+    tanks,
+    valves,
+)
 
 log = logging.getLogger("aquapulse.api")
 
@@ -92,8 +106,19 @@ def create_app() -> FastAPI:
         REQUESTS.labels(request.method, route, str(response.status_code)).inc()
         return response
 
+    # CORS (FR-71): a web page on another site may call the API only if its
+    # address is in CORS_ORIGINS (e.g. Sana's website). Browsers enforce it.
+    origins = [o.strip() for o in get_settings().cors_origins.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        max_age=600,
+    )
+
     app.include_router(health.router, prefix="/api")
-    for module in (auth, me, admin, buildings, residents, live, valves, tanks, stream):
+    for module in (auth, me, admin, buildings, residents, live, valves, tanks, devices, stream):
         app.include_router(module.router, prefix=API_PREFIX)
 
     @app.get("/metrics", include_in_schema=False)

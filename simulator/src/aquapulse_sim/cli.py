@@ -1,10 +1,13 @@
-"""Command line: `aquapulse-sim run | profile | devices | scenario | send ...`.
+"""Command line: `aquapulse-sim run | profile | backfill | devices | scenario ...`.
 
 `run` starts the simulator. The other commands are small helpers:
 * `profile` prints a week of simulated water use, so you can see the
   morning/evening peaks and weekend effect without any Docker or MQTT;
-* `devices` and `scenario` talk to a running simulator's control API;
-* `send` publishes a command over MQTT, like the backend will in M4.
+* `devices` and `scenario` talk to a running simulator's control API.
+
+(The `send` command of M2 to M4 is gone: since M5 only the server's
+`commander` MQTT account may send commands. Use `make valve-close`, which
+goes through the API, or Swagger.)
 """
 
 from __future__ import annotations
@@ -110,58 +113,6 @@ def cmd_scenario(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2))
 
 
-def cmd_send(args: argparse.Namespace) -> None:
-    """Publish one command like the backend will (M4), and print the device's ack."""
-    import time
-    import uuid
-
-    import aiomqtt
-
-    from . import contract
-
-    now = time.time()
-    cmd: dict = {
-        "v": 1,
-        "cmdId": str(uuid.uuid4()),
-        "type": args.type,
-        "issuedAt": contract.iso(now),
-        "expiresAt": contract.iso(now + 30),
-        "by": "owner",
-    }
-    if args.type == "thresholds":
-        low, high = (float(x) for x in args.value.split(","))
-        cmd |= {"lowPct": low, "highPct": high}
-    elif args.type == "interval":
-        cmd["seconds"] = int(args.value)
-    else:
-        cmd["action"] = args.value
-    problems = contract.validate("cmd.v1", cmd)
-    if problems:
-        sys.exit("Not a valid command: " + "; ".join(problems))
-
-    async def send() -> dict | None:
-        host = os.environ.get("MQTT_HOST", "localhost")
-        port = int(os.environ.get("MQTT_PORT", "1883"))
-        async with aiomqtt.Client(host, port, identifier=f"cli-{cmd['cmdId'][:8]}") as client:
-            await client.subscribe(contract.topic(args.device, "ack"), qos=1)
-            await client.publish(contract.topic(args.device, "cmd"), json.dumps(cmd), qos=1)
-            print("sent:", json.dumps(cmd))
-            try:
-                async with asyncio.timeout(15):
-                    async for message in client.messages:
-                        ack = json.loads(message.payload)
-                        if ack.get("cmdId") == cmd["cmdId"]:
-                            return ack
-            except TimeoutError:
-                return None
-        return None
-
-    ack = asyncio.run(send())
-    if ack is None:
-        sys.exit("No ack within 15 s. Is the device online? (make sim-logs)")
-    print("ack: ", json.dumps(ack))
-
-
 def main() -> None:
     logging.basicConfig(
         level=os.environ.get("SIM_LOG_LEVEL", "INFO"),
@@ -189,14 +140,5 @@ def main() -> None:
     p.add_argument("--minutes", type=float, default=60)
     p.add_argument("--params", help="JSON, e.g. '{\"lpm\": 1.5}'")
     p.set_defaults(func=cmd_scenario)
-    p = sub.add_parser("send", help="send a command over MQTT and wait for the ack")
-    p.add_argument("device", help="e.g. home-b01-03 or tank-b01-01")
-    p.add_argument("type", choices=["valve", "pump", "mode", "thresholds", "interval"])
-    p.add_argument(
-        "value",
-        help="valve: open|close · pump: on|off · mode: auto|manual · "
-        "thresholds: LOW,HIGH (e.g. 30,90) · interval: seconds",
-    )
-    p.set_defaults(func=cmd_send)
     args = parser.parse_args()
     args.func(args)

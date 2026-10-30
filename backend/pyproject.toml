@@ -1,7 +1,7 @@
 # AquaPulse backend: the FastAPI API (M3) and the MQTT ingestor (M4); the worker follows later.
 [project]
 name = "aquapulse-backend"
-version = "0.4.0"
+version = "0.5.0"
 description = "AquaPulse API and ingestor: accounts, buildings, live readings, valve and pump control"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
@@ -20,6 +20,7 @@ dependencies = [
     "aiomqtt==2.5.1",              # MQTT client: the ingestor talks to the devices (M4)
     "jsonschema==4.26.0",          # checks every device message against /contracts (FR-22)
     "websockets==17.3",            # lets uvicorn serve the live WebSocket (FR-25)
+    "segno==1.6.6",                # QR codes with a new device's settings (M5, FR-14)
 ]
 
 [dependency-groups]
@@ -44,7 +45,8 @@ addopts = "-q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=
 [tool.coverage.run]
 omit = [
     # command-line helpers, run by make
-    "app/seed.py", "app/export_openapi.py", "app/watch.py", "app/ingest/__main__.py",
+    "app/seed.py", "app/export_openapi.py", "app/watch.py", "app/valve.py",
+    "app/ingest/__main__.py",
 ]
 # SQLAlchemy's async layer runs our code inside greenlets; without this,
 # coverage would miss every line after the first database call.

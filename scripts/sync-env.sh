@@ -6,7 +6,8 @@
 # - Adds any setting that is in .env.example but missing from .env
 #   (so new milestones can add settings without you copying by hand).
 # - A value of __GENERATE__ becomes a fresh random secret, unique to
-#   your machine. Existing values in .env are never changed.
+#   your machine. Existing values in .env are never changed, except an
+#   old default that a later milestone replaced (listed below, and shown).
 # Usage: ./scripts/sync-env.sh   (or: make env)
 # ---------------------------------------------------------------
 set -euo pipefail
@@ -31,6 +32,23 @@ while IFS= read -r line || [ -n "$line" ]; do
   echo "  + added $key"
   added=$((added + 1))
 done < "$example"
+
+# Old defaults that a milestone replaced: update them only if you never
+# changed them yourself. M5: the site moved to HTTPS.
+retired=(
+  "PUBLIC_URL=http://localhost:8080|PUBLIC_URL=https://localhost:8443"
+)
+for pair in "${retired[@]}"; do
+  old="${pair%%|*}"
+  new="${pair#*|}"
+  if grep -qxF "$old" "$target"; then
+    tmp="$(mktemp)"
+    awk -v old="$old" -v new="$new" '$0 == old { print new; next } { print }' "$target" > "$tmp"
+    cat "$tmp" > "$target" && rm -f "$tmp"
+    echo "  ~ updated ${new%%=*} (new default: ${new#*=})"
+    added=$((added + 1))
+  fi
+done
 
 if [ "$added" -eq 0 ]; then
   echo ".env is up to date"

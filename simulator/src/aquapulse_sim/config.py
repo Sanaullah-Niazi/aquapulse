@@ -7,6 +7,9 @@ producing strange data later.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import os
 from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -62,7 +65,9 @@ class Config:
     tank_start_pct: float = 30.0
     pump_lpm: float = 60.0
     mqtt_host: str = "localhost"
-    mqtt_port: int = 1883
+    mqtt_port: int = 8883  # TLS only since M5 (FR-12)
+    mqtt_ca_file: str = "/certs/ca.crt"  # our project CA: the broker's certificate is checked
+    device_secret: str = ""  # SIM_DEVICE_SECRET: each device's password is made from it
     api_host: str = "0.0.0.0"  # inside the container; Docker publishes it on 127.0.0.1 only
     api_port: int = 8090
     data_dir: str | None = None  # where counters are saved ("flash"); None = memory only
@@ -93,8 +98,22 @@ class Config:
             tank_start_pct=_float("SIM_TANK_START_PCT", 30, 0, 100),
             pump_lpm=_float("SIM_PUMP_LPM", 60, 5, 1000),
             mqtt_host=os.environ.get("MQTT_HOST", "localhost"),
-            mqtt_port=_int("MQTT_PORT", 1883, 1, 65535),
+            mqtt_port=_int("MQTT_PORT", 8883, 1, 65535),
+            mqtt_ca_file=os.environ.get("MQTT_CA_FILE", "/certs/ca.crt"),
+            device_secret=os.environ.get("SIM_DEVICE_SECRET", ""),
             api_host=os.environ.get("SIM_API_HOST", "0.0.0.0"),
             api_port=_int("SIM_API_PORT", 8090, 1, 65535),
             data_dir=os.environ.get("SIM_DATA_DIR") or None,
         )
+
+
+def device_password(secret: str, device_id: str) -> str:
+    """A virtual device's MQTT password (M5): HMAC-SHA256 of its ID with SIM_DEVICE_SECRET.
+
+    The backend's broker-auth service computes the same value (and stores only a
+    hash of it in the broker's password list), so nobody has to copy 11
+    passwords around. Real devices get a random password when registered.
+    Must give the same result as app.security.mqtt_passwords.simulator_password.
+    """
+    digest = hmac.new(secret.encode(), device_id.encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()

@@ -51,7 +51,9 @@ async def _tank(session: AsyncSession, caller: Caller, tank_id: uuid.UUID) -> tu
 
 
 async def _tank_out(session: AsyncSession, tank: Tank) -> TankOut:
-    device = await session.scalar(select(Device).where(Device.tank_id == tank.id))
+    device = await session.scalar(
+        select(Device).where(Device.tank_id == tank.id, Device.status == "active")
+    )
     latest = await session.scalar(
         select(TankReading)
         .where(TankReading.tank_id == tank.id)

@@ -115,7 +115,9 @@ async def home_live(home_id: uuid.UUID, session: Session, caller: OwnerOrResiden
     """Latest reading, the valve state the device reported, and any lock."""
     home, building, since = await _home_and_since(session, caller, home_id)
     visible_from = _start_of(since, building.timezone)
-    device = await session.scalar(select(Device).where(Device.home_id == home.id))
+    device = await session.scalar(
+        select(Device).where(Device.home_id == home.id, Device.status == "active")
+    )
     reading = None
     if device is not None:
         latest = await session.scalar(
@@ -253,7 +255,10 @@ async def building_consumption(
             LEFT JOIN consumption_15m c
               ON c.home_id = h.id AND c.bucket >= :start AND c.bucket < :end
             WHERE h.building_id = :building
-            GROUP BY h.id, h.unit_no ORDER BY h.unit_no
+            GROUP BY h.id, h.unit_no
+            -- archived homes only if they used water in this period
+            HAVING bool_and(h.archived_at IS NULL) OR coalesce(sum(c.litres), 0) > 0
+            ORDER BY h.unit_no
             """
         ),
         {"building": building.id, "start": start, "end": end},

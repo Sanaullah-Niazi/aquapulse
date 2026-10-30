@@ -1,7 +1,7 @@
 # backend/
 
-The AquaPulse API (M3) and the MQTT ingestor (M4), one image with two start commands.
-Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-live-data.md).
+The AquaPulse API (M3), the MQTT ingestor (M4) and broker-auth (M5): one image with three start commands.
+Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-live-data.md), [M5](../docs/milestones/M5-secure-mqtt-https.md).
 
 ## Code map
 
@@ -18,18 +18,21 @@ Guides: [M3](../docs/milestones/M3-backend-core.md), [M4](../docs/milestones/M4-
 | `app/security/passwords.py` | Argon2id hashing and password rules |
 | `app/security/tokens.py` | Ed25519 JWT access tokens, random one-time tokens |
 | `app/security/ratelimit.py` | Sliding-window rate limits |
-| `app/routers/` | The endpoints: `auth`, `me`, `admin`, `buildings`, `residents`, `health`; M4: `live`, `valves`, `tanks`, `stream` (WebSocket) |
+| `app/security/mqtt_passwords.py` | Device passwords, Mosquitto-format hashes, simulator passwords (M5) |
+| `app/brokerauth.py` | broker-auth (`python -m app.brokerauth`): writes the broker's password list from the database (M5) |
+| `app/routers/` | The endpoints: `auth`, `me`, `admin`, `buildings`, `residents`, `health`; M4: `live`, `valves`, `tanks`, `stream` (WebSocket); M5: `devices` (register, rotate, revoke) |
 | `app/ingest/` | The ingestor (`python -m app.ingest`): `counter.py` litres from the meter counter, `handler.py` checks and stores messages, `commands.py` sends commands and marks timeouts, `service.py` the MQTT connection |
 | `app/contract.py` | Loads the shared JSON Schemas from `contracts/` |
 | `app/events.py` | PostgreSQL LISTEN/NOTIFY between ingestor and API |
 | `app/control.py` | Queues device commands, 10 per minute per user |
 | `app/backfill.py` | `python -m app.backfill`: loads demo history (`make demo-data`) |
 | `app/watch.py` | `python -m app.watch`: prints the live stream (`make live`) |
+| `app/valve.py` | `python -m app.valve`: valve close/open through the API (`make valve-close`) |
 | `app/migrate.py` | `python -m app.migrate`: database role, migrations, permissions |
 | `app/seed.py` | `python -m app.seed`: demo accounts, building, tank and devices |
 | `app/export_openapi.py` | Writes `openapi.json` |
 | `migrations/` | Alembic migrations |
-| `tests/` | `api/`, `security/` and `ingest/` tests, one file per requirement, against a real database (and the real broker for `test_ingestor_service.py`) |
+| `tests/` | `api/`, `security/`, `ingest/` and `broker/` tests, one file per requirement, against a real database (and the real TLS broker for `broker/` and `test_ingestor_service.py`) |
 | `bruno/` | Request collection for the free Bruno API client |
 
 ## Run without Docker (optional)
@@ -41,7 +44,8 @@ make up                               # database, broker and mail still run in D
 cd backend
 set -a; source ../.env; set +a        # load the settings
 export DB_HOST=localhost MQTT_HOST=localhost SMTP_HOST=localhost
-uv run uvicorn app.main:app --reload  # http://localhost:8000/api/docs
+export MQTT_CA_FILE="$PWD/../infra/certs/public/ca.crt"
+uv run uvicorn app.main:app --reload  # http://localhost:8000/api/docs (plain HTTP, only on your Mac)
 ```
 
 ## Database changes

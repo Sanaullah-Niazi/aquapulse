@@ -8,6 +8,11 @@ Three jobs run side by side while connected to the broker:
 * **commander**: every second, and at once when the API NOTIFYs a new
   command, marks unanswered commands `timeout` and sends queued ones.
 
+From M5 it uses two MQTT connections, both over TLS, with two different
+accounts: `ingestor` may only read what devices send, and `commander` may
+only send commands (FR-11 criterion 4). So a bug in the reading part can
+never send a command.
+
 If the broker or the database goes away, everything waits and reconnects
 with a growing pause (1 s, 2 s, 4 s ... at most 30 s).
 """
@@ -17,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import ssl
 import time
 from datetime import UTC, datetime
 
@@ -46,6 +52,22 @@ BATCH_WAIT_S = 0.1
 COMMAND_TICK_S = 1.0
 QUEUE_LIMIT = 20_000  # when full, the reader waits: MQTT slows down instead of us losing data
 METRICS_PORT = 9100
+
+
+def mqtt_client(username: str, identifier: str, **options) -> aiomqtt.Client:
+    """An MQTT connection over TLS that checks the broker's certificate against
+    our CA (never "trust anything", FR-12 criterion 3)."""
+    settings = get_settings()
+    password = getattr(settings, f"mqtt_{username}_password").get_secret_value()
+    return aiomqtt.Client(
+        settings.mqtt_host,
+        settings.mqtt_port,
+        identifier=identifier,
+        username=username,
+        password=password,
+        tls_context=ssl.create_default_context(cafile=settings.mqtt_ca_file),
+        **options,
+    )
 
 
 class Ingestor:
@@ -132,25 +154,25 @@ class Ingestor:
 
     async def run_connected(self) -> None:
         settings = get_settings()
-        client = aiomqtt.Client(
-            settings.mqtt_host,
-            settings.mqtt_port,
-            identifier=self.client_id,
+        reading = mqtt_client(
+            "ingestor",
+            self.client_id,
             # A persistent session: QoS 1 messages (acks, status) sent while
             # the ingestor restarts are kept by the broker and delivered later.
             clean_session=not self.persistent,
             max_queued_incoming_messages=QUEUE_LIMIT,
         )
-        async with client:
+        sending = mqtt_client("commander", f"{self.client_id}-commander")
+        async with reading, sending:
             metrics.CONNECTED.set(1)
-            log.info("connected to MQTT at %s:%s", settings.mqtt_host, settings.mqtt_port)
+            log.info("connected to MQTT at %s:%s (TLS)", settings.mqtt_host, settings.mqtt_port)
             try:
-                await client.subscribe(SUBSCRIPTIONS)
+                await reading.subscribe(SUBSCRIPTIONS)
                 self.handler.forget()  # devices may have changed while we were away
                 async with asyncio.TaskGroup() as tasks:
-                    tasks.create_task(self.reader(client))
+                    tasks.create_task(self.reader(reading))
                     tasks.create_task(self.writer())
-                    tasks.create_task(self.commander(client))
+                    tasks.create_task(self.commander(sending))
             finally:
                 metrics.CONNECTED.set(0)
 

@@ -14,6 +14,10 @@ Every account uses DEMO_PASSWORD from your .env (a random value made by
 changes nothing: accounts are skipped if the admin account already exists,
 and only missing devices are added (so a building seeded in M3 gets its
 devices in M4). Three months of readings come from `make demo-data`.
+
+`python -m app.seed --sim-passwords` (`make sim-passwords`, M5) gives the
+active demo devices back their simulator passwords, e.g. after you rotated
+one in Swagger to try FR-14. Revoked devices stay revoked.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 
 from . import audit, db
+from . import events as bus
 from .models import Building, Device, Home, Occupancy, Tank, User
 from .security.passwords import hash_password, password_problem
 
@@ -103,8 +108,15 @@ async def seed_devices() -> int:
             session.add(tank)
             await session.flush()
         existing = set(await session.scalars(select(Device.id)))
+        # Only the 10 demo homes (not homes you or the smoke test added).
         homes = await session.scalars(
-            select(Home).where(Home.building_id == building.id).order_by(Home.unit_no)
+            select(Home)
+            .where(
+                Home.building_id == building.id,
+                Home.unit_no.in_([f"{n:02d}" for n in range(1, HOMES + 1)]),
+                Home.archived_at.is_(None),
+            )
+            .order_by(Home.unit_no)
         )
         wanted = [
             Device(id=f"home-{BUILDING_CODE}-{h.unit_no}", kind="home",
@@ -130,6 +142,33 @@ async def seed_devices() -> int:
     return added
 
 
+async def reset_simulator_passwords() -> int:
+    """Remove the own password of the active demo devices, so broker-auth lets them
+    log in with their simulator password again. Returns how many changed."""
+    async with db.sessions()() as session, session.begin():
+        devices = list(
+            await session.scalars(
+                select(Device).where(
+                    Device.id.like(f"%-{BUILDING_CODE}-%"),
+                    Device.status == "active",
+                    Device.mqtt_password_hash.is_not(None),
+                )
+            )
+        )
+        for device in devices:
+            device.mqtt_password_hash = None
+            await audit.record(
+                session,
+                "seed.simulator_password",
+                target_type="device",
+                target_id=device.id,
+                building_id=device.building_id,
+            )
+            await bus.notify(session, bus.DEVICES, device.id)
+    await db.dispose()
+    return len(devices)
+
+
 async def seed_all(password: str, timezone: str) -> tuple[bool, int]:
     try:
         return await seed(password, timezone), await seed_devices()
@@ -138,6 +177,10 @@ async def seed_all(password: str, timezone: str) -> tuple[bool, int]:
 
 
 def main() -> None:
+    if "--sim-passwords" in sys.argv:
+        changed = asyncio.run(reset_simulator_passwords())
+        print(f"{changed} demo device(s) use their simulator password again.")
+        return
     password = os.environ.get("DEMO_PASSWORD", "")
     problem = password_problem(password)
     if problem:
@@ -150,7 +193,7 @@ def main() -> None:
     if not created:
         print("Demo accounts are already there." + ("" if devices else " Nothing changed."))
         return
-    print("Demo data created. Log in at http://localhost:8080/api/docs with:")
+    print("Demo data created. Log in at https://localhost:8443/api/docs with:")
     print(f"  {ADMIN} (System Admin), {OWNER} (Building Owner),")
     print(f"  resident01@example.com ... resident{HOMES:02d}@example.com (Residents)")
     print("  password: the DEMO_PASSWORD value in your .env file")

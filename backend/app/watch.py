@@ -19,10 +19,12 @@ from websockets.sync.client import connect
 API = "http://127.0.0.1:8000/api/v1"
 
 
-def _post(path: str, body: dict, token: str | None = None) -> dict:
+def call(method: str, path: str, body: dict | None = None, token: str | None = None):
+    """Call the API from inside its own container (also used by app.valve)."""
     request = urllib.request.Request(  # noqa: S310 (a fixed local http:// URL)
         API + path,
-        data=json.dumps(body).encode(),
+        method=method,
+        data=None if body is None else json.dumps(body).encode(),
         headers={"Content-Type": "application/json"}
         | ({"Authorization": f"Bearer {token}"} if token else {}),
     )
@@ -32,8 +34,8 @@ def _post(path: str, body: dict, token: str | None = None) -> dict:
 
 def main() -> None:
     email = sys.argv[1] if len(sys.argv) > 1 else "owner@example.com"
-    tokens = _post("/auth/login", {"email": email, "password": os.environ["DEMO_PASSWORD"]})
-    ticket = _post("/ws-ticket", {}, tokens["access_token"])["ticket"]
+    tokens = call("POST", "/auth/login", {"email": email, "password": os.environ["DEMO_PASSWORD"]})
+    ticket = call("POST", "/ws-ticket", {}, tokens["access_token"])["ticket"]
     print(f"Live events for {email} (Ctrl+C to stop):", flush=True)
     with connect(f"ws://127.0.0.1:8000/api/v1/ws?ticket={ticket}") as socket:
         try:

@@ -37,6 +37,10 @@ _load_dotenv()
 os.environ["POSTGRES_DB"] = TEST_DB
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("MQTT_HOST", "localhost")
+# The broker's certificate is checked against the project CA (make certs).
+os.environ.setdefault(
+    "MQTT_CA_FILE", str(Path(__file__).resolve().parents[2] / "infra/certs/public/ca.crt")
+)
 os.environ.setdefault("SMTP_HOST", "localhost")
 os.environ["DB_APP_USER"] = "aquapulse_app_test"
 os.environ["APP_DB_PASSWORD"] = "test-app-" + uuid.uuid4().hex
@@ -170,14 +174,20 @@ class Factory:
             )
         )
 
-    async def device(self, home: Home | None = None, tank: Tank | None = None, **values) -> Device:
+    async def device(
+        self,
+        home: Home | None = None,
+        tank: Tank | None = None,
+        device_id: str | None = None,
+        **values,
+    ) -> Device:
         """A registered device for a home (or a tank), with a unique ID."""
         target = home or tank
         assert target is not None
         kind = "home" if home else "tank"
         return await self._add(
             Device(
-                id=f"{kind}-t{uuid.uuid4().hex[:8]}",
+                id=device_id or f"{kind}-t{uuid.uuid4().hex[:8]}",
                 kind=kind,
                 building_id=target.building_id,
                 home_id=home.id if home else None,

@@ -11,16 +11,15 @@ import time
 import uuid
 from datetime import UTC, datetime
 
-import aiomqtt
 import pytest
 from sqlalchemy import select
 
 from app import contract, db
-from app.config import get_settings
 from app.ingest import service
 from app.ingest.service import Ingestor
 from app.models import Telemetry
 
+from ..mqtt_helpers import as_test_device, fresh_test_device
 from .helpers import ack, command, get_command, home_telemetry
 
 
@@ -35,11 +34,6 @@ async def ingestor():
         await task
 
 
-def _broker() -> aiomqtt.Client:
-    settings = get_settings()
-    return aiomqtt.Client(settings.mqtt_host, settings.mqtt_port)
-
-
 async def _wait_for(check, seconds: float = 5.0):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -52,9 +46,9 @@ async def _wait_for(check, seconds: float = 5.0):
 
 async def test_published_reading_is_stored_within_a_second(make, ingestor):
     world = await make.world()
-    device = await make.device(world.home)
+    device = await fresh_test_device(make, world.home)
     await asyncio.sleep(1.0)  # let the ingestor connect and subscribe
-    async with _broker() as client:
+    async with as_test_device() as client:
         now = datetime.now(UTC)
         started = time.monotonic()
         await client.publish(
@@ -76,8 +70,8 @@ async def test_published_reading_is_stored_within_a_second(make, ingestor):
 
 async def test_queued_command_reaches_the_device_and_its_ack_finishes_it(make, ingestor):
     world = await make.world()
-    device = await make.device(world.home)
-    async with _broker() as fake_device:
+    device = await fresh_test_device(make, world.home)
+    async with as_test_device() as fake_device:
         await fake_device.subscribe(contract.topic(device.id, "cmd"), qos=1)
         await asyncio.sleep(1.0)
         cmd = await command(device, state="queued", action="close")

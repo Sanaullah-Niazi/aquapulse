@@ -44,10 +44,28 @@ class Settings(BaseSettings):
     smtp_port: int = 1025
     mail_from: str = "AquaPulse <no-reply@aquapulse.example.com>"
     # Where links in emails point. The web pages for them arrive in M8.
-    public_url: str = Field("http://localhost:8080", alias="PUBLIC_URL")
+    public_url: str = Field("https://localhost:8443", alias="PUBLIC_URL")
 
+    # Web pages allowed to call the API from a browser (CORS, FR-71), comma separated.
+    cors_origins: str = Field("https://localhost:8443", alias="CORS_ORIGINS")
+
+    # MQTT (M5): TLS only, checked against our own CA, one account per job (FR-11, FR-12).
     mqtt_host: str = Field("mqtt", alias="MQTT_HOST")
-    mqtt_port: int = Field(1883, alias="MQTT_PORT")
+    mqtt_port: int = Field(8883, alias="MQTT_PORT")
+    mqtt_ca_file: str = Field("/certs/ca.crt", alias="MQTT_CA_FILE")
+    mqtt_ingestor_password: SecretStr = Field(SecretStr(""), alias="MQTT_INGESTOR_PASSWORD")
+    mqtt_commander_password: SecretStr = Field(SecretStr(""), alias="MQTT_COMMANDER_PASSWORD")
+    mqtt_monitor_password: SecretStr = Field(SecretStr(""), alias="MQTT_MONITOR_PASSWORD")
+    # What a newly registered device is told to connect to (shown in its QR code).
+    mqtt_public_host: str = Field("localhost", alias="MQTT_PUBLIC_HOST")
+    mqtt_public_port: int = Field(8883, alias="MQTT_PUBLIC_PORT")
+    # Simulated devices log in with passwords made from this secret (see
+    # security/mqtt_passwords.py). Empty = no simulated device accounts.
+    sim_device_secret: SecretStr = Field(SecretStr(""), alias="SIM_DEVICE_SECRET")
+    sim_building: str = Field("b01", alias="SIM_BUILDING")
+    sim_homes: int = Field(10, alias="SIM_HOMES")
+    # Where broker-auth writes the password list that Mosquitto reads.
+    broker_auth_file: str = Field("/broker-auth/passwd", alias="BROKER_AUTH_FILE")
 
     # Rate limits (FR-68, FR-72).
     login_max_failures: int = 5

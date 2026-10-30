@@ -39,8 +39,12 @@ def check_command_rate(caller: Caller) -> None:
 
 async def device_for(session: AsyncSession, *, home_id=None, tank_id=None) -> Device:
     """The active device of a home or tank, or 409 with a clear message."""
-    query = select(Device).where(
-        Device.home_id == home_id if home_id is not None else Device.tank_id == tank_id
+    query = (
+        select(Device)
+        .where(Device.home_id == home_id if home_id is not None else Device.tank_id == tank_id)
+        # the active one first; old revoked devices may also be there (M5)
+        .order_by((Device.status == "active").desc(), Device.created_at.desc())
+        .limit(1)
     )
     device = await session.scalar(query)
     if device is None:

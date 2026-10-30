@@ -5,6 +5,8 @@
   to the WebSockets allowed to see it (FR-25).
 * The API NOTIFYs `aquapulse_commands` when it queues a command, so the
   ingestor sends it at once instead of at its next 1-second check.
+* The API NOTIFYs `aquapulse_devices` when a device is registered, gets a new
+  password or is revoked, so broker-auth updates the broker's password list (M5).
 
 A NOTIFY is only delivered when its transaction commits, so a listener never
 hears about data that was rolled back.
@@ -29,6 +31,7 @@ log = logging.getLogger("aquapulse.events")
 
 EVENTS = "aquapulse_events"
 COMMANDS = "aquapulse_commands"
+DEVICES = "aquapulse_devices"
 
 
 async def notify(session: AsyncSession, channel: str, payload: dict[str, Any] | str) -> None:

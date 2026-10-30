@@ -1,7 +1,8 @@
 """One MQTT connection per virtual device, exactly like a real ESP32 (FR-01).
 
 For each device this module:
-* connects with its own client ID and registers a Last Will "offline" (FR-06);
+* connects over TLS with its own username and password (M5, FR-11, FR-12)
+  and registers a Last Will "offline" (FR-06);
 * publishes a retained "online" status and its retained state;
 * subscribes to its own cmd topic and hands commands to the device (FR-04);
 * publishes telemetry every interval_s seconds (FR-03);
@@ -17,12 +18,14 @@ import contextlib
 import logging
 import random
 import socket
+import ssl
 import time
 
 import aiomqtt
 
 from . import contract
 from .building import Building
+from .config import device_password
 from .device import Device
 
 log = logging.getLogger("aquapulse_sim.mqtt")
@@ -45,12 +48,30 @@ class LinkDropped(Exception):
     """We want this connection to end now (scenario, stop or reboot)."""
 
 
+def tls_context(ca_file: str) -> ssl.SSLContext:
+    """TLS that checks the broker's certificate against our CA, like an ESP32 will.
+    A context that skips this check is never used (FR-12 criterion 3)."""
+    return ssl.create_default_context(cafile=ca_file)
+
+
 class DeviceLink:
-    def __init__(self, device: Device, building: Building, host: str, port: int) -> None:
+    def __init__(
+        self,
+        device: Device,
+        building: Building,
+        host: str,
+        port: int,
+        *,
+        secret: str = "",
+        tls: ssl.SSLContext | None = None,
+    ) -> None:
         self.device = device
         self.building = building
         self.host = host
         self.port = port
+        # Username = device ID; the password comes from SIM_DEVICE_SECRET.
+        self.password = device_password(secret, device.id) if secret else None
+        self.tls = tls
         self._rng = random.Random()  # jitter only; does not need to be reproducible
 
     # ----- why the link should be down right now -----
@@ -108,6 +129,9 @@ class DeviceLink:
             self.host,
             self.port,
             identifier=device.id,
+            username=device.id if self.password else None,
+            password=self.password,
+            tls_context=self.tls,
             keepalive=KEEPALIVE_S,
             will=will,
             timeout=10,

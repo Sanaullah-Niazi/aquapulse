@@ -3,7 +3,7 @@
   "info": {
     "title": "AquaPulse API",
     "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   "paths": {
     "/api/healthz": {
@@ -2408,6 +2408,277 @@
         }
       }
     },
+    "/api/v1/buildings/{building_id}/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Devices",
+        "description": "Every device of the building, revoked ones included.",
+        "operationId": "list_devices_api_v1_buildings__building_id__devices_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceOut"
+                  },
+                  "title": "Response List Devices Api V1 Buildings  Building Id  Devices Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/device": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Register Home Device",
+        "description": "Register the meter/valve node of a home. The password is shown only once.",
+        "operationId": "register_home_device_api_v1_homes__home_id__device_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentialsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "There is already an active device here"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tanks/{tank_id}/device": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Register Tank Device",
+        "description": "Register the building's tank node. The password is shown only once.",
+        "operationId": "register_tank_device_api_v1_tanks__tank_id__device_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tank Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentialsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "There is already an active device here"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}/password": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Rotate Password",
+        "description": "Give the device a new password. The old one is refused within seconds.",
+        "operationId": "rotate_password_api_v1_devices__device_id__password_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentialsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}/revoke": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Revoke Device",
+        "description": "Switch the device off for good: it is disconnected and can never log in again.",
+        "operationId": "revoke_device_api_v1_devices__device_id__revoke_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ws-ticket": {
       "post": {
         "tags": [
@@ -2654,6 +2925,42 @@
           "password"
         ],
         "title": "Body_login_form_api_v1_auth_token_post"
+      },
+      "BrokerInfo": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "tls": {
+            "type": "boolean",
+            "title": "Tls",
+            "default": true
+          },
+          "ca_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ca Sha256",
+            "description": "SHA-256 fingerprint of the project CA: the device checks the broker with it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "host",
+          "port",
+          "ca_sha256"
+        ],
+        "title": "BrokerInfo"
       },
       "BuildingIn": {
         "properties": {
@@ -3115,6 +3422,180 @@
           "litres"
         ],
         "title": "ConsumptionPoint"
+      },
+      "DeviceCredentialsOut": {
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/DeviceOut"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Shown only this once. Copy it into the device now"
+          },
+          "broker": {
+            "$ref": "#/components/schemas/BrokerInfo"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Everything the device needs, as one JSON object (in the QR)"
+          },
+          "qr_svg": {
+            "type": "string",
+            "title": "Qr Svg",
+            "description": "The config as a QR code (an SVG image as a data: URL)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device",
+          "username",
+          "password",
+          "broker",
+          "config",
+          "qr_svg"
+        ],
+        "title": "DeviceCredentialsOut",
+        "description": "Shown ONCE. Only a hash is kept, so a lost password cannot be shown\nagain: rotate it instead (FR-14)."
+      },
+      "DeviceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Also the device's MQTT username"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "home",
+              "tank"
+            ],
+            "title": "Kind"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "home_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Id"
+          },
+          "tank_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tank Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ],
+            "title": "Status"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          },
+          "fw_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fw Version"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "credentials_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credentials Changed At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "has_own_password": {
+            "type": "boolean",
+            "title": "Has Own Password",
+            "description": "False = a simulated device that still uses its simulator password",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "building_id",
+          "home_id",
+          "tank_id",
+          "status",
+          "online",
+          "fw_version",
+          "last_seen_at",
+          "created_at",
+          "credentials_changed_at",
+          "revoked_at",
+          "has_own_password"
+        ],
+        "title": "DeviceOut"
       },
       "ForgotIn": {
         "properties": {
@@ -4570,7 +5051,7 @@
           "url": {
             "type": "string",
             "title": "Url",
-            "description": "Where to connect, e.g. ws://localhost:8080/api/v1/ws?ticket=..."
+            "description": "Where to connect, e.g. wss://localhost:8443/api/v1/ws?ticket=..."
           }
         },
         "type": "object",

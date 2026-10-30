@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------
+# Caddy config (M1). Caddy is our "front door".
+# M1: serve a static status page + a health endpoint on port 80
+#     (published as http://localhost:8080 on your Mac).
+# M3+: proxy /api to the FastAPI backend.  M5: HTTPS + security headers.
+# ---------------------------------------------------------------
+:80 {
+	# Used by the Docker health check and the smoke test.
+	respond /healthz "ok" 200
+
+	root * /srv
+	file_server
+
+	# Basic safety headers now; the full set (HSTS, CSP) arrives with HTTPS in M5.
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

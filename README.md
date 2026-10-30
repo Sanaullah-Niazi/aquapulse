@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M0 of 12).**
+> 🚧 **Status: under active development (milestone M1 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -36,8 +36,8 @@ flowchart LR
 
 | Milestone | Status |
 |---|---|
-| M0 Tools and repository | 🚧 in progress |
-| M1 Infrastructure (Docker Compose) | ⏳ |
+| M0 Tools and repository | ✅ done |
+| M1 Infrastructure (Docker Compose) | 🚧 in progress |
 | M2 Digital twin simulator | ⏳ |
 | M3 Backend core (auth, roles, audit) | ⏳ |
 | M4 Live data and valve control | ⏳ |
@@ -58,9 +58,19 @@ Requirements and install steps for macOS are in [docs/milestones/M0-tools-and-re
 git clone https://github.com/Sanaullah-Niazi/aquapulse.git
 cd aquapulse
 make check-tools   # are all tools installed?
-make setup         # create .env and install git hooks
-make lint          # run all checks
+make setup         # create .env (with random secrets) and install git hooks
+make up            # start the stack: MQTT broker, TimescaleDB, Mailpit, Caddy
+make smoke         # prove every service works end to end
 ```
+
+| What | Where |
+|---|---|
+| Status page (Caddy) | http://localhost:8080 |
+| Email inbox (Mailpit) | http://localhost:8025 |
+| MQTT broker (Mosquitto) | `localhost:1883` (development only; TLS arrives in M5) |
+| Database (TimescaleDB) | `localhost:5432`, password in your `.env` |
+
+Every service is reachable from your own computer only. `make help` lists all commands.
 
 ## Repository layout
 

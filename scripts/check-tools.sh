@@ -6,6 +6,10 @@
 # ---------------------------------------------------------------
 set -u
 
+# Corepack (which provides pnpm) asks "download pnpm? [Y/n]" on first use.
+# The question would be hidden below, so answer it automatically.
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
 missing=0
 
 # check <label> <command...>: runs the command and shows the first line of output.

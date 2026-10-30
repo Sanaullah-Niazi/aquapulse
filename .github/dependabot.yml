@@ -1,8 +1,14 @@
 # Dependabot opens pull requests when our dependencies have updates or security fixes.
-# More ecosystems (pip, npm, pub, docker) are added as those parts are built.
+# More ecosystems (pip, npm, pub) are added as those parts are built.
 version: 2
 updates:
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Image versions pinned in docker-compose.yml (M1).
+  - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly

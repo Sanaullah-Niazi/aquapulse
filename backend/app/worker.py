@@ -1,4 +1,4 @@
-"""worker: the jobs that run on a schedule, not because someone clicked (M6).
+"""worker: the jobs that run on a schedule, not because someone clicked (M6, M7).
 
     python -m app.worker
 
@@ -10,7 +10,18 @@ Every minute, for every building, in the building's OWN time zone:
   catches up when it starts again, up to the 5th. The owner can always
   generate a month by hand too (POST /buildings/{id}/bills/generate).
 * **Overdue bills (FR-37).** Issued bills that are not fully paid after their
-  due date become "overdue". Reminder emails come in M7 (FR-38).
+  due date become "overdue".
+* **Bill reminders (FR-38, M7).** 3 days before the due date, on it, and 7
+  days after it, each once.
+
+Besides the minute loop (M7):
+
+* **Alert engine (FR-58, FR-59).** Hears every live event and runs the
+  alert rules on it at once; every 10 seconds it also checks quiet devices,
+  high daily use, and closes alerts whose problem is gone (app/alerts/).
+* **Sending (FR-60).** Every 5 seconds, queued emails go out; failures are
+  tried again 3 times.
+* **Audit check (FR-73).** Once a day, the whole audit chain is verified.
 
 A plain loop instead of a scheduler library: the jobs are small, and a loop
 is easy to read and to test (tick() takes the time as a parameter).
@@ -23,21 +34,27 @@ import asyncio
 import logging
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from . import db
+from . import audit, db
+from .alerts.deliver import deliver_due
+from .alerts.engine import AlertEngine
+from .alerts.store import audit_signal_saved
 from .billing.generate import BillingError, generate_month
 from .billing.lifecycle import mark_overdue
 from .billing.periods import local_today, previous_month
-from .models import BillingRun, Building
+from .billing.reminders import send_reminders
+from .models import AuditCheck, BillingRun, Building
 
 log = logging.getLogger("aquapulse.worker")
 
 TICK_S = 60
+SEND_S = 5
+AUDIT_EVERY = timedelta(days=1)
 BILLING_HOUR = 2  # 02:00 building time on the 1st
 CATCH_UP_UNTIL_DAY = 5
 HEARTBEAT = Path(os.environ.get("WORKER_HEARTBEAT", "/tmp/aquapulse-worker-alive"))  # noqa: S108
@@ -53,7 +70,7 @@ def billing_due(local_now: datetime) -> bool:
 async def tick(now: datetime | None = None) -> dict[str, int]:
     """One round over all buildings. Returns what it did (for logs and tests)."""
     now = now or datetime.now(UTC)
-    done = {"generated": 0, "overdue": 0}
+    done = {"generated": 0, "overdue": 0, "reminders": 0}
     async with db.sessions()() as session:
         buildings = list(await session.scalars(select(Building).order_by(Building.code)))
     for building_id, code in [(b.id, b.code) for b in buildings]:
@@ -71,15 +88,44 @@ async def tick(now: datetime | None = None) -> dict[str, int]:
                     summary = await generate_month(session, building, month, None, automatic=True)
                     done["generated"] += summary.created
                 done["overdue"] += await mark_overdue(session, building, now)
+                done["reminders"] += await send_reminders(session, building, now)
         except BillingError as err:
             log.warning("building %s: %s", code, err)
         except Exception:
             log.exception("building %s: job failed, trying again next round", code)
+    done["audit_checks"] = await daily_audit_check(now)
     return done
 
 
-async def run() -> None:
-    log.info("worker started: monthly bills on the 1st at %02d:00 building time", BILLING_HOUR)
+async def daily_audit_check(now: datetime) -> int:
+    """Verify the audit chain if the last daily check is a day old (FR-73)."""
+    async with db.sessions()() as session, session.begin():
+        last = await session.scalar(
+            select(func.max(AuditCheck.at)).where(AuditCheck.requested_by.is_(None))
+        )
+        if last is not None and now - last < AUDIT_EVERY:
+            return 0
+        check = await audit.check_chain(session, at=now)
+        await audit_signal_saved(session, check, now)
+        if check.ok:
+            log.info("audit chain OK: %d entries in %.1f s", check.entries, check.seconds)
+        else:
+            log.error("audit chain BROKEN at entry %s", check.first_broken_id)
+    return 1
+
+
+async def send_forever() -> None:
+    while True:
+        try:
+            done = await deliver_due(datetime.now(UTC))
+            if any(done.values()):
+                log.info("notifications: %s", done)
+        except Exception:
+            log.exception("sending failed, trying again")
+        await asyncio.sleep(SEND_S)
+
+
+async def billing_forever() -> None:
     while True:
         started = time.monotonic()
         try:
@@ -91,6 +137,20 @@ async def run() -> None:
         else:
             HEARTBEAT.touch()
         await asyncio.sleep(max(1.0, TICK_S - (time.monotonic() - started)))
+
+
+async def run() -> None:
+    log.info("worker started: monthly bills on the 1st at %02d:00 building time", BILLING_HOUR)
+    engine = AlertEngine()
+    await engine.start()
+    # Five jobs side by side; if one of them crashes, the worker stops and
+    # Docker starts it again (restart: unless-stopped).
+    async with asyncio.TaskGroup() as jobs:
+        jobs.create_task(billing_forever())
+        jobs.create_task(engine.listen())
+        jobs.create_task(engine.consume())
+        jobs.create_task(engine.sweep_forever())
+        jobs.create_task(send_forever())
 
 
 def main() -> None:

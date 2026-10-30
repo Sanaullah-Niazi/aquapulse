@@ -88,6 +88,18 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("PUT", "/api/v1/payments/{payment_id}/receipt"): {OW},
     ("GET", "/api/v1/payments/{payment_id}/receipt"): ALL,
     ("POST", "/api/v1/webhooks/stripe"): PUBLIC,  # Stripe itself; the signature is checked
+    ("GET", "/api/v1/bills/unpaid"): {SA, OW},
+    # M7: alerts and notifications (SRS 8.6). Residents acknowledge, owners resolve.
+    ("GET", "/api/v1/alerts"): ALL,
+    ("GET", "/api/v1/alerts/{alert_id}"): ALL,
+    ("POST", "/api/v1/alerts/{alert_id}/acknowledge"): ALL,
+    ("POST", "/api/v1/alerts/{alert_id}/resolve"): {SA, OW},
+    ("GET", "/api/v1/buildings/{building_id}/alert-rules"): {SA, OW},
+    ("PATCH", "/api/v1/buildings/{building_id}/alert-rules"): {OW},
+    ("GET", "/api/v1/me/notifications"): ALL,
+    ("PATCH", "/api/v1/me/notifications"): ALL,
+    ("GET", "/api/v1/admin/audit/checks"): {SA},
+    ("GET", "/api/v1/admin/notifications"): {SA},
 }
 
 
@@ -117,6 +129,7 @@ def _url(path: str) -> str:
         tariff_id=uuid.uuid4(),
         bill_id=uuid.uuid4(),
         payment_id=uuid.uuid4(),
+        alert_id=uuid.uuid4(),
     )
 
 

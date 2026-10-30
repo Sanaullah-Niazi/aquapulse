@@ -69,7 +69,7 @@ jobs:
         run: uv run pytest
 
   backend:
-    name: Backend lint + API tests (M3)
+    name: Backend lint + API and ingestor tests (M3, M4)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -87,7 +87,7 @@ jobs:
         run: |
           make env
           docker compose up -d --wait db mqtt
-      - name: API, security and migration tests (fails below 80% coverage)
+      - name: API, ingestor, security and migration tests (fails below 80% coverage)
         # Also fails if backend/openapi.json is out of date (fix: make openapi).
         working-directory: backend
         run: uv run pytest
@@ -99,7 +99,7 @@ jobs:
         run: docker compose down -v
 
   stack:
-    name: Docker stack smoke + live MQTT tests (M1, M2, M3)
+    name: Docker stack smoke + live MQTT tests (M1 to M4)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -113,8 +113,14 @@ jobs:
         run: docker compose config --quiet
       - name: Build our images, start the stack and wait until healthy
         run: docker compose up -d --build --wait --wait-timeout 300
-      - name: Smoke test (database, MQTT, email, web, simulator, API)
+      - name: Smoke test (database, MQTT, email, web, simulator, API, ingestor, valve, WebSocket)
         run: make smoke
+      - name: Demo history (7 days to keep CI fast), loaded twice to prove nothing doubles
+        run: |
+          make demo-data DAYS=7 | tee first.txt
+          make demo-data DAYS=7 | tee second.txt
+          grep -q "labelled events" first.txt
+          grep -q "Demo history: 0 readings stored" second.txt
       - name: Live MQTT tests (Last Will, commands, broker restart ...)
         run: make sim-test-live
       - name: Show logs if something failed

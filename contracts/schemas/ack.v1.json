@@ -18,8 +18,8 @@
       "enum": [null, "INVALID", "EXPIRED", "DUPLICATE", "UNSUPPORTED", "BUSY", "NOT_MANUAL_MODE", "UNSAFE_OVERFLOW", "UNSAFE_DRY_RUN", "VALVE_STUCK"]
     },
     "state": {
-      "description": "State after the command: valve open/closed/fault, pump on/off, mode auto/manual, or null",
-      "enum": [null, "open", "closed", "fault", "on", "off", "auto", "manual"]
+      "description": "State after the command: valve open/closed/fault (moving when a BUSY valve is still turning), pump on/off, mode auto/manual, or null",
+      "enum": [null, "open", "closed", "moving", "fault", "on", "off", "auto", "manual"]
     },
     "ts": { "$ref": "common.v1.json#/$defs/timestamp" }
   }

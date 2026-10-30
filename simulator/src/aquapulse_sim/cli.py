@@ -80,6 +80,21 @@ def cmd_profile(args: argparse.Namespace) -> None:
         print(f"  {hour:02d}:00 {litres / args.days:7.0f} {bar}")
 
 
+def cmd_backfill(args: argparse.Namespace) -> None:
+    """Print N days of history as JSON lines (FR-08). Progress goes to stderr."""
+    import time
+
+    from .backfill import write
+
+    cfg = Config.from_env()
+    started = time.monotonic()
+    count = write(cfg, args.days, time.time())
+    print(
+        f"backfill: {count} readings for {args.days} days in {time.monotonic() - started:.0f} s",
+        file=sys.stderr,
+    )
+
+
 def cmd_devices(_: argparse.Namespace) -> None:
     for d in _api("GET", "/devices"):
         print(json.dumps(d))
@@ -158,6 +173,9 @@ def main() -> None:
     p = sub.add_parser("profile", help="print a week of simulated water use (no MQTT needed)")
     p.add_argument("--days", type=int, default=7)
     p.set_defaults(func=cmd_profile)
+    p = sub.add_parser("backfill", help="print N days of history as JSON lines (no MQTT)")
+    p.add_argument("--days", type=int, default=90, choices=range(1, 366), metavar="1..365")
+    p.set_defaults(func=cmd_backfill)
     sub.add_parser("devices", help="list devices of the running simulator").set_defaults(
         func=cmd_devices
     )

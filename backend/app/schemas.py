@@ -338,3 +338,200 @@ class AuditOut(Out):
 class AuditVerifyOut(BaseModel):
     ok: bool
     first_broken_id: int | None
+
+
+# ----- live data and consumption (M4) -----
+
+Reason = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
+# Locks need a real explanation (FR-27): at least 10 characters.
+LockReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=300)]
+
+
+class ReadingOut(BaseModel):
+    time: datetime
+    total_l: float = Field(description="The meter's own counter, in litres")
+    delta_l: float = Field(description="Litres used since the previous reading")
+    flow_lpm: float
+    ph: float
+    temp_c: float
+    valve: str = Field(description="What the device reported: open, closed, moving or fault")
+    rssi: int
+
+
+class ValveLockOut(Out):
+    id: uuid.UUID
+    home_id: uuid.UUID
+    locked_state: str
+    reason: str
+    locked_at: datetime
+    unlocked_at: datetime | None = None
+    unlock_reason: str | None = None
+
+
+class CommandOut(Out):
+    id: uuid.UUID = Field(description="The cmdId the device sees")
+    device_id: str
+    type: str
+    action: str | None
+    params: dict
+    reason: str
+    requested_role: str
+    state: Literal["queued", "pending", "succeeded", "failed", "rejected", "timeout"]
+    created_at: datetime
+    issued_at: datetime | None
+    acked_at: datetime | None
+    result_reason: str | None = Field(description="The device's reason, e.g. BUSY or VALVE_STUCK")
+    result_state: str | None = Field(description="State the device reported after the command")
+
+
+class HomeLiveOut(BaseModel):
+    home_id: uuid.UUID
+    device_id: str | None
+    online: bool
+    last_seen_at: datetime | None
+    valve: str | None = Field(description="Valve state reported by the device (not just requested)")
+    reading: ReadingOut | None
+    lock: ValveLockOut | None
+    pending_command: CommandOut | None
+
+
+class ConsumptionPoint(BaseModel):
+    start: datetime = Field(description="Start of the hour, day or month, in the building's zone")
+    litres: float
+
+
+class HomeTotal(BaseModel):
+    home_id: uuid.UUID
+    unit_no: str
+    litres: float
+
+
+class ConsumptionOut(BaseModel):
+    granularity: Literal["hour", "day", "month"]
+    timezone: str
+    from_: date = Field(alias="from")
+    to: date
+    total_litres: float
+    points: list[ConsumptionPoint]
+    homes: list[HomeTotal] | None = Field(None, description="Building only: total per home")
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class ValveIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"action": "close", "reason": "Going on holiday"}]},
+    )
+
+    action: Literal["open", "close"]
+    reason: Reason = ""
+
+
+class ValveLockIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"state": "closed", "reason": "Plumber is fixing the kitchen pipe"}]
+        },
+    )
+
+    state: Literal["open", "closed"]
+    reason: LockReason
+
+
+class ValveUnlockIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"reason": "Repair finished, pipe tested"}]},
+    )
+
+    reason: LockReason
+
+
+# ----- tank (M4) -----
+
+
+class TankReadingOut(BaseModel):
+    time: datetime
+    level_pct: float | None = Field(description="null when the level sensor failed")
+    level_l: float | None
+    pump_on: bool
+    sump_ok: bool
+    sensor_ok: bool
+    dry_run_protect: bool
+    overflow_protect: bool
+    mode: str
+
+
+class TankOut(BaseModel):
+    id: uuid.UUID
+    building_id: uuid.UUID
+    capacity_l: int
+    low_pct: float = Field(description="Pump starts below this level (confirmed by the device)")
+    high_pct: float = Field(description="Pump stops at this level (confirmed by the device)")
+    mode: str
+    pump_kw: float
+    device_id: str | None
+    online: bool
+    last_seen_at: datetime | None
+    reading: TankReadingOut | None
+    open_commands: list[CommandOut]
+
+
+class TankLevelPoint(BaseModel):
+    start: datetime
+    level_pct: float | None = Field(description="Average level in this period")
+
+
+class PumpDay(BaseModel):
+    day: date
+    pump_hours: float
+    energy_kwh: float = Field(description="pump_hours x pump_kw (an estimate)")
+
+
+class TankHistoryOut(BaseModel):
+    tank_id: uuid.UUID
+    timezone: str
+    from_: date = Field(alias="from")
+    to: date
+    step_minutes: int
+    levels: list[TankLevelPoint]
+    days: list[PumpDay]
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class TankSettingsIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"low_pct": 30, "high_pct": 90, "mode": "auto"}]},
+    )
+
+    low_pct: Annotated[float, Field(ge=5, le=87)] | None = None
+    high_pct: Annotated[float, Field(ge=15, le=97)] | None = None
+    mode: Literal["auto", "manual"] | None = None
+    pump_kw: Annotated[float, Field(gt=0, le=50)] | None = None
+
+
+class TankSettingsOut(BaseModel):
+    tank: TankOut
+    commands: list[CommandOut] = Field(description="Sent to the device; it confirms each one")
+
+
+class PumpIn(In):
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"examples": [{"action": "on", "reason": "Fill up"}]}
+    )
+
+    action: Literal["on", "off"]
+    reason: Reason = ""
+
+
+# ----- live stream (M4) -----
+
+
+class WsTicketOut(BaseModel):
+    ticket: str
+    expires_in: int = Field(description="Seconds: open the WebSocket before then")
+    url: str = Field(description="Where to connect, e.g. ws://localhost:8080/api/v1/ws?ticket=...")

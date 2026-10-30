@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 to M3).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M4).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -13,6 +13,9 @@
 #   - Simulator:   10 homes + 1 tank online, all sending telemetry (M2)
 #   - API:         ready, demo login works, /metrics private, audit log
 #                  protected from the API's own database role (M3)
+#   - Ingestor:    fresh readings from every device in the database, a
+#                  real valve close/open answered by the device, a live
+#                  WebSocket event, consumption totals (M4)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -26,11 +29,11 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 to M3)"
+echo "AquaPulse smoke test (M1 to M4)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in mqtt db mailpit caddy simulator api; do
+for svc in mqtt db mailpit caddy simulator api ingestor; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi
@@ -145,6 +148,86 @@ if grep -q "permission denied" <<<"$audit_out"; then
   pass "Audit log: the API's database role cannot delete history"
 else
   fail "Audit log: DELETE was not refused: $audit_out"
+fi
+
+# 8. Ingestor, valve control and live stream (M4) ------------------------------
+# Devices report every 10 s; right after `make seed` the first ones can take that long.
+for _ in $(seq 1 30); do
+  fresh="$(docker compose exec -T db sh -c 'psql -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT (SELECT count(DISTINCT device_id) FROM telemetry WHERE time > now() - interval '"'"'1 minute'"'"')
+         + (SELECT count(DISTINCT device_id) FROM tank_readings WHERE time > now() - interval '"'"'1 minute'"'"')"' 2>/dev/null)"
+  [ "${fresh:-0}" -ge "$expected" ] && break
+  sleep 1
+done
+if [ "${fresh:-0}" -ge "$expected" ]; then
+  pass "Ingestor: readings from all $fresh devices stored in the last minute (make ingest-logs)"
+else
+  fail "Ingestor: fresh readings from only ${fresh:-0} of $expected devices (try: make ingest-logs)"
+fi
+
+# A real valve close and open on unit 03, through the API, answered by the
+# (simulated) device, while a WebSocket listens like the app will.
+m4_out="$(docker compose exec -T api python - <<'PY' 2>&1
+import asyncio, json, os, urllib.request
+from websockets.asyncio.client import connect
+
+API = "http://127.0.0.1:8000/api/v1"
+
+def call(method, path, token=None, body=None):
+    request = urllib.request.Request(API + path, method=method,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"} | ({"Authorization": "Bearer " + token} if token else {}))
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.load(response)
+
+async def main():
+    token = call("POST", "/auth/login", body={"email": "owner@example.com",
+                 "password": os.environ["DEMO_PASSWORD"]})["access_token"]
+    building = call("GET", "/buildings", token)[0]
+    home = next(h for h in call("GET", f"/buildings/{building['id']}/homes", token) if h["unit_no"] == "03")
+    ticket = call("POST", "/ws-ticket", token)["ticket"]
+    async with connect(f"ws://127.0.0.1:8000/api/v1/ws?ticket={ticket}") as ws:
+        await ws.recv()  # "ready"
+        results = []
+        for action in ("close", "open"):
+            command = call("POST", f"/homes/{home['id']}/valve", token,
+                           {"action": action, "reason": "smoke test"})
+            for _ in range(40):
+                await asyncio.sleep(0.5)
+                command = call("GET", f"/commands/{command['id']}", token)
+                if command["state"] not in ("queued", "pending"):
+                    break
+            results.append(f"{action}={command['state']}")
+        events = []
+        try:
+            while True:
+                events.append(json.loads(await asyncio.wait_for(ws.recv(), 12))["type"])
+                if "telemetry" in events and "command" in events:
+                    break
+        except TimeoutError:
+            pass
+    print("VALVE", " ".join(results))
+    print("EVENTS", " ".join(sorted(set(events))))
+    usage = call("GET", f"/buildings/{building['id']}/consumption?granularity=day", token)
+    print("CONSUMPTION", len(usage["homes"]), usage["total_litres"])
+
+asyncio.run(main())
+PY
+)"
+if grep -q "VALVE close=succeeded open=succeeded" <<<"$m4_out"; then
+  pass "Valve: unit 03 closed and opened again, confirmed by the device's ack"
+else
+  fail "Valve: close/open did not succeed: $(grep VALVE <<<"$m4_out" || tail -n 3 <<<"$m4_out")"
+fi
+if grep -q "EVENTS .*command.*telemetry" <<<"$m4_out"; then
+  pass "Live stream: WebSocket delivered command and telemetry events (try: make live)"
+else
+  fail "Live stream: missing events: $(grep EVENTS <<<"$m4_out" || tail -n 3 <<<"$m4_out")"
+fi
+if grep -qE "CONSUMPTION 10 [0-9.]+" <<<"$m4_out"; then
+  pass "Consumption: daily litres for all 10 homes ($(grep CONSUMPTION <<<"$m4_out" | cut -d' ' -f3) L in the last 30 days)"
+else
+  fail "Consumption: $(grep CONSUMPTION <<<"$m4_out" || tail -n 3 <<<"$m4_out")"
 fi
 
 echo ""

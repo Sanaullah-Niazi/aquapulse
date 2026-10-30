@@ -49,6 +49,20 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("POST", "/api/v1/homes/{home_id}/invitations"): {OW},
     ("GET", "/api/v1/homes/{home_id}/occupancies"): {OW},
     ("PATCH", "/api/v1/occupancies/{occupancy_id}"): {OW},
+    # M4: live data, consumption and control (SRS 8.1 and 8.4)
+    ("POST", "/api/v1/ws-ticket"): ALL,
+    ("GET", "/api/v1/homes/{home_id}/live"): {OW, RE},
+    ("GET", "/api/v1/homes/{home_id}/telemetry"): {OW, RE},
+    ("GET", "/api/v1/homes/{home_id}/consumption"): {OW, RE},
+    ("GET", "/api/v1/buildings/{building_id}/consumption"): {OW},
+    ("POST", "/api/v1/homes/{home_id}/valve"): {OW, RE},
+    ("GET", "/api/v1/commands/{command_id}"): {OW, RE},
+    ("POST", "/api/v1/homes/{home_id}/valve-lock"): {OW},
+    ("POST", "/api/v1/homes/{home_id}/valve-unlock"): {OW},
+    ("GET", "/api/v1/buildings/{building_id}/tank"): {OW},
+    ("GET", "/api/v1/tanks/{tank_id}/history"): {OW},
+    ("PATCH", "/api/v1/tanks/{tank_id}/settings"): {OW},
+    ("POST", "/api/v1/tanks/{tank_id}/pump"): {OW},
 }
 
 
@@ -72,6 +86,8 @@ def _url(path: str) -> str:
         building_id=uuid.uuid4(),
         home_id=uuid.uuid4(),
         occupancy_id=uuid.uuid4(),
+        command_id=uuid.uuid4(),
+        tank_id=uuid.uuid4(),
     )
 
 

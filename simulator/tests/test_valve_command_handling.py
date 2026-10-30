@@ -2,6 +2,8 @@
 
 import pytest
 
+from aquapulse_sim import contract
+
 from .conftest import START, acks, drain, make_cmd, run_for
 
 
@@ -95,7 +97,10 @@ def test_command_while_moving_is_busy(home):
     now = START + 100
     home.handle_command(make_cmd(now, action="close"), now)
     home.handle_command(make_cmd(now + 1, action="open"), now + 1)
-    assert acks(home)[-1]["reason"] == "BUSY"
+    busy = acks(home)[-1]
+    assert (busy["reason"], busy["state"]) == ("BUSY", "moving")
+    # The answer must pass the contract too (M4 found "moving" was missing there).
+    assert contract.validate("ack.v1", busy) == []
 
 
 @pytest.mark.parametrize(

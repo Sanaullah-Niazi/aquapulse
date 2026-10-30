@@ -1,0 +1,15 @@
+meta {
+  name: 04 Homes in the building
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/buildings/{{buildingId}}/homes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

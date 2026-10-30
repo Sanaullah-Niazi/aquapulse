@@ -20,7 +20,27 @@ updates:
       interval: weekly
 
   # Base image in simulator/Dockerfile (M2).
+  # We stay on Python 3.12 (pinned in pyproject.toml), so only patch updates
+  # like 3.12.13 -> 3.12.14 are offered, never 3.13 or 3.15.
   - package-ecosystem: docker
     directory: /simulator
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # Python packages of the backend (M3), pinned in backend/uv.lock.
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+
+  # Base image in backend/Dockerfile (M3). Same Python rule as the simulator.
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

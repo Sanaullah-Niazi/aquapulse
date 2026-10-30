@@ -1,0 +1,19 @@
+meta {
+  name: 03 My buildings
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/buildings
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("buildingId", res.body[0].id);
+}

@@ -1,0 +1,57 @@
+# AquaPulse backend: the FastAPI API (M3), and later the ingestor and worker (M4+).
+[project]
+name = "aquapulse-backend"
+version = "0.3.0"
+description = "AquaPulse API: login, roles, buildings, homes, residents and audit log"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+    "fastapi==0.162.0",            # web framework, Swagger UI at /api/docs
+    "uvicorn==0.54.0",             # runs the API
+    "sqlalchemy[asyncio]==2.1.6",  # database layer; always parameterised SQL (FR-72)
+    "asyncpg==0.32.0",             # fast PostgreSQL driver
+    "alembic==1.20.1",             # database migrations (versioned schema changes)
+    "argon2-cffi==25.1.0",         # Argon2id password hashing (FR-68)
+    "pyjwt[crypto]==2.15.1",       # signed access tokens with Ed25519 (FR-69)
+    "pydantic-settings==2.16.2",   # settings from environment variables
+    "email-validator==2.3.0",      # checks email addresses
+    "prometheus-client==0.26.0",   # /metrics (FR-31)
+    "python-multipart==0.0.32",    # reads the login form used by Swagger's Authorize button
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1",
+    "pytest-cov==7.1.0",
+    "httpx2==2.16.0",
+    "ruff==0.17.3",
+]
+
+[tool.uv]
+package = false  # an application, not a library: run with `uv run`
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = "-q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["app/seed.py", "app/export_openapi.py"]  # command-line helpers, run by make
+# SQLAlchemy's async layer runs our code inside greenlets; without this,
+# coverage would miss every line after the first database call.
+concurrency = ["greenlet", "thread"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S"]
+ignore = ["S101"]  # assert is fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]  # test passwords are not secrets

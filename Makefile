@@ -5,7 +5,8 @@
 # ---------------------------------------------------------------
 .DEFAULT_GOAL := help
 .PHONY: help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
-	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test
+	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
+	api-logs seed migrate api-test api-lint openapi
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -34,9 +35,11 @@ secrets: ## Scan the whole git history for leaked secrets
 
 up: env ## Start the whole stack and wait until every service is healthy
 	docker compose up -d --build --wait
+	@# Caddy does not notice a changed Caddyfile by itself: reload it (harmless if unchanged).
+	@docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1 || true
 	@echo ""
 	@echo "Stack is up: status page http://localhost:8080 · email inbox http://localhost:8025"
-	@echo "             simulator http://localhost:8090/docs"
+	@echo "             simulator http://localhost:8090/docs · API http://localhost:8080/api/docs"
 	@echo "Next: make smoke"
 
 down: ## Stop the stack (your data is kept)
@@ -48,7 +51,7 @@ ps: ## Show the containers and their health
 logs: ## Follow the logs of all services (Ctrl+C to stop)
 	docker compose logs -f --tail=50
 
-smoke: ## Prove every service works (database, MQTT, email, web, simulator)
+smoke: ## Prove every service works (database, MQTT, email, web, simulator, API)
 	@./scripts/smoke-test.sh
 
 reset: ## DANGER: stop the stack and DELETE all its data (asks first)
@@ -87,4 +90,26 @@ sim-test: ## Run the simulator's unit tests (no Docker needed)
 sim-test-live: ## Run the live MQTT tests against the running stack (make up first)
 	cd simulator && uv run pytest -m integration -v
 
-test: sim-test ## Run all unit tests (grows with each milestone)
+# ---------------------------------------------------------------
+# M3: Backend API
+# ---------------------------------------------------------------
+
+api-logs: ## Follow the API's logs (Ctrl+C to stop)
+	docker compose logs -f --tail=50 api
+
+seed: ## Create the demo accounts and building (safe to run again)
+	docker compose exec api python -m app.seed
+
+migrate: ## Apply new database migrations now (make up does this too)
+	docker compose run --rm migrate
+
+api-test: ## Run the API tests (needs the database: make up first)
+	cd backend && uv run pytest
+
+api-lint: ## Check the backend code style (ruff)
+	cd backend && uv run ruff check . && uv run ruff format --check .
+
+openapi: ## Regenerate backend/openapi.json after changing the API
+	cd backend && uv run python -m app.export_openapi
+
+test: sim-test api-test ## Run all tests (grows with each milestone)

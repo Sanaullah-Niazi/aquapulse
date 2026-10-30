@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------
+# AquaPulse: the whole system in one file.
+#   Start:  make up      (= docker compose up -d --wait)
+#   Stop:   make down
+#   Check:  make smoke
+#
+# M1 (this version) runs the four "infrastructure" services that every
+# later milestone builds on. Our own services (simulator, API, ingestor,
+# worker) are added in M2 to M4.
+#
+# Security note: every port is published on 127.0.0.1 only, so nothing is
+# reachable from other computers on your Wi-Fi. MQTT is still plain and
+# open (no TLS, no passwords) while we learn in M1 to M4; M5 locks it down
+# (FR-11, FR-12). Image versions are pinned so everyone runs the same thing.
+# ---------------------------------------------------------------
+name: ${COMPOSE_PROJECT_NAME:-aquapulse}
+
+services:
+  # --- MQTT broker: the "post office" between devices and the server ---
+  mqtt:
+    image: eclipse-mosquitto:2.1.2-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883" # plain MQTT, dev only (removed in M5)
+    volumes:
+      - ./infra/mosquitto/dev-insecure.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+    healthcheck:
+      # Healthy = the broker answers a subscribe on its own status topic.
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/broker/version' -C 1 -W 3 > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # --- Database: PostgreSQL 16 with the TimescaleDB time-series extension ---
+  db:
+    image: timescale/timescaledb:2.31.0-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aquapulse}
+      POSTGRES_USER: ${POSTGRES_USER:-aquapulse}
+      # No default: the stack refuses to start without a password in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing. Run "make env" to create it.}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432" # so DBeaver on your Mac can connect
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro # runs once, on the first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # --- Mailpit: a fake email inbox, so we can see alert emails locally ---
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025" # web inbox: http://localhost:8025
+      - "127.0.0.1:1025:1025" # SMTP: the backend sends email here
+    environment:
+      MP_MAX_MESSAGES: 5000
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Caddy: the front door (web server / reverse proxy) ---
+  # In M1 it serves a status page. Later it serves the web app and the API,
+  # and from M5 it does HTTPS.
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80" # http://localhost:8080
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/site:/srv:ro
+      - caddy-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Named volumes keep data when containers are recreated.
+# `make reset` deletes them (all data gone, fresh start).
+volumes:
+  mqtt-data:
+  db-data:
+  caddy-data:

@@ -59,8 +59,10 @@ brew install git gh uv fnm gitleaks openssl@3 mosquitto
 ### 1.4 Desktop apps
 
 ```bash
-brew install --cask visual-studio-code docker-desktop mqtt-explorer bruno dbeaver-community
+brew install --cask visual-studio-code docker-desktop mqttx bruno dbeaver-community
 ```
+
+We use **MQTTX** to watch and send MQTT messages. (MQTT Explorer was removed from Homebrew in September 2026 because it fails the macOS Gatekeeper check.)
 
 If Homebrew says `docker-desktop` is not found, your Homebrew is older: use `docker` instead of `docker-desktop`.
 
@@ -264,4 +266,6 @@ When all five are ticked, reply **"OK, next"** and we start **M1: Infrastructure
 | `node: command not found` | Check `~/.zshrc` has the `fnm env` line; open a new Terminal |
 | ❌ Docker engine in `check-tools` | Open the Docker app and wait for "Engine running" |
 | `gh repo create` says the name already exists | You already created it: run `git remote add origin https://github.com/Sanaullah-Niazi/aquapulse.git && git push -u origin main` |
+| Branch is called `master`, CI didn't run | `git config --global init.defaultBranch main && git branch -m master main && git push -u origin main && gh repo edit --default-branch main && git push origin --delete master` |
+| `make check-tools` stops after Node.js | Corepack is waiting for a hidden "download pnpm?" answer: press Ctrl+C, run `pnpm --version`, answer `Y`, and run the check again |
 | CI "File hygiene" fails | Run `make lint` locally; it fixes most problems automatically, then commit again |

@@ -1,7 +1,7 @@
 # AquaPulse backend image: the API and the one-shot `migrate` job (M3),
 # and the ingestor (M4). One image, different start commands.
 # Built by `make up` (docker compose build). Build context is the repo root.
-FROM python:3.12.13-slim-trixie
+FROM python:3.12.15-slim-trixie
 
 # uv installs exactly the versions in uv.lock (reproducible builds).
 RUN pip install --no-cache-dir uv==0.11.32

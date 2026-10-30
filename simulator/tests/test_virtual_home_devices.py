@@ -44,3 +44,11 @@ def test_stopping_one_device_does_not_affect_the_others(building):
     run_for(building, START, 12 * 3600, step=10)
     assert all(not h.stopped for h in building.homes if h.id != "home-b01-03")
     assert all(h.total_l > 0 for h in building.homes)
+
+
+def test_device_password_matches_the_backend():
+    """The backend's broker-auth computes the same password (M5). This value is
+    also checked in backend/tests/security/test_mqtt_passwords.py."""
+    from aquapulse_sim.config import device_password
+
+    assert device_password("s", "home-b01-01") == "7Xggzgm4S_E4vqrxNLpC7OFXTYfZnQ6KfOrBaPkSwaY"

@@ -13,7 +13,7 @@ import uvicorn
 from .api import create_app
 from .building import Building
 from .config import Config
-from .mqtt_link import DeviceLink
+from .mqtt_link import DeviceLink, tls_context
 
 log = logging.getLogger("aquapulse_sim")
 
@@ -60,8 +60,13 @@ async def run(cfg: Config) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown)
 
+    if not cfg.device_secret:
+        log.error("SIM_DEVICE_SECRET is empty: the broker will refuse every device (run make env)")
+    tls = tls_context(cfg.mqtt_ca_file)
     links = [
-        DeviceLink(device, building, cfg.mqtt_host, cfg.mqtt_port)
+        DeviceLink(
+            device, building, cfg.mqtt_host, cfg.mqtt_port, secret=cfg.device_secret, tls=tls
+        )
         for device in building.devices.values()
     ]
     async with asyncio.TaskGroup() as tasks:

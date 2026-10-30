@@ -63,6 +63,11 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("GET", "/api/v1/tanks/{tank_id}/history"): {OW},
     ("PATCH", "/api/v1/tanks/{tank_id}/settings"): {OW},
     ("POST", "/api/v1/tanks/{tank_id}/pump"): {OW},
+    ("GET", "/api/v1/buildings/{building_id}/devices"): {OW},
+    ("POST", "/api/v1/homes/{home_id}/device"): {OW},
+    ("POST", "/api/v1/tanks/{tank_id}/device"): {OW},
+    ("POST", "/api/v1/devices/{device_id}/password"): {OW},
+    ("POST", "/api/v1/devices/{device_id}/revoke"): {OW},
 }
 
 
@@ -88,6 +93,7 @@ def _url(path: str) -> str:
         occupancy_id=uuid.uuid4(),
         command_id=uuid.uuid4(),
         tank_id=uuid.uuid4(),
+        device_id=f"home-{uuid.uuid4().hex[:8]}-01",
     )
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import text
@@ -30,14 +31,18 @@ async def _database_ok() -> bool:
 
 
 async def _broker_ok() -> bool:
+    """A real TLS handshake with the broker, checked against our CA (M5)."""
     settings = get_settings()
     try:
+        context = ssl.create_default_context(cafile=settings.mqtt_ca_file)
         async with asyncio.timeout(2):
-            _, writer = await asyncio.open_connection(settings.mqtt_host, settings.mqtt_port)
+            _, writer = await asyncio.open_connection(
+                settings.mqtt_host, settings.mqtt_port, ssl=context
+            )
             writer.close()
             await writer.wait_closed()
         return True
-    except (OSError, TimeoutError):
+    except (OSError, TimeoutError, ssl.SSLError):
         return False
 
 

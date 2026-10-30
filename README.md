@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M4 of 12).**
+> 🚧 **Status: under active development (milestone M5 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -40,8 +40,8 @@ flowchart LR
 | M1 Infrastructure (Docker Compose) | ✅ done |
 | M2 Digital twin simulator | ✅ done |
 | M3 Backend core (auth, roles, audit) | ✅ done |
-| M4 Live data and valve control | 🚧 in progress |
-| M5 Secure MQTT and HTTPS | ⏳ |
+| M4 Live data and valve control | ✅ done |
+| M5 Secure MQTT and HTTPS | 🚧 in progress |
 | M6 Billing and payments | ⏳ |
 | M7 Alerts and notifications | ⏳ |
 | M8 Web app | ⏳ |
@@ -59,7 +59,7 @@ git clone https://github.com/Sanaullah-Niazi/aquapulse.git
 cd aquapulse
 make check-tools   # are all tools installed?
 make setup         # create .env (with random secrets) and install git hooks
-make up            # start the stack: MQTT broker, TimescaleDB, Mailpit, Caddy, simulator, API
+make up            # make the TLS certificates (first time) and start the whole stack
 make seed          # demo accounts: owner@example.com etc., password = DEMO_PASSWORD in .env
 make smoke         # prove every service works end to end
 make mqtt-watch    # watch 10 virtual homes + 1 tank send live readings
@@ -67,14 +67,14 @@ make mqtt-watch    # watch 10 virtual homes + 1 tank send live readings
 
 | What | Where |
 |---|---|
-| Status page (Caddy) | http://localhost:8080 |
+| Status page (Caddy) | https://localhost:8443 (http://localhost:8080 redirects) |
 | Email inbox (Mailpit) | http://localhost:8025 |
-| MQTT broker (Mosquitto) | `localhost:1883` (development only; TLS arrives in M5) |
+| MQTT broker (Mosquitto) | `localhost:8883`, TLS only, a password for every account |
 | Database (TimescaleDB) | `localhost:5432`, password in your `.env` |
 | Simulator control API (Swagger) | http://localhost:8090/docs |
-| AquaPulse API (Swagger) | http://localhost:8080/api/docs |
+| AquaPulse API (Swagger) | https://localhost:8443/api/docs |
 
-Every service is reachable from your own computer only. `make help` lists all commands.
+Every service is reachable from your own computer only. The certificates come from the project's own CA (`make certs`); `make trust-ca` makes your Mac's browsers trust it. `make help` lists all commands.
 
 ## What works today
 
@@ -111,12 +111,22 @@ Guide: [docs/milestones/M3-backend-core.md](docs/milestones/M3-backend-core.md).
 
 Guide: [docs/milestones/M4-live-data.md](docs/milestones/M4-live-data.md).
 
+**Secure MQTT and HTTPS (M5).** Nothing travels unencrypted, and every account can do exactly one job.
+
+- MQTT only over TLS 1.2+ (1.3 negotiated, modern ciphers only); the plain port 1883 is gone. A free testssl.sh scan finds nothing.
+- Every device has its own password (32 random bytes, only a hash stored) and may only use its own topics. The server's reading and command-sending parts use separate accounts.
+- Owners register devices (password shown once, plus a QR code with the full config), rotate passwords and revoke devices. The broker applies it in about a second, without a restart, and cuts off connections that are no longer allowed.
+- HTTPS through Caddy with HSTS, a strict Content-Security-Policy and other security headers; CORS only for configured sites.
+- A STRIDE threat-model review: [docs/security/threat-model.md](docs/security/threat-model.md).
+
+Guide: [docs/milestones/M5-secure-mqtt-https.md](docs/milestones/M5-secure-mqtt-https.md).
+
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3), ingestor (M4); worker, billing engine, AI later        (M3+)
+backend/     API (M3), ingestor (M4), broker-auth (M5); billing, AI later      (M3+)
 web/         React web app / PWA                                              (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

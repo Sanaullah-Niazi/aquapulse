@@ -7,12 +7,14 @@
 # M1 added the four "infrastructure" services that everything builds on.
 # M2 added our first own service: the simulator (digital twin).
 # M3 added the API, plus `migrate`, a one-shot job that prepares the database
-# before the API starts. M4 adds the ingestor: MQTT in, database out.
+# before the API starts. M4 added the ingestor: MQTT in, database out.
+# M5 locks everything down: MQTT only over TLS with a password per device
+# (broker-auth keeps the broker's password list), and HTTPS through Caddy.
 #
 # Security note: every port is published on 127.0.0.1 only, so nothing is
-# reachable from other computers on your Wi-Fi. MQTT is still plain and
-# open (no TLS, no passwords) while we learn in M1 to M4; M5 locks it down
-# (FR-11, FR-12). Image versions are pinned so everyone runs the same thing.
+# reachable from other computers on your Wi-Fi. Certificates come from
+# `make certs` (infra/certs, never committed). Image versions are pinned so
+# everyone runs the same thing.
 # ---------------------------------------------------------------
 name: ${COMPOSE_PROJECT_NAME:-aquapulse}
 
@@ -24,23 +26,69 @@ x-backend-env: &backend-env
   APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is missing. Run "make env" to add it.}
   JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is missing. Run "make env" to add it.}
   JWT_PREVIOUS_SECRETS: ${JWT_PREVIOUS_SECRETS:-}
-  PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+  PUBLIC_URL: ${PUBLIC_URL:-https://localhost:8443}
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost:8443}
   MQTT_HOST: mqtt
-  MQTT_PORT: 1883
+  MQTT_PORT: 8883
+  MQTT_CA_FILE: /certs/ca.crt
+  MQTT_PUBLIC_HOST: ${MQTT_PUBLIC_HOST:-localhost}
 
 services:
+  # --- broker-auth: keeps the broker's password list up to date (M5) ---
+  # Writes "username:hash" lines (never plain passwords) for the server
+  # accounts and every active device, into a volume the broker reads.
+  broker-auth:
+    image: aquapulse/backend:dev
+    command: ["python", "-m", "app.brokerauth"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *backend-env
+      MQTT_INGESTOR_PASSWORD: ${MQTT_INGESTOR_PASSWORD:?MQTT_INGESTOR_PASSWORD is missing. Run "make env".}
+      MQTT_COMMANDER_PASSWORD: ${MQTT_COMMANDER_PASSWORD:?MQTT_COMMANDER_PASSWORD is missing. Run "make env".}
+      MQTT_MONITOR_PASSWORD: ${MQTT_MONITOR_PASSWORD:?MQTT_MONITOR_PASSWORD is missing. Run "make env".}
+      SIM_DEVICE_SECRET: ${SIM_DEVICE_SECRET:-}
+      SIM_BUILDING: ${SIM_BUILDING:-b01}
+      SIM_HOMES: ${SIM_HOMES:-10}
+    volumes:
+      - broker-auth:/broker-auth
+    healthcheck:
+      # Healthy = the password list has been written.
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.getsize('/broker-auth/passwd') else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   # --- MQTT broker: the "post office" between devices and the server ---
+  # TLS only (port 8883), a password for every account, and access rules
+  # per topic (infra/mosquitto). There is no plain port 1883 any more.
   mqtt:
     image: eclipse-mosquitto:2.1.2-alpine
     restart: unless-stopped
+    # start.sh starts Mosquitto and reloads it when the password list changes.
+    entrypoint: ["/bin/sh", "/mosquitto/config/start.sh"]
+    depends_on:
+      broker-auth:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:1883:1883" # plain MQTT, dev only (removed in M5)
+      - "127.0.0.1:8883:8883" # MQTT over TLS (MQTTX on your Mac, see the M5 guide)
+    environment:
+      MQTT_MONITOR_PASSWORD: ${MQTT_MONITOR_PASSWORD:?MQTT_MONITOR_PASSWORD is missing. Run "make env".}
     volumes:
-      - ./infra/mosquitto/dev-insecure.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto:/mosquitto/config:ro
+      - ./infra/certs/server:/certs:ro # server certificate + key (make certs)
+      - broker-auth:/broker-auth:ro
       - mqtt-data:/mosquitto/data
     healthcheck:
-      # Healthy = the broker answers a subscribe on its own status topic.
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/broker/version' -C 1 -W 3 > /dev/null"]
+      # Healthy = a real TLS login (read-only monitor account) can read the
+      # broker's own status topic, with the certificate checked against our CA.
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt
+          -u monitor -P "$$MQTT_MONITOR_PASSWORD" -t '$$SYS/broker/version' -C 1 -W 3 > /dev/null
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,18 +132,23 @@ services:
       retries: 5
 
   # --- Caddy: the front door (web server / reverse proxy) ---
-  # In M1 it serves a status page. Later it serves the web app and the API,
-  # and from M5 it does HTTPS.
+  # Serves the status page and forwards /api to the API. From M5 only over
+  # HTTPS (https://localhost:8443); plain http://localhost:8080 redirects there.
   caddy:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:80" # http://localhost:8080
+      - "127.0.0.1:8080:80" # http://localhost:8080 -> redirects to HTTPS
+      - "127.0.0.1:8443:443" # https://localhost:8443
+    environment:
+      HTTPS_PORT: 8443 # the port your browser uses, for the redirect
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-3600}
     volumes:
       # The whole folder, not just the file: Docker on macOS keeps showing a
       # container the old copy of a single mounted file after `git pull`.
       - ./infra/caddy:/etc/caddy:ro
       - ./infra/caddy/site:/srv:ro
+      - ./infra/certs/server:/certs:ro # same certificate as the broker (make certs)
       - caddy-data:/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
@@ -104,8 +157,9 @@ services:
       retries: 5
 
   # --- Simulator: the digital twin (M2) ---
-  # 10 virtual homes + 1 tank, each with its own MQTT connection, sending the
-  # same messages real ESP32 hardware will send (contracts/ folder).
+  # 10 virtual homes + 1 tank, each with its own MQTT connection (over TLS,
+  # with its own password since M5), sending the same messages real ESP32
+  # hardware will send (contracts/ folder).
   simulator:
     build:
       context: .
@@ -117,7 +171,9 @@ services:
         condition: service_healthy
     environment:
       MQTT_HOST: mqtt
-      MQTT_PORT: 1883
+      MQTT_PORT: 8883
+      MQTT_CA_FILE: /certs/ca.crt
+      SIM_DEVICE_SECRET: ${SIM_DEVICE_SECRET:?SIM_DEVICE_SECRET is missing. Run "make env".}
       SIM_HOMES: ${SIM_HOMES:-10}
       SIM_INTERVAL_S: ${SIM_INTERVAL_S:-10}
       SIM_SEED: ${SIM_SEED:-42}
@@ -131,6 +187,7 @@ services:
       - "127.0.0.1:8090:8090" # control API + Swagger UI: http://localhost:8090/docs
     volumes:
       - sim-data:/data # the devices' "flash memory": litre counters survive restarts
+      - ./infra/certs/public:/certs:ro # only the CA certificate, to check the broker
     healthcheck:
       # Healthy = the control API answers and every device that should be online
       # (not stopped, no "offline" scenario) is connected to MQTT.
@@ -161,7 +218,7 @@ services:
       <<: *backend-env
 
   # --- API: the FastAPI backend (M3) ---
-  # Reached through Caddy: http://localhost:8080/api/docs (Swagger UI).
+  # Reached through Caddy: https://localhost:8443/api/docs (Swagger UI).
   # No port is published: the API is only reachable through Caddy, and
   # /metrics stays inside the Docker network (FR-31).
   api:
@@ -179,6 +236,10 @@ services:
       # Only used by `make seed` (demo accounts); never by the API itself.
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       DEMO_TIMEZONE: ${DEMO_TIMEZONE:-Asia/Karachi}
+    volumes:
+      # Only the CA certificate: readyz checks the broker's TLS with it, and new
+      # devices get its fingerprint (FR-14). Never the CA's private key.
+      - ./infra/certs/public:/certs:ro
     healthcheck:
       test:
         - CMD
@@ -192,7 +253,8 @@ services:
 
   # --- Ingestor: the bridge between MQTT and the database (M4) ---
   # Checks and stores every device message, and sends valve/pump commands
-  # that the API queued. The only server program that talks MQTT.
+  # that the API queued. The only server program that talks MQTT, with two
+  # accounts: "ingestor" (read only) and "commander" (send commands only).
   ingestor:
     image: aquapulse/backend:dev
     command: ["python", "-m", "app.ingest"]
@@ -204,6 +266,10 @@ services:
         condition: service_healthy
     environment:
       <<: *backend-env
+      MQTT_INGESTOR_PASSWORD: ${MQTT_INGESTOR_PASSWORD:?MQTT_INGESTOR_PASSWORD is missing. Run "make env".}
+      MQTT_COMMANDER_PASSWORD: ${MQTT_COMMANDER_PASSWORD:?MQTT_COMMANDER_PASSWORD is missing. Run "make env".}
+    volumes:
+      - ./infra/certs/public:/certs:ro
     healthcheck:
       # Healthy = connected to the broker (its own metric says so). Metrics
       # (port 9100) stay inside the Docker network.
@@ -220,6 +286,7 @@ services:
 # Named volumes keep data when containers are recreated.
 # `make reset` deletes them (all data gone, fresh start).
 volumes:
+  broker-auth:
   mqtt-data:
   db-data:
   caddy-data:

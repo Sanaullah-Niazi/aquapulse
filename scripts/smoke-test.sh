@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 to M4).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M5).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
 # For each service it does a real action, not just "is it running":
 #   - every container reports "healthy"
 #   - TimescaleDB: create a hypertable, insert a reading, read it back
-#   - Mosquitto:   publish a message and receive it on a subscriber
+#   - Mosquitto:   a TLS round trip with passwords; refused logins, a refused
+#                  topic and a closed plain port 1883 (M5)
 #   - Mailpit:     send an email and find it in the inbox
-#   - Caddy:       fetch the health endpoint and the status page
+#   - Caddy:       HTTPS status page, HTTP -> HTTPS redirect, security headers (M5)
 #   - Simulator:   10 homes + 1 tank online, all sending telemetry (M2)
 #   - API:         ready, demo login works, /metrics private, audit log
 #                  protected from the API's own database role (M3)
 #   - Ingestor:    fresh readings from every device in the database, a
 #                  real valve close/open answered by the device, a live
 #                  WebSocket event, consumption totals (M4)
+#   - Devices:     register a device, it connects within 10 s; rotate and
+#                  revoke its password, the broker refuses it within 10 s (M5)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -23,17 +26,20 @@
 set -uo pipefail
 
 failures=0
+web="https://localhost:8443"
+ca="infra/certs/public/ca.crt" # curl checks Caddy's certificate with our CA (make certs)
+setting() { grep "^$1=" .env | cut -d= -f2-; }
 run_id="$(date +%s)-$RANDOM" # unique per run, so old data can't fake a pass
 
 pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 to M4)"
+echo "AquaPulse smoke test (M1 to M5)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in mqtt db mailpit caddy simulator api ingestor; do
+for svc in broker-auth mqtt db mailpit caddy simulator api ingestor; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi
@@ -54,14 +60,36 @@ else
   fail "TimescaleDB round trip failed: $db_out"
 fi
 
-# 3. Mosquitto: publish -> subscribe round trip ------------------------------
+# 3. Mosquitto (M5: TLS only, a password for everyone, rules per topic) -------
+# home-test-01 is a device account only for tests (password made from
+# SIM_DEVICE_SECRET); the read-only monitor account listens.
+test_pw="$(docker compose exec -T -e SIM_DEVICE_SECRET="$(setting SIM_DEVICE_SECRET)" api python -c \
+  "import os; from app.security.mqtt_passwords import simulator_password as p; print(p(os.environ['SIM_DEVICE_SECRET'], 'home-test-01'))" 2>/dev/null)"
+monitor_pw="$(setting MQTT_MONITOR_PASSWORD)"
+tls_opts="-h localhost -p 8883 --cafile /mosquitto/certs/ca.crt"
 msg="hello-$run_id"
 mqtt_out="$(docker compose exec -T mqtt sh -c "
-  mosquitto_sub -h localhost -t 'aquapulse/smoke' -C 1 -W 5 &
+  mosquitto_sub $tls_opts -u monitor -P '$monitor_pw' -t 'aquapulse/v1/dev/home-test-01/status' -C 1 -W 5 &
   sleep 1
-  mosquitto_pub -h localhost -t 'aquapulse/smoke' -m '$msg'
+  mosquitto_pub $tls_opts -u home-test-01 -P '$test_pw' -t 'aquapulse/v1/dev/home-test-01/status' -m '$msg'
   wait" 2>&1)"
-if [ "$mqtt_out" = "$msg" ]; then pass "Mosquitto: message published and received"; else fail "Mosquitto round trip failed: $mqtt_out"; fi
+if [ "$mqtt_out" = "$msg" ]; then pass "Mosquitto: message sent and received over TLS, with passwords"; else fail "Mosquitto TLS round trip failed: $mqtt_out"; fi
+
+refused="$(docker compose exec -T mqtt sh -c "
+  mosquitto_pub $tls_opts -t aquapulse/x -m x 2>&1 | grep -c 'not authorised'
+  mosquitto_pub $tls_opts -u home-test-01 -P wrong-password -t aquapulse/x -m x 2>&1 | grep -c 'not authorised'" 2>/dev/null | tr -d '\r' | paste -sd' ' -)"
+if [ "$refused" = "1 1" ]; then pass "Mosquitto: no password or a wrong password is refused"; else fail "Mosquitto: a login without the right password was not refused ($refused)"; fi
+
+# A device publishing to ANOTHER home's topic: the broker answers "Not authorized".
+denied="$(docker compose exec -T mqtt mosquitto_pub $tls_opts -u home-test-01 -P "$test_pw" -V 5 -q 1 \
+  -t aquapulse/v1/dev/home-b01-02/telemetry -m forged 2>&1)"
+if grep -q "Not authorized" <<<"$denied"; then pass "Mosquitto: home-test-01 may not publish to home-b01-02's topic (\"$denied\")"; else fail "Mosquitto: a device could publish to another home's topic: $denied"; fi
+
+if docker compose exec -T mqtt mosquitto_pub -h localhost -p 1883 -t x -m x >/dev/null 2>&1; then
+  fail "Mosquitto: plain MQTT port 1883 is open"
+else
+  pass "Mosquitto: plain port 1883 is closed, TLS port 8883 only"
+fi
 
 # 4. Mailpit: send an email, find it through the API --------------------------
 subject="AquaPulse smoke test $run_id"
@@ -81,26 +109,34 @@ else
   fail "Mailpit: test email not found"
 fi
 
-# 5. Caddy: health endpoint and status page ----------------------------------
-if [ "$(curl -fsS http://localhost:8080/healthz 2>/dev/null)" = "ok" ] && curl -fsS http://localhost:8080/ | grep -q "AquaPulse"; then
-  pass "Caddy: status page served at http://localhost:8080"
+# 5. Caddy: HTTPS, redirect and security headers (M5) --------------------------
+if curl -fsS --cacert "$ca" "$web/" 2>/dev/null | grep -q "AquaPulse"; then
+  pass "Caddy: status page served over HTTPS at $web"
 else
-  fail "Caddy: http://localhost:8080 did not answer correctly"
+  fail "Caddy: $web did not answer correctly (did make certs run?)"
 fi
+redirect="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' http://localhost:8080/api/docs 2>/dev/null)"
+if [ "$redirect" = "301 $web/api/docs" ]; then pass "Caddy: http://localhost:8080 redirects to HTTPS"; else fail "Caddy: no HTTPS redirect ($redirect)"; fi
+headers="$(curl -sSI --cacert "$ca" "$web/" 2>/dev/null | tr -d '\r')"
+missing=""
+for h in strict-transport-security content-security-policy x-content-type-options referrer-policy x-frame-options; do
+  grep -qi "^$h:" <<<"$headers" || missing="$missing $h"
+done
+if [ -z "$missing" ]; then pass "Caddy: security headers (HSTS, CSP, nosniff, referrer, frame) are sent"; else fail "Caddy: missing headers:$missing"; fi
 
 # 6. Simulator (M2): every virtual device online and sending telemetry ---------
 expected=11 # 10 homes + 1 tank (default SIM_HOMES=10)
 # Retained status messages: the broker hands us the latest one per device at once.
-online="$(docker compose exec -T mqtt mosquitto_sub -h localhost -t 'aquapulse/v1/dev/+/status' -v -W 3 2>/dev/null \
-  | grep -c '"state":"online"')"
+online="$(docker compose exec -T mqtt mosquitto_sub $tls_opts -u monitor -P "$monitor_pw" -t 'aquapulse/v1/dev/+/status' -v -W 3 2>/dev/null \
+  | grep -v '^aquapulse/v1/dev/home-test-01/' | grep -c '"state":"online"')"
 if [ "$online" -ge "$expected" ]; then
   pass "Simulator: $online devices online (retained MQTT status)"
 else
   fail "Simulator: only ${online:-0} of $expected devices online (try: make sim-logs)"
 fi
 # Telemetry is sent every 10 s, so 15 s is enough to hear from every device.
-senders="$(docker compose exec -T mqtt mosquitto_sub -h localhost -t 'aquapulse/v1/dev/+/telemetry' -v -W 15 2>/dev/null \
-  | cut -d/ -f4 | sort -u | wc -l | tr -d ' ')"
+senders="$(docker compose exec -T mqtt mosquitto_sub $tls_opts -u monitor -P "$monitor_pw" -t 'aquapulse/v1/dev/+/telemetry' -v -W 15 2>/dev/null \
+  | cut -d/ -f4 | grep -v '^home-test-01$' | sort -u | wc -l | tr -d ' ')"
 if [ "$senders" -ge "$expected" ]; then
   pass "Simulator: telemetry received from all $senders devices (watch: make mqtt-watch)"
 else
@@ -116,27 +152,27 @@ fi
 migrate_exit="$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose ps -aq migrate 2>/dev/null)" 2>/dev/null)"
 if [ "$migrate_exit" = "0" ]; then pass "Database migrations applied (migrate job finished OK)"; else fail "migrate job failed (try: docker compose logs migrate)"; fi
 
-ready="$(curl -sS http://localhost:8080/api/readyz 2>/dev/null)"
+ready="$(curl -sS --cacert "$ca" "$web/api/readyz" 2>/dev/null)"
 if [ "$ready" = '{"database":true,"broker":true}' ]; then
-  pass "API: ready through Caddy, database + broker reachable (http://localhost:8080/api/docs)"
+  pass "API: ready through Caddy, database + broker (TLS) reachable ($web/api/docs)"
 else
   fail "API: /api/readyz said '${ready:-nothing}' (try: make api-logs)"
 fi
 
 # Demo accounts (safe to repeat), then a real login with the password from .env.
 docker compose exec -T api python -m app.seed >/dev/null 2>&1
-demo_password="$(grep '^DEMO_PASSWORD=' .env | cut -d= -f2-)"
-login="$(curl -sS -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
+demo_password="$(setting DEMO_PASSWORD)"
+login="$(curl -sS --cacert "$ca" -X POST "$web/api/v1/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"owner@example.com\",\"password\":\"$demo_password\"}" 2>/dev/null)"
 token="$(sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' <<<"$login")"
-buildings="$(curl -sS http://localhost:8080/api/v1/buildings -H "Authorization: Bearer $token" 2>/dev/null)"
+buildings="$(curl -sS --cacert "$ca" "$web/api/v1/buildings" -H "Authorization: Bearer $token" 2>/dev/null)"
 if [ -n "$token" ] && grep -q "AquaPulse Demo Tower" <<<"$buildings"; then
   pass "API: owner@example.com logged in and sees the demo building"
 else
   fail "API: demo login failed (did DEMO_PASSWORD in .env change after make seed?)"
 fi
 
-if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/metrics)" = "404" ] \
+if [ "$(curl -s --cacert "$ca" -o /dev/null -w '%{http_code}' "$web/metrics")" = "404" ] \
   && docker compose exec -T api python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/metrics').read().decode())" 2>/dev/null | grep -q aquapulse_http_requests_total; then
   pass "API: /metrics works inside Docker and is hidden from outside"
 else
@@ -228,6 +264,89 @@ if grep -qE "CONSUMPTION 10 [0-9.]+" <<<"$m4_out"; then
   pass "Consumption: daily litres for all 10 homes ($(grep CONSUMPTION <<<"$m4_out" | cut -d' ' -f3) L in the last 30 days)"
 else
   fail "Consumption: $(grep CONSUMPTION <<<"$m4_out" || tail -n 3 <<<"$m4_out")"
+fi
+
+# 9. Device registration, rotation and revoke (M5, FR-14) ----------------------
+# On a temporary home (archived again at the end): the real API, the real
+# broker, a real TLS login as the new device. Each step must take <= 10 s.
+m5_out="$(docker compose exec -T api python - "$run_id" <<'PY' 2>&1
+import asyncio, os, ssl, sys, time, uuid
+import aiomqtt
+from app.watch import call
+
+TLS = ssl.create_default_context(cafile="/certs/ca.crt")
+
+def broker(user, password):
+    return aiomqtt.Client("mqtt", 8883, identifier=f"smoke-{uuid.uuid4().hex[:8]}",
+                          username=user, password=password, tls_context=TLS, timeout=5)
+
+async def can_login(user, password):
+    try:
+        async with broker(user, password):
+            return True
+    except aiomqtt.MqttError:
+        return False
+
+async def seconds_until(check, start, limit=10.0):
+    """Seconds from `start` (when the API was called) until check() is true."""
+    while time.monotonic() - start <= limit:
+        if await check():
+            return f"{time.monotonic() - start:.1f}s"
+        await asyncio.sleep(0.5)
+    return "never"
+
+async def kicked(client, topic):
+    try:
+        await client.publish(topic, "still here?", qos=1, timeout=2)
+        return False
+    except aiomqtt.MqttError:
+        return True
+
+async def main():
+    token = call("POST", "/auth/login", {"email": "owner@example.com",
+                 "password": os.environ["DEMO_PASSWORD"]})["access_token"]
+    building = call("GET", "/buildings", token=token)[0]
+    home = call("POST", f"/buildings/{building['id']}/homes",
+                {"unit_no": f"SMOKE-{sys.argv[1]}"[:20], "occupants": 0}, token=token)
+    try:
+        start = time.monotonic()
+        first = call("POST", f"/homes/{home['id']}/device", token=token)
+        user, old = first["username"], first["password"]
+        print("REGISTERED", await seconds_until(lambda: can_login(user, old), start))
+        topic = f"aquapulse/v1/dev/{user}/status"
+        async with broker(user, old) as connected:
+            start = time.monotonic()
+            new = call("POST", f"/devices/{user}/password", token=token)["password"]
+            print("ROTATED", await seconds_until(lambda: kicked(connected, topic), start),
+                  await seconds_until(lambda: _not(can_login(user, old)), start),
+                  await seconds_until(lambda: can_login(user, new), start))
+        async with broker(user, new) as connected:
+            start = time.monotonic()
+            call("POST", f"/devices/{user}/revoke", token=token)
+            print("REVOKED", await seconds_until(lambda: kicked(connected, topic), start),
+                  await seconds_until(lambda: _not(can_login(user, new)), start))
+    finally:
+        call("DELETE", f"/homes/{home['id']}", token=token)
+
+async def _not(check):
+    return not await check
+
+asyncio.run(main())
+PY
+)"
+reg="$(grep REGISTERED <<<"$m5_out" | cut -d' ' -f2)"
+if [ -n "$reg" ] && [ "$reg" != "never" ]; then pass "Devices: a newly registered device logged in after $reg (no broker restart)"; else fail "Devices: new device could not log in: $(tail -n 3 <<<"$m5_out")"; fi
+read -r _ old_kicked old_refused new_ok <<<"$(grep ROTATED <<<"$m5_out")"
+if [ -n "${new_ok:-}" ] && ! grep -q never <<<"$old_kicked $old_refused $new_ok"; then
+  pass "Devices: password rotated: old connection cut after $old_kicked, old password refused, new one works"
+else
+  fail "Devices: rotation: $(grep ROTATED <<<"$m5_out" || tail -n 3 <<<"$m5_out")"
+fi
+read -r _ revoked_kicked revoked_refused <<<"$(grep REVOKED <<<"$m5_out")"
+if [ -n "${revoked_refused:-}" ] && ! grep -q never <<<"$revoked_kicked $revoked_refused"; then
+  pass "Devices: revoked device disconnected after $revoked_kicked and refused from then on"
+else
+  fail "Devices: revoke: $(grep REVOKED <<<"$m5_out" || tail -n 3 <<<"$m5_out")"
 fi
 
 echo ""

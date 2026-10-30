@@ -1,11 +1,36 @@
 # ---------------------------------------------------------------
-# Caddy config (M1). Caddy is our "front door".
-# M1: serve a static status page + a health endpoint on port 80
-#     (published as http://localhost:8080 on your Mac).
-# M3: forward /api/... to the FastAPI backend.  M5: HTTPS + security headers.
+# Caddy config. Caddy is our "front door".
+# M1: status page + health endpoint.  M3: forwards /api/... to the API.
+# M5: HTTPS only, with our own certificate (make certs), plus security
+#     headers (SRS FR-71). Plain HTTP only redirects to HTTPS.
+#
+# On your Mac:  https://localhost:8443   (http://localhost:8080 redirects)
+# Online (M12): the site name becomes the real domain and Caddy gets a free
+#               Let's Encrypt certificate by itself.
 # ---------------------------------------------------------------
+{
+	# We say ourselves which certificate to use and how to redirect.
+	auto_https off
+}
+
+# Plain HTTP (port 80 inside, 8080 on your Mac): only the Docker health check,
+# everything else is sent to HTTPS (FR-71 criterion 1).
 :80 {
-	# Used by the Docker health check and the smoke test.
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle {
+		header -Server
+		redir https://{host}:{$HTTPS_PORT:443}{uri} permanent
+	}
+}
+
+# HTTPS (port 443 inside, 8443 on your Mac).
+:443 {
+	tls /certs/server.crt /certs/server.key {
+		protocols tls1.2 tls1.3
+	}
+
 	handle /healthz {
 		respond "ok" 200
 	}
@@ -23,10 +48,23 @@
 		file_server
 	}
 
-	# Basic safety headers now; the full set (HSTS, CSP) arrives with HTTPS in M5.
+	# Security headers (FR-71). In simple words:
 	header {
+		# HSTS: "only ever talk to me over HTTPS" (kept short on localhost; a year online).
+		Strict-Transport-Security "max-age={$HSTS_MAX_AGE:3600}"
+		# Do not guess file types; do not tell other sites which page you came from.
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 	}
+	# CSP: pages may only load scripts, styles and images from this site, and
+	# no other site may show them inside a frame (stops clickjacking).
+	@site not path /api/docs /api/docs/*
+	header @site Content-Security-Policy "default-src 'self'; img-src 'self' data:; connect-src 'self' wss:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	# Swagger UI (/api/docs) loads its script and style from the jsDelivr CDN
+	# and starts with a small inline script, so it gets a slightly wider CSP.
+	@swagger path /api/docs /api/docs/*
+	header @swagger Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 }

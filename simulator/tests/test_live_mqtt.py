@@ -1,8 +1,12 @@
 """Integration tests against the running stack: `make up`, then `make sim-test-live`.
 
 These use the real Mosquitto broker and the simulator container, the same way
-the backend (M4) will. They cover what unit tests cannot: real connections,
+the backend does. They cover what unit tests cannot: real connections,
 retained messages, the Last Will, timing, and a broker restart.
+
+Since M5 the broker only speaks TLS and wants a password: listening uses the
+read-only `monitor` account and sending commands the `commander` account,
+with passwords from the repo's .env (like `make` uses).
 """
 
 from __future__ import annotations
@@ -12,10 +16,12 @@ import itertools
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import time
 import urllib.request
 import uuid
+from pathlib import Path
 
 import aiomqtt
 import pytest
@@ -24,8 +30,10 @@ from aquapulse_sim import contract
 
 pytestmark = pytest.mark.integration
 
+REPO = Path(__file__).resolve().parents[2]
 HOST = os.environ.get("MQTT_HOST", "localhost")
-PORT = int(os.environ.get("MQTT_PORT", "1883"))
+PORT = int(os.environ.get("MQTT_PORT", "8883"))
+CA_FILE = os.environ.get("MQTT_CA_FILE", str(REPO / "infra/certs/public/ca.crt"))
 API = os.environ.get("SIM_API_URL", "http://localhost:8090")
 HOMES = [f"home-b01-{n:02d}" for n in range(1, 11)]
 ALL = [*HOMES, "tank-b01-01"]
@@ -40,8 +48,27 @@ def api(method: str, path: str, body: dict | None = None):
         return json.loads(response.read())
 
 
-def client() -> aiomqtt.Client:
-    return aiomqtt.Client(HOST, PORT, identifier=f"test-{uuid.uuid4().hex[:8]}")
+def env(name: str) -> str:
+    """A setting from the environment, or else from the repo's .env file."""
+    if name in os.environ:
+        return os.environ[name]
+    for line in (REPO / ".env").read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() == name:
+            return value.strip()
+    raise KeyError(f"{name} is not set (run make env)")
+
+
+def client(account: str = "monitor") -> aiomqtt.Client:
+    """A TLS connection that checks the broker's certificate, as a server account."""
+    return aiomqtt.Client(
+        HOST,
+        PORT,
+        identifier=f"test-{uuid.uuid4().hex[:8]}",
+        username=account,
+        password=env(f"MQTT_{account.upper()}_PASSWORD"),
+        tls_context=ssl.create_default_context(cafile=CA_FILE),
+    )
 
 
 async def collect(topic: str, seconds: float, until=None) -> list[aiomqtt.Message]:
@@ -97,9 +124,11 @@ async def test_fr03_interval_and_seq():
     await send_cmd(device, {"type": "interval", "seconds": 2})
     try:
         messages = await collect(
-            f"aquapulse/v1/dev/{device}/telemetry", 20, until=lambda found: len(found) >= 6
+            f"aquapulse/v1/dev/{device}/telemetry", 25, until=lambda found: len(found) >= 7
         )
-        stamps = [contract.parse_iso(payload(m)["ts"]) for m in messages[1:]]
+        # The first two may still follow the old 10 s rhythm while the device
+        # switches over (the new interval starts at its next tick).
+        stamps = [contract.parse_iso(payload(m)["ts"]) for m in messages[2:]]
         gaps = [b - a for a, b in itertools.pairwise(stamps)]
         assert gaps and all(1.8 <= gap <= 2.2 for gap in gaps), gaps  # 2 s +/- 10%
         seqs = [payload(m)["seq"] for m in messages]
@@ -109,7 +138,7 @@ async def test_fr03_interval_and_seq():
 
 
 async def send_cmd(device: str, fields: dict) -> dict:
-    """Publish a command like the backend will, and return the device's ack."""
+    """Publish a command like the backend's command sender, and return the device's ack."""
     now = time.time()
     cmd = {
         "v": 1,
@@ -119,11 +148,11 @@ async def send_cmd(device: str, fields: dict) -> dict:
         "by": "owner",
         **fields,
     }
-    async with client() as c:
-        await c.subscribe(f"aquapulse/v1/dev/{device}/ack", qos=1)
-        await c.publish(f"aquapulse/v1/dev/{device}/cmd", json.dumps(cmd), qos=1)
+    async with client("monitor") as listener, client("commander") as sender:
+        await listener.subscribe(f"aquapulse/v1/dev/{device}/ack", qos=1)
+        await sender.publish(f"aquapulse/v1/dev/{device}/cmd", json.dumps(cmd), qos=1)
         async with asyncio.timeout(10):
-            async for message in c.messages:
+            async for message in listener.messages:
                 ack = payload(message)
                 if ack["cmdId"] == cmd["cmdId"]:
                     return ack

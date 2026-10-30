@@ -7,7 +7,8 @@
 .PHONY: help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
 	api-logs seed migrate api-test api-lint openapi \
-	ingest-logs demo-data live
+	ingest-logs demo-data live \
+	certs trust-ca devices sim-passwords broker-logs tls-check restart-check
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -34,13 +35,13 @@ secrets: ## Scan the whole git history for leaked secrets
 # M1: Docker stack
 # ---------------------------------------------------------------
 
-up: env ## Start the whole stack and wait until every service is healthy
+up: env certs ## Start the whole stack and wait until every service is healthy
 	docker compose up -d --build --wait
 	@# Caddy does not notice a changed Caddyfile by itself: reload it (harmless if unchanged).
 	@docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1 || true
 	@echo ""
-	@echo "Stack is up: status page http://localhost:8080 · email inbox http://localhost:8025"
-	@echo "             simulator http://localhost:8090/docs · API http://localhost:8080/api/docs"
+	@echo "Stack is up: status page https://localhost:8443 · email inbox http://localhost:8025"
+	@echo "             simulator http://localhost:8090/docs · API https://localhost:8443/api/docs"
 	@echo "Next: make smoke"
 
 down: ## Stop the stack (your data is kept)
@@ -63,7 +64,8 @@ psql: ## Open a SQL prompt inside the database (type \q to quit)
 	docker compose exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
 mqtt-watch: ## Print every MQTT message on aquapulse/# (Ctrl+C to stop)
-	docker compose exec mqtt mosquitto_sub -h localhost -t 'aquapulse/#' -v
+	docker compose exec mqtt sh -c 'mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt \
+		-u monitor -P "$$MQTT_MONITOR_PASSWORD" -t "aquapulse/#" -v'
 
 # ---------------------------------------------------------------
 # M2: Simulator (digital twin)
@@ -79,11 +81,11 @@ DEVICE ?= home-b01-03
 leak: ## Start a 2-hour leak on a home: make leak (or make leak DEVICE=home-b01-07)
 	docker compose exec simulator aquapulse-sim scenario leak $(DEVICE) --minutes 120
 
-valve-close: ## Close a home's water valve over MQTT: make valve-close DEVICE=home-b01-03
-	docker compose exec simulator aquapulse-sim send $(DEVICE) valve close
+valve-close: ## Close a home's water valve through the API: make valve-close DEVICE=home-b01-03
+	docker compose exec api python -m app.valve $(DEVICE) close
 
 valve-open: ## Open a home's water valve again: make valve-open DEVICE=home-b01-03
-	docker compose exec simulator aquapulse-sim send $(DEVICE) valve open
+	docker compose exec api python -m app.valve $(DEVICE) open
 
 sim-test: ## Run the simulator's unit tests (no Docker needed)
 	cd simulator && uv run pytest
@@ -129,5 +131,31 @@ demo-data: ## Load 90 days of demo history (safe to run again): make demo-data (
 WHO ?= owner@example.com
 live: ## Print live events like an app sees them: make live (or WHO=resident03@example.com)
 	docker compose exec api python -m app.watch $(WHO)
+
+# ---------------------------------------------------------------
+# M5: Secure MQTT and HTTPS
+# ---------------------------------------------------------------
+
+certs: ## Create the project CA and server certificate in infra/certs (once; safe to repeat)
+	@./scripts/make-certs.sh
+
+trust-ca: certs ## Optional: let your Mac's browsers trust https://localhost:8443 (asks for your password)
+	sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain infra/certs/public/ca.crt
+	@echo "Done. Restart your browser. Undo: Keychain Access > System > AquaPulse Local CA > Delete"
+
+devices: ## List the demo building's devices and whether they are online
+	@docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT id, status, online, last_seen_at::timestamp(0) AS last_seen, mqtt_password_hash IS NOT NULL AS own_password FROM devices ORDER BY id"'
+
+sim-passwords: ## Give the simulated devices back their simulator passwords (after trying rotation)
+	docker compose exec api python -m app.seed --sim-passwords
+
+broker-logs: ## Follow the broker's logs: logins, refused logins, refused topics (Ctrl+C to stop)
+	docker compose logs -f --tail=50 mqtt broker-auth
+
+tls-check: ## Check TLS on the broker and the web server, and that port 1883 is closed
+	@./scripts/tls-check.sh
+
+restart-check: ## Restart everything and check it is all healthy again within 90 s
+	@./scripts/restart-check.sh
 
 test: sim-test api-test ## Run all tests (grows with each milestone)

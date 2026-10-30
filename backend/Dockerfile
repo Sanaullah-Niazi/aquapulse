@@ -28,7 +28,9 @@ ENV PATH=/app/.venv/bin:$PATH \
     AQUAPULSE_CONTRACTS_DIR=/app/contracts
 
 # Run as a normal user, not root.
-RUN useradd --uid 10001 --no-create-home api
+# /broker-auth: where broker-auth writes the MQTT password list (M5). Made here so
+# the shared volume belongs to this user, not root.
+RUN useradd --uid 10001 --no-create-home api && mkdir /broker-auth && chown api /broker-auth
 USER api
 
 EXPOSE 8000

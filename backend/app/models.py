@@ -227,16 +227,31 @@ class Device(Base):
             " OR (kind = 'tank' AND tank_id IS NOT NULL AND home_id IS NULL)",
             name="kind_matches_target",
         ),
-    )
+        # Old, revoked devices stay (their readings and audit refer to them),
+        # but a home or tank has at most one ACTIVE device (M5).
+        Index(
+            "one_active_device_per_home", "home_id", unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+        Index(
+            "one_active_device_per_tank", "tank_id", unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+    )  # fmt: skip
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)  # e.g. home-b01-03
     kind: Mapped[str] = mapped_column(String(8), nullable=False)
     building_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("buildings.id"), nullable=False, index=True
     )
-    home_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("homes.id"), unique=True)
-    tank_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tanks.id"), unique=True)
+    home_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("homes.id"))
+    tank_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tanks.id"))
     status: Mapped[str] = mapped_column(String(8), nullable=False, default="active")
+    # FR-14: the MQTT password, hashed for Mosquitto (security/mqtt_passwords.py).
+    # NULL = a simulated device that still logs in with its simulator password.
+    mqtt_password_hash: Mapped[str | None] = mapped_column(String(160))
+    credentials_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     online: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     fw_version: Mapped[str | None] = mapped_column(String(16))
     state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)

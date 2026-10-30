@@ -1,0 +1,18 @@
+/* Status page style. A separate file (not inline) so the strict
+   Content-Security-Policy from M5 can allow it. */
+:root { --bg: #f6f8fb; --card: #ffffff; --text: #10202e; --muted: #5b6b7a; --accent: #0277bd; --line: #dde5ee; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1620; --card: #15212d; --text: #e6eef6; --muted: #9db0c2; --accent: #4fc3f7; --line: #243444; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+main { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+h1 { margin: 0 0 4px; font-size: 1.8rem; }
+p.lead { margin: 0 0 28px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+code { font-size: .9em; }
+a { color: var(--accent); }
+footer { margin-top: 24px; color: var(--muted); font-size: .9rem; }

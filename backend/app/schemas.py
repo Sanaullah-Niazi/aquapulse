@@ -7,7 +7,15 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    computed_field,
+    field_validator,
+)
 
 CURRENCY_CODES = ("PKR", "USD", "GBP", "EUR", "AUD", "AED", "SAR", "QAR", "KWD", "BHD", "OMR")
 
@@ -534,4 +542,51 @@ class PumpIn(In):
 class WsTicketOut(BaseModel):
     ticket: str
     expires_in: int = Field(description="Seconds: open the WebSocket before then")
-    url: str = Field(description="Where to connect, e.g. ws://localhost:8080/api/v1/ws?ticket=...")
+    url: str = Field(description="Where to connect, e.g. wss://localhost:8443/api/v1/ws?ticket=...")
+
+
+# ----- devices and their MQTT passwords (M5) -----
+
+
+class DeviceOut(Out):
+    id: str = Field(description="Also the device's MQTT username")
+    kind: Literal["home", "tank"]
+    building_id: uuid.UUID
+    home_id: uuid.UUID | None
+    tank_id: uuid.UUID | None
+    status: Literal["active", "revoked"]
+    online: bool
+    fw_version: str | None
+    last_seen_at: datetime | None
+    created_at: datetime
+    credentials_changed_at: datetime | None
+    revoked_at: datetime | None
+    mqtt_password_hash: str | None = Field(None, exclude=True)  # never sent, only read below
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description="False = a simulated device that still uses its simulator password"
+    )
+    @property
+    def has_own_password(self) -> bool:
+        return self.mqtt_password_hash is not None
+
+
+class BrokerInfo(BaseModel):
+    host: str
+    port: int
+    tls: bool = True
+    ca_sha256: str | None = Field(
+        description="SHA-256 fingerprint of the project CA: the device checks the broker with it"
+    )
+
+
+class DeviceCredentialsOut(BaseModel):
+    """Shown ONCE. Only a hash is kept, so a lost password cannot be shown
+    again: rotate it instead (FR-14)."""
+
+    device: DeviceOut
+    username: str
+    password: str = Field(description="Shown only this once. Copy it into the device now")
+    broker: BrokerInfo
+    config: dict = Field(description="Everything the device needs, as one JSON object (in the QR)")
+    qr_svg: str = Field(description="The config as a QR code (an SVG image as a data: URL)")

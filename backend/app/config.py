@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # Where broker-auth writes the password list that Mosquitto reads.
     broker_auth_file: str = Field("/broker-auth/passwd", alias="BROKER_AUTH_FILE")
 
+    # Online payment, Stripe TEST mode (M6, FR-39). Both empty = switched off:
+    # manual payments still work. Only test keys (sk_test_...) are accepted.
+    stripe_secret_key: SecretStr = Field(SecretStr(""), alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: SecretStr = Field(SecretStr(""), alias="STRIPE_WEBHOOK_SECRET")
+
     # Rate limits (FR-68, FR-72).
     login_max_failures: int = 5
     login_window_s: int = 15 * 60

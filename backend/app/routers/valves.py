@@ -1,5 +1,8 @@
 """Valve control and owner locks (FR-24, FR-27).
 
+A lock can also be a shut-off for an unpaid bill (M6, FR-27 criterion 4);
+billing/lifecycle.py says when that is allowed.
+
 Pressing "close" does not close anything by itself: it queues a command.
 The command's state then moves queued -> pending -> succeeded / failed /
 rejected / timeout, and only the device's ack says what really happened.
@@ -19,11 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit
 from .. import events as bus
+from ..billing.lifecycle import shutoff_problem
 from ..control import check_command_rate, device_for, queue_command
 from ..db import get_session
 from ..deps import NOT_FOUND, Caller, require, visible_home
 from ..emailer import send_email
-from ..models import Building, DeviceCommand, Home, Occupancy, User, ValveLock
+from ..models import Bill, Building, DeviceCommand, Home, Occupancy, User, ValveLock
 from ..schemas import CommandOut, ValveIn, ValveLockIn, ValveLockOut, ValveUnlockIn
 
 router = APIRouter(tags=["valve control"])
@@ -131,6 +135,19 @@ async def lock_valve(home_id: uuid.UUID, body: ValveLockIn, session: Session, ca
     home = await visible_home(session, caller, home_id, manage=True)
     if await active_lock(session, home.id) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This valve is already locked")
+    if body.bill_id is not None:
+        # A shut-off for an unpaid bill: only with the policy on, an overdue
+        # bill and a warning 48 h before (FR-27 criterion 4, M6).
+        if body.state != "closed":
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "bill_id is only for closing the valve"
+            )
+        building = await session.get(Building, home.building_id)
+        assert building is not None
+        bill = await session.get(Bill, body.bill_id)
+        problem = shutoff_problem(bill, building, home.id, datetime.now(UTC))
+        if problem:
+            raise HTTPException(status.HTTP_409_CONFLICT, problem)
     device = await device_for(session, home_id=home.id)
     lock = ValveLock(
         home_id=home.id,
@@ -172,6 +189,7 @@ async def lock_valve(home_id: uuid.UUID, body: ValveLockIn, session: Session, ca
             "reason": body.reason,
             "command": str(command.id),
             "residents_emailed": sent,
+            **({"unpaid_bill": str(body.bill_id)} if body.bill_id else {}),
         },
     )
     await _lock_event(session, home, lock, locked=True)

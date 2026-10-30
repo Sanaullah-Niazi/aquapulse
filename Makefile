@@ -8,7 +8,8 @@
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live \
-	certs trust-ca devices sim-passwords broker-logs tls-check restart-check
+	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
+	worker-logs bills
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -107,7 +108,8 @@ migrate: ## Apply new database migrations now (make up does this too)
 	docker compose run --rm migrate
 
 api-test: ## Run the API tests (needs the database: make up first)
-	cd backend && uv run pytest
+	@# The PDF tests need Pango (`brew install pango`); on Apple Silicon Python finds it here.
+	cd backend && DYLD_FALLBACK_LIBRARY_PATH="$${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/lib}" uv run pytest
 
 api-lint: ## Check the backend code style (ruff)
 	cd backend && uv run ruff check . && uv run ruff format --check .
@@ -127,6 +129,10 @@ demo-data: ## Load 90 days of demo history (safe to run again): make demo-data (
 	@echo "Making $(DAYS) days of history with the simulator and loading it (1 to 3 minutes)..."
 	docker compose run --rm -T --no-deps simulator aquapulse-sim backfill --days $(DAYS) \
 		| docker compose exec -T api python -m app.backfill
+	@# M6: history for the second demo building (KWD), which has no live devices.
+	docker compose run --rm -T --no-deps -e SIM_BUILDING=b02 -e SIM_HOMES=3 -e SIM_SEED=7 \
+		-e DEMO_TIMEZONE=Asia/Kuwait simulator aquapulse-sim backfill --days $(DAYS) \
+		| docker compose exec -T api python -m app.backfill --history-only
 
 WHO ?= owner@example.com
 live: ## Print live events like an app sees them: make live (or WHO=resident03@example.com)
@@ -157,5 +163,16 @@ tls-check: ## Check TLS on the broker and the web server, and that port 1883 is 
 
 restart-check: ## Restart everything and check it is all healthy again within 90 s
 	@./scripts/restart-check.sh
+
+# ---------------------------------------------------------------
+# M6: Billing and payments
+# ---------------------------------------------------------------
+
+worker-logs: ## Follow the worker's logs: monthly bills, overdue bills (Ctrl+C to stop)
+	docker compose logs -f --tail=50 worker
+
+MONTH ?=
+bills: ## Make last month's draft bills for every building now: make bills (or MONTH=2026-09)
+	docker compose exec api python -m app.bills $(MONTH)
 
 test: sim-test api-test ## Run all tests (grows with each milestone)

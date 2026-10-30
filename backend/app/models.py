@@ -1,4 +1,5 @@
 """Database tables (SRS section 7.1). M3: people and places. M4: devices and readings.
+M6: tariffs, bills, payments.
 
 Every table uses UUID keys, so IDs in URLs cannot be guessed by counting.
 """
@@ -7,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -82,6 +84,13 @@ class Building(Base):
     currency_code: Mapped[str] = mapped_column(ForeignKey("currencies.code"), nullable=False)
     nonpayment_shutoff_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     due_days: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
+    # M6: short code used in bill numbers (B01-2026-000123), given by the
+    # database in order: B01, B02 ... (migration 0004).
+    code: Mapped[str] = mapped_column(
+        String(8), unique=True, nullable=False, server_default=text("next_building_code()")
+    )
+    # M6: issue new monthly bills automatically instead of leaving them as drafts.
+    bills_auto_issue: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = _now()
 
     homes: Mapped[list[Home]] = relationship(back_populates="building")
@@ -372,3 +381,218 @@ class DeviceEvent(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(16), nullable=False)  # backfill | scenario
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+# ----- M6: tariffs, bills and payments -----
+# Money is NUMERIC(14,3) (never float) plus the building's currency (FR-32).
+
+Money = Numeric(14, 3)
+BILL_STATES = ("draft", "issued", "partially_paid", "paid", "overdue", "void")
+CHARGE_KINDS = ("tax_percent", "extra_percent", "extra_fixed")
+PAYMENT_METHODS = ("cash", "bank", "stripe_test", "other")
+
+
+class Tariff(Base):
+    """One VERSION of a building's tariff (FR-33). A change = a new version;
+    old versions stay, so issued bills always point at what they used."""
+
+    __tablename__ = "tariffs"
+    __table_args__ = (UniqueConstraint("building_id", "version", name="tariff_version_unique"),)
+
+    id: Mapped[uuid.UUID] = _id()
+    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
+    # The currency the rates are in. Bills refuse a version in another currency.
+    currency_code: Mapped[str] = mapped_column(ForeignKey("currencies.code"), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = _now()
+
+    slabs: Mapped[list[TariffSlab]] = relationship(
+        order_by="TariffSlab.position", lazy="selectin", cascade="all, delete-orphan"
+    )
+    charges: Mapped[list[TariffCharge]] = relationship(
+        order_by="TariffCharge.position", lazy="selectin", cascade="all, delete-orphan"
+    )
+
+
+class TariffSlab(Base):
+    __tablename__ = "tariff_slabs"
+    __table_args__ = (CheckConstraint("rate_per_kl >= 0", name="rate_not_negative"),)
+
+    id: Mapped[uuid.UUID] = _id()
+    tariff_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tariffs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    from_l: Mapped[int] = mapped_column(Integer, nullable=False)
+    to_l: Mapped[int | None] = mapped_column(Integer)  # null = no upper limit
+    rate_per_kl: Mapped[Decimal] = mapped_column(Money, nullable=False)  # per 1,000 L
+
+
+class TariffCharge(Base):
+    """A tax or an owner-defined extra charge (FR-33)."""
+
+    __tablename__ = "tariff_charges"
+    __table_args__ = (
+        CheckConstraint(f"kind IN {CHARGE_KINDS}", name="kind_valid"),
+        CheckConstraint("value >= 0", name="value_not_negative"),
+    )
+
+    id: Mapped[uuid.UUID] = _id()
+    tariff_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tariffs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    value: Mapped[Decimal] = mapped_column(Money, nullable=False)
+
+
+class Bill(Base):
+    """A monthly water bill for one resident's days in one home (FR-35, FR-37).
+
+    draft -> issued -> partially_paid -> paid, issued/partially_paid -> overdue
+    after the due date, and draft/issued/overdue -> void (with a reason). An
+    issued bill is never edited: a mistake is fixed by void + a new bill.
+    """
+
+    __tablename__ = "bills"
+    __table_args__ = (
+        CheckConstraint(f"status IN {BILL_STATES}", name="status_valid"),
+        CheckConstraint("period_end >= period_start", name="period_in_order"),
+        CheckConstraint("total >= 0 AND amount_paid >= 0", name="amounts_not_negative"),
+        CheckConstraint(
+            "status = 'draft' OR status = 'void' OR (bill_no IS NOT NULL AND due_date IS NOT NULL)",
+            name="issued_bills_have_number_and_due_date",
+        ),
+        # FR-35 criterion 1: one live bill per home, resident and period, so
+        # running the generation twice cannot make duplicates.
+        Index("one_bill_per_period", "home_id", "user_id", "period_start", unique=True,
+              postgresql_where=text("status <> 'void'")),
+        Index("bills_building_month", "building_id", "month"),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    bill_no: Mapped[str | None] = mapped_column(String(24), unique=True)  # given when issued
+    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"), nullable=False)
+    home_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("homes.id"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # Copied when the bill is made, so the bill stays as it was printed.
+    bill_to: Mapped[str] = mapped_column(String(120), nullable=False)
+    unit_no: Mapped[str] = mapped_column(String(20), nullable=False)
+    month: Mapped[date] = mapped_column(Date, nullable=False)  # first day of the month
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)  # inclusive
+    month_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    currency_code: Mapped[str] = mapped_column(ForeignKey("currencies.code"), nullable=False)
+    litres: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    reading_start: Mapped[Decimal | None] = mapped_column(Money)  # meter counter, litres
+    reading_end: Mapped[Decimal | None] = mapped_column(Money)
+    subtotal: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    tax_total: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    total: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    amount_paid: Mapped[Decimal] = mapped_column(Money, nullable=False, default=Decimal(0))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    due_date: Mapped[date | None] = mapped_column(Date)
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    issued_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    voided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    void_reason: Mapped[str | None] = mapped_column(String(300))
+    replaces_bill_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"))
+    # FR-27: when the resident was warned that water may be shut off for this bill.
+    shutoff_warned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _now()
+    updated_at: Mapped[datetime] = _now()
+
+    lines: Mapped[list[BillLine]] = relationship(
+        order_by="BillLine.position", lazy="selectin", cascade="all, delete-orphan"
+    )
+    payments: Mapped[list[Payment]] = relationship(
+        order_by="Payment.created_at", lazy="selectin", viewonly=True
+    )
+
+
+class BillLine(Base):
+    __tablename__ = "bill_lines"
+    __table_args__ = (CheckConstraint("kind IN ('slab', 'extra', 'tax')", name="kind_valid"),)
+
+    id: Mapped[uuid.UUID] = _id()
+    bill_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    description: Mapped[str] = mapped_column(String(160), nullable=False)
+    quantity_l: Mapped[Decimal | None] = mapped_column(Money)
+    rate: Mapped[Decimal | None] = mapped_column(Money)
+    amount: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    tariff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tariffs.id"))
+
+
+class BillCounter(Base):
+    """The last bill number per building and year: B01-2026-000123 (FR-37 crit. 3)."""
+
+    __tablename__ = "bill_counters"
+
+    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    last_no: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class BillingRun(Base):
+    """When the bills of a building and month were last generated (FR-35)."""
+
+    __tablename__ = "billing_runs"
+
+    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"), primary_key=True)
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    automatic: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class Payment(Base):
+    """Money received for a bill (FR-39, FR-40). Never deleted: a mistake is
+    reversed with a reason, and the reversal is kept."""
+
+    __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint(f"method IN {PAYMENT_METHODS}", name="method_valid"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = _id()
+    bill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bills.id"), nullable=False, index=True)
+    amount: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    method: Mapped[str] = mapped_column(String(12), nullable=False)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    # Stripe's Checkout session ID: unique, so a webhook delivered twice is
+    # recorded once (FR-39 criterion 2).
+    provider_ref: Mapped[str | None] = mapped_column(String(255), unique=True)
+    received_on: Mapped[date] = mapped_column(Date, nullable=False)
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))  # null = Stripe
+    receipt: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)  # photo, max 2 MB
+    receipt_type: Mapped[str | None] = mapped_column(String(16))
+    reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reversed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reversal_reason: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = _now()
+
+
+class CheckoutSession(Base):
+    """A Stripe Checkout page we opened for a bill (FR-39). The webhook must
+    match one of these, with the same amount and currency."""
+
+    __tablename__ = "checkout_sessions"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)  # cs_test_...
+    bill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bills.id"), nullable=False, index=True)
+    amount: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(3), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = _now()
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

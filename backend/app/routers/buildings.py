@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit
+from ..billing.generate import has_bills
 from ..db import get_session
 from ..deps import Caller, require, visible_building, visible_home
 from ..models import AuditEntry, Building, Home, User
@@ -25,6 +26,7 @@ from ..schemas import (
     HomePatch,
 )
 from .admin import audit_query
+from .tariffs import currency_or_422
 
 router = APIRouter(tags=["buildings and homes"])
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -69,6 +71,7 @@ async def create_building(body: BuildingIn, session: Session, caller: OwnerOrAdm
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "owner_id is required")
         await _check_owner(session, body.owner_id)
         owner_id = body.owner_id
+    await currency_or_422(session, body.currency_code)
     building = Building(**body.model_dump(exclude={"owner_id"}), owner_id=owner_id)
     session.add(building)
     await session.flush()
@@ -95,14 +98,24 @@ async def get_building(building_id: uuid.UUID, session: Session, caller: OwnerOr
 async def update_building(
     building_id: uuid.UUID, body: BuildingPatch, session: Session, caller: OwnerOrAdmin
 ):
-    """Edit name, address, time zone, currency or due days. Only a System Admin can
-    move a building to another owner."""
+    """Edit name, address, time zone, currency, due days and the billing settings.
+    The currency is fixed once bills exist. Only a System Admin can move a
+    building to another owner."""
     building = await visible_building(session, caller, building_id)
     patch = body.model_dump(exclude_unset=True)
     if "owner_id" in patch:
         if caller.role != "sysadmin":
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a System Admin can change owners")
         await _check_owner(session, patch["owner_id"])
+    if "currency_code" in patch and patch["currency_code"] != building.currency_code:
+        await currency_or_422(session, patch["currency_code"])
+        # FR-20 criterion 2: never mix currencies in one building's bills.
+        if await has_bills(session, building.id):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "This building already has bills in "
+                f"{building.currency_code}: its currency cannot change any more",
+            )
     changes = _changes(building, patch)
     for field, value in patch.items():
         setattr(building, field, value)

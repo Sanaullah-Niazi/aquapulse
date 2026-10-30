@@ -68,6 +68,26 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("POST", "/api/v1/tanks/{tank_id}/device"): {OW},
     ("POST", "/api/v1/devices/{device_id}/password"): {OW},
     ("POST", "/api/v1/devices/{device_id}/revoke"): {OW},
+    # M6: billing and payments (SRS 3.2 and 8.5). System Admins read bills only.
+    ("GET", "/api/v1/buildings/{building_id}/tariffs"): {OW},
+    ("POST", "/api/v1/buildings/{building_id}/tariffs"): {OW},
+    ("GET", "/api/v1/tariffs/{tariff_id}"): {OW},
+    ("POST", "/api/v1/tariffs/preview"): {OW},
+    ("POST", "/api/v1/buildings/{building_id}/bills/generate"): {OW},
+    ("GET", "/api/v1/buildings/{building_id}/bills"): {SA, OW},
+    ("POST", "/api/v1/buildings/{building_id}/bills/issue-all"): {OW},
+    ("GET", "/api/v1/me/bills"): {RE},
+    ("GET", "/api/v1/bills/{bill_id}"): ALL,
+    ("GET", "/api/v1/bills/{bill_id}/pdf"): ALL,
+    ("POST", "/api/v1/bills/{bill_id}/issue"): {OW},
+    ("POST", "/api/v1/bills/{bill_id}/void"): {OW},
+    ("POST", "/api/v1/bills/{bill_id}/payments"): {OW},
+    ("POST", "/api/v1/bills/{bill_id}/shutoff-warning"): {OW},
+    ("POST", "/api/v1/bills/{bill_id}/checkout"): {RE},
+    ("POST", "/api/v1/payments/{payment_id}/reverse"): {OW},
+    ("PUT", "/api/v1/payments/{payment_id}/receipt"): {OW},
+    ("GET", "/api/v1/payments/{payment_id}/receipt"): ALL,
+    ("POST", "/api/v1/webhooks/stripe"): PUBLIC,  # Stripe itself; the signature is checked
 }
 
 
@@ -94,6 +114,9 @@ def _url(path: str) -> str:
         command_id=uuid.uuid4(),
         tank_id=uuid.uuid4(),
         device_id=f"home-{uuid.uuid4().hex[:8]}-01",
+        tariff_id=uuid.uuid4(),
+        bill_id=uuid.uuid4(),
+        payment_id=uuid.uuid4(),
     )
 
 

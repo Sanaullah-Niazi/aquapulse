@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 from zoneinfo import available_timezones
 
@@ -14,10 +15,15 @@ from pydantic import (
     Field,
     StringConstraints,
     computed_field,
+    field_serializer,
     field_validator,
 )
 
-CURRENCY_CODES = ("PKR", "USD", "GBP", "EUR", "AUD", "AED", "SAR", "QAR", "KWD", "BHD", "OMR")
+# The currencies themselves are rows of the `currencies` table (FR-32 crit. 3):
+# the API checks a code against that table, so a new currency is one new row.
+CurrencyCode = Annotated[
+    str, StringConstraints(pattern=r"^[A-Z]{3}$"), Field(examples=["PKR", "KWD"])
+]
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Password = Annotated[str, StringConstraints(min_length=1, max_length=128)]
@@ -199,7 +205,7 @@ class BuildingIn(In):
     name: Name
     address: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] = ""
     timezone: str = Field("Asia/Karachi", examples=["Asia/Karachi", "Europe/London"])
-    currency_code: Literal[CURRENCY_CODES] = "PKR"  # type: ignore[valid-type]
+    currency_code: CurrencyCode = "PKR"
     owner_id: uuid.UUID | None = Field(
         None, description="System Admin only: which owner gets the building"
     )
@@ -216,8 +222,17 @@ class BuildingPatch(In):
     name: Name | None = None
     address: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] | None = None
     timezone: str | None = None
-    currency_code: Literal[CURRENCY_CODES] | None = None  # type: ignore[valid-type]
+    currency_code: CurrencyCode | None = Field(
+        None, description="Cannot change once the building has bills (FR-20)"
+    )
     due_days: Annotated[int, Field(ge=1, le=90)] | None = None
+    nonpayment_shutoff_enabled: bool | None = Field(
+        None,
+        description="Allow closing the water for an overdue bill, after a 48 h warning (FR-27)",
+    )
+    bills_auto_issue: bool | None = Field(
+        None, description="Issue monthly bills at once instead of leaving them as drafts"
+    )
     owner_id: uuid.UUID | None = Field(None, description="System Admin only: reassign the owner")
 
     _tz = field_validator("timezone")(_check_timezone)
@@ -232,6 +247,8 @@ class BuildingOut(Out):
     currency_code: str
     nonpayment_shutoff_enabled: bool
     due_days: int
+    code: str = Field(description="Used in bill numbers, e.g. B01-2026-000123")
+    bills_auto_issue: bool
     created_at: datetime
 
 
@@ -446,6 +463,11 @@ class ValveLockIn(In):
 
     state: Literal["open", "closed"]
     reason: LockReason
+    bill_id: uuid.UUID | None = Field(
+        None,
+        description="Only for a shut-off because of an unpaid bill (FR-27): the building's "
+        "policy must allow it, the bill must be overdue and the resident warned 48 h before",
+    )
 
 
 class ValveUnlockIn(In):
@@ -590,3 +612,246 @@ class DeviceCredentialsOut(BaseModel):
     broker: BrokerInfo
     config: dict = Field(description="Everything the device needs, as one JSON object (in the QR)")
     qr_svg: str = Field(description="The config as a QR code (an SVG image as a data: URL)")
+
+
+# ----- billing (M6) -----
+# Money is sent as a string ("1250.00"), never as a JSON number, so no app
+# ever turns it into a rounded floating-point value.
+
+Litres = Annotated[int, Field(ge=0, le=100_000_000)]
+Rate = Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=3)]
+Month = Annotated[str, StringConstraints(pattern=r"^[0-9]{4}-(0[1-9]|1[0-2])$")]
+LongReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=300)]
+
+
+class SlabIn(In):
+    from_l: Litres = Field(description="Litres where the slab starts (the first slab: 0)")
+    to_l: Litres | None = Field(description="Where it ends; null for the last slab (no limit)")
+    rate_per_kl: Rate = Field(description="Price per 1,000 litres, in the building's currency")
+
+
+class ChargeIn(In):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    kind: Literal["tax_percent", "extra_percent", "extra_fixed"] = Field(
+        description="tax_percent: % of water + extras; extra_percent: % of water; "
+        "extra_fixed: a fixed amount per month (prorated for part months)"
+    )
+    value: Rate
+
+
+class TariffRules(In):
+    slabs: list[SlabIn] = Field(min_length=1, max_length=10)
+    charges: list[ChargeIn] = Field(default_factory=list, max_length=10)
+
+
+class TariffIn(TariffRules):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Standard 2026",
+                    "effective_from": "2026-11-01",
+                    "slabs": [
+                        {"from_l": 0, "to_l": 5000, "rate_per_kl": "60"},
+                        {"from_l": 5000, "to_l": 15000, "rate_per_kl": "120"},
+                        {"from_l": 15000, "to_l": None, "rate_per_kl": "200"},
+                    ],
+                    "charges": [{"name": "Sewerage", "kind": "extra_percent", "value": "10"}],
+                }
+            ]
+        },
+    )
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    effective_from: date
+
+
+class TariffPreviewIn(TariffRules):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "currency_code": "PKR",
+                    "litres": "7000",
+                    "slabs": [
+                        {"from_l": 0, "to_l": 5000, "rate_per_kl": "60"},
+                        {"from_l": 5000, "to_l": None, "rate_per_kl": "120"},
+                    ],
+                    "charges": [],
+                }
+            ]
+        },
+    )
+
+    currency_code: CurrencyCode
+    litres: Annotated[Decimal, Field(ge=0, le=100_000_000, decimal_places=3)]
+    days: Annotated[int, Field(ge=1, le=31)] = 30
+    month_days: Annotated[int, Field(ge=28, le=31)] = 30
+
+
+def _plain(value: Decimal) -> str:
+    """60.000 -> "60", 0.250 -> "0.25": rates as people write them."""
+    return f"{value.normalize():f}"
+
+
+class SlabOut(Out):
+    from_l: int
+    to_l: int | None
+    rate_per_kl: Decimal
+
+    _rate = field_serializer("rate_per_kl")(lambda self, v: _plain(v))
+
+
+class ChargeOut(Out):
+    name: str
+    kind: str
+    value: Decimal
+
+    _value = field_serializer("value")(lambda self, v: _plain(v))
+
+
+class TariffOut(Out):
+    id: uuid.UUID
+    building_id: uuid.UUID
+    name: str
+    version: int
+    effective_from: date
+    currency_code: str
+    created_at: datetime
+    slabs: list[SlabOut]
+    charges: list[ChargeOut]
+
+
+class BillLineOut(BaseModel):
+    kind: Literal["slab", "extra", "tax"]
+    description: str
+    quantity_l: Decimal | None
+    rate: Decimal | None = Field(description="Slabs: per 1,000 L. Taxes and extras: a percentage")
+    amount: Decimal
+
+
+class PreviewOut(BaseModel):
+    currency_code: str
+    litres: Decimal
+    lines: list[BillLineOut]
+    subtotal: Decimal
+    tax_total: Decimal
+    total: Decimal
+    total_text: str = Field(description="Formatted for people, e.g. Rs 1,250.00 or KWD 4.375")
+
+
+class PaymentOut(BaseModel):
+    id: uuid.UUID
+    bill_id: uuid.UUID
+    amount: Decimal
+    method: Literal["cash", "bank", "stripe_test", "other"]
+    reference: str
+    received_on: date
+    has_receipt: bool
+    created_at: datetime
+    reversed_at: datetime | None
+    reversal_reason: str | None
+
+
+class BillSummaryOut(BaseModel):
+    id: uuid.UUID
+    bill_no: str | None = Field(description="Given when the bill is issued")
+    building_id: uuid.UUID
+    home_id: uuid.UUID
+    user_id: uuid.UUID
+    bill_to: str
+    unit_no: str
+    month: date
+    period_start: date
+    period_end: date
+    currency_code: str
+    litres: Decimal
+    total: Decimal
+    amount_paid: Decimal
+    outstanding: Decimal
+    total_text: str
+    status: Literal["draft", "issued", "partially_paid", "paid", "overdue", "void"]
+    due_date: date | None
+    issued_at: datetime | None
+
+
+class BillOut(BillSummaryOut):
+    month_days: int
+    reading_start: Decimal | None
+    reading_end: Decimal | None
+    subtotal: Decimal
+    tax_total: Decimal
+    lines: list[BillLineOut]
+    payments: list[PaymentOut]
+    void_reason: str | None
+    replaces_bill_id: uuid.UUID | None
+    shutoff_warned_at: datetime | None
+    can_pay_online: bool = Field(description="Show the 'Pay online (test mode)' button (FR-39)")
+
+
+class GenerateIn(In):
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"examples": [{"month": "2026-09"}]}
+    )
+
+    month: Month
+
+
+class GenerateOut(BaseModel):
+    month: date
+    created: int = Field(description="New draft bills")
+    updated: int = Field(description="Drafts recalculated")
+    replaced: int = Field(description="New drafts for voided bills (also counted in created)")
+    kept: int = Field(description="Bills already issued: never changed")
+    issued: int = Field(description="Issued at once (building setting bills_auto_issue)")
+    problems: list[str]
+
+
+class IssueAllOut(BaseModel):
+    issued: int
+    bills: list[BillSummaryOut]
+
+
+class VoidIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"reason": "Wrong tariff: new tariff starts in October"}]},
+    )
+
+    reason: LongReason
+
+
+class PaymentIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"amount": "500.00", "method": "cash", "reference": "Receipt book #12"}]
+        },
+    )
+
+    amount: Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=3)]
+    method: Literal["cash", "bank", "other"]
+    received_on: date | None = Field(None, description="Default: today")
+    reference: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)] = ""
+
+
+class ReverseIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"reason": "Recorded on the wrong bill"}]},
+    )
+
+    reason: LongReason
+
+
+class CheckoutOut(BaseModel):
+    url: str = Field(description="Open this page to pay (Stripe Checkout)")
+    session_id: str
+    amount: Decimal = Field(
+        description="What Stripe will charge (3-decimal currencies: up to 9 fils more)"
+    )
+    currency_code: str
+    test_mode: bool = True
+    note: str = "Test mode, no real money. Test card: 4242 4242 4242 4242"

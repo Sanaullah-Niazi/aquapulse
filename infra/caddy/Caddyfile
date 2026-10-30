@@ -3,6 +3,7 @@
 # M1: status page + health endpoint.  M3: forwards /api/... to the API.
 # M5: HTTPS only, with our own certificate (make certs), plus security
 #     headers (SRS FR-71). Plain HTTP only redirects to HTTPS.
+# M6: bigger uploads for receipt photos; /pay/ pages after Stripe Checkout.
 #
 # On your Mac:  https://localhost:8443   (http://localhost:8080 redirects)
 # Online (M12): the site name becomes the real domain and Caddy gets a free
@@ -37,8 +38,15 @@
 
 	# The API (M3). /metrics is deliberately NOT forwarded: it stays private.
 	handle /api/* {
-		request_body {
-			max_size 1MB # no API request needs more; stops huge uploads
+		# No API request needs more than 1 MB, which stops huge uploads...
+		@small not path_regexp ^/api/v1/payments/[^/]+/receipt$
+		request_body @small {
+			max_size 1MB
+		}
+		# ...except a payment receipt photo (M6): the API itself allows 2 MB.
+		@receipt path_regexp ^/api/v1/payments/[^/]+/receipt$
+		request_body @receipt {
+			max_size 3MB
 		}
 		reverse_proxy api:8000
 	}

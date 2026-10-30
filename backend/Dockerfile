@@ -1,7 +1,13 @@
-# AquaPulse backend image: the API and the one-shot `migrate` job (M3),
-# and the ingestor (M4). One image, different start commands.
+# AquaPulse backend image: the API and the one-shot `migrate` job (M3), the
+# ingestor (M4), broker-auth (M5) and the worker (M6). One image, different
+# start commands.
 # Built by `make up` (docker compose build). Build context is the repo root.
 FROM python:3.12.15-slim-trixie
+
+# Pango (text layout) and a font for WeasyPrint, which prints the PDF bills (M6).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 
 # uv installs exactly the versions in uv.lock (reproducible builds).
 RUN pip install --no-cache-dir uv==0.11.32

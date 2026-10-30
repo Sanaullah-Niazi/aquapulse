@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M5 of 12).**
+> 🚧 **Status: under active development (milestone M6 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -41,8 +41,8 @@ flowchart LR
 | M2 Digital twin simulator | ✅ done |
 | M3 Backend core (auth, roles, audit) | ✅ done |
 | M4 Live data and valve control | ✅ done |
-| M5 Secure MQTT and HTTPS | 🚧 in progress |
-| M6 Billing and payments | ⏳ |
+| M5 Secure MQTT and HTTPS | ✅ done |
+| M6 Billing and payments | 🚧 in progress |
 | M7 Alerts and notifications | ⏳ |
 | M8 Web app | ⏳ |
 | M9 Android app | ⏳ |
@@ -121,12 +121,23 @@ Guide: [docs/milestones/M4-live-data.md](docs/milestones/M4-live-data.md).
 
 Guide: [docs/milestones/M5-secure-mqtt-https.md](docs/milestones/M5-secure-mqtt-https.md).
 
+**Billing and payments (M6).** Monthly water bills from the real meter readings, in the building's own currency.
+
+- The owner sets every rate: up to 10 litre slabs plus extra charges and taxes, saved as versions so old bills never change. No built-in fees.
+- 11 currencies (PKR, USD, GBP, EUR, AUD, AED, SAR, QAR, KWD, BHD, OMR), with 3 decimals for KWD, BHD and OMR. Money is `Decimal` only; a test fails on any float in the billing code.
+- Fair bills when people move in or out, or prices change mid-month: each stay gets its own bill and the slabs shrink with the days.
+- Bills go draft → issued → paid (or overdue), with gap-free numbers, PDF bills (WeasyPrint) and void-and-replace instead of delete.
+- Cash and bank payments with receipts and reversals; card payments through Stripe in **test mode only**, confirmed by a signed webhook.
+- A worker container makes last month's bills on the 1st and marks overdue bills. Shutting off water for non-payment needs the owner's policy and a 48-hour warning.
+
+Guide: [docs/milestones/M6-billing.md](docs/milestones/M6-billing.md).
+
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3), ingestor (M4), broker-auth (M5); billing, AI later      (M3+)
+backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6); AI later (M3+)
 web/         React web app / PWA                                              (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

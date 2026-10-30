@@ -32,13 +32,13 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 | T-08 | Mass assignment (`role: owner`) | **Done**: request models forbid unknown fields. | `tests/security/test_input_validation_and_rate_limiting.py` |
 | T-09 | SQL injection | **Done**: parameterised SQL only. Schemathesis fuzzing **Later** (M12). | code review, ruff/bandit rules |
 | T-10 | XSS in the web app | **Partly**: strict CSP and nosniff on every page from Caddy (M5). The web app itself is **Later** (M8). | smoke "security headers", `infra/caddy/Caddyfile` |
-| T-11 | Bills changed afterwards | **Later** (M6). | |
-| T-12 | Fake "payment success" | **Later** (M6). | |
+| T-11 | Bills changed afterwards | **Done** (M6): issued bills are never edited, only voided with a reason (audited) and replaced; the API's database role cannot DELETE bills or payments; tariff changes are new versions and cannot reach back into issued months. | `tests/billing/test_bill_lifecycle.py`, `test_tariff_configuration_with_versioning.py` |
+| T-12 | Fake "payment success" | **Done** (M6): only a Stripe webhook with a valid signature marks a bill paid (the return page changes nothing); bad signatures are refused and logged; each Stripe session is recorded once; only test keys are accepted. | `tests/billing/test_stripe.py` |
 | T-13 | Owner denies cutting off water | **Partly**: reason required, audit log with user, IP, time (M3, M4). Hash chain **Later** (M7). | `tests/api/test_audit_log.py`, valve-lock tests |
 | T-14 | Admin deletes audit entries | **Partly**: the API's database role cannot UPDATE/DELETE audit rows. Hash chain **Later** (M7). | smoke "the API's database role cannot delete history" |
 | T-15 | Flooding the broker | **Partly**: 2 KB message limit, max 1000 connections, max keepalive 120 s, login required before anything, the ingestor queue pushes back instead of growing. Docker resource limits **Later** (M12). | `infra/mosquitto/mosquitto.conf` |
 | T-16 | Expensive API queries | **Done**: 7 days raw / 400 days aggregates, rate limits. | `tests/api/test_live_data_and_consumption.py` |
-| T-17 | Water cut off wrongly | **Partly**: owner lock needs a reason and emails the residents, everything audited (M4). Auto shut-off limits **Later** (M7), non-payment rules **Later** (M6). | `tests/api/test_valve_control.py` |
+| T-17 | Water cut off wrongly | **Partly**: owner lock needs a reason and emails the residents, everything audited (M4). Non-payment shut-off only with the owner's policy, an overdue bill and a 48-hour warning (M6). Auto shut-off limits **Later** (M7). | `tests/api/test_valve_control.py`, `tests/billing/test_nonpayment_shutoff.py` |
 | T-18 | Pump run with empty sump | **Done** in the simulator (device-side safety overrides commands); real firmware **Later** (M11). | simulator tank tests |
 | T-19 | Building average reveals a neighbour | **Later** (M9). | |
 | T-20 | Secrets in logs or backups | **Partly**: logs never contain payloads, passwords or tokens; device passwords are never stored in plain text or logged (M5). Encrypted backups **Later** (M12). | `tests/security/test_log_redaction.py`, `test_plain_password_is_never_stored_or_logged` |
@@ -69,6 +69,20 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
   `/api/docs` gets it; all other pages get the strict policy.
 * **HSTS** is 1 hour on the Mac, so other projects on `localhost` are not
   forced to HTTPS for long. The public server will use one year (M12).
+
+### New in M6 (billing and payments)
+
+* **Webhook is public, but signed.** `POST /api/v1/webhooks/stripe` needs no
+  login (Stripe calls it), so the Stripe signature is the only proof. It is
+  checked before anything is read, and the bill is updated with the database
+  row locked, so two copies of the same message cannot pay twice.
+* **No card data here.** Card numbers are typed on Stripe's own page; our
+  server only sees "session X paid amount Y".
+* **Receipt uploads** (bank slips): 2 MB max (Caddy allows 3 MB on that path
+  only, 1 MB elsewhere), the first bytes must really be JPEG, PNG or PDF, and
+  they are served back with `nosniff`, so a browser never runs them as a page.
+* **Residents see only their own issued bills**; a previous or next tenant of
+  the same home gets 404 (tested).
 
 ### Left open after this review
 

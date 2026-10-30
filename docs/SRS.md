@@ -300,7 +300,7 @@ Requirements in **OWN** and **RES** apply to **both** clients: the web app and t
 The simulator runs one virtual *home node* per home (default 10, configurable 1 to 500). Each one behaves like an independent ESP32: its own device ID, its own MQTT connection, its own credentials, its own state.
 
 **Acceptance criteria**
-1. `docker compose up simulator` with `SIM_HOMES=10` creates 10 MQTT client connections, visible in MQTT Explorer as 10 distinct device IDs.
+1. `docker compose up simulator` with `SIM_HOMES=10` creates 10 MQTT client connections, visible in MQTTX as 10 distinct device IDs.
 2. Stopping one virtual device (via the scenario API) does not affect the others.
 3. Each virtual device keeps its own cumulative litre counter that only increases.
 
@@ -1683,8 +1683,9 @@ Home telemetry:
 Tank telemetry:
 ```json
 { "v": 1, "ts": "2026-10-30T08:15:20Z", "bootId": "…", "seq": 912,
-  "levelPct": 63.4, "levelL": 3170, "pumpOn": false, "sumpOk": true,
-  "dryRunProtect": false, "mode": "auto", "lowPct": 25, "highPct": 95 }
+  "levelPct": 63.4, "levelL": 3170, "capacityL": 5000, "pumpOn": false,
+  "sumpOk": true, "sensorOk": true, "dryRunProtect": false, "overflowProtect": false,
+  "mode": "auto", "lowPct": 25, "highPct": 95, "rssi": -58, "fw": "1.0.0", "boot": false }
 ```
 
 Command (server → device):
@@ -1700,6 +1701,8 @@ Acknowledgement (device → server):
   "result": "ok", "reason": null, "state": "closed", "ts": "2026-10-30T08:15:24Z" }
 ```
 `result` is one of `ok`, `rejected` (expired, duplicate, invalid, unsafe), `failed` (hardware problem, e.g. `VALVE_STUCK`).
+
+> **The exact rules are the JSON Schemas in [`/contracts`](../contracts/README.md)** (added in M2). Where an example here and a schema differ, the schema wins.
 
 Status (retained, also the Last Will):
 ```json
@@ -2074,7 +2077,7 @@ flowchart TD
   B -- Yes --> C{expiresAt in the past?}
   C -- Yes --> R2[ack: rejected EXPIRED] --> Z
   C -- No --> D{cmdId seen before?}
-  D -- Yes --> R3[Re-send previous ack, do not move valve] --> Z
+  D -- Yes --> R3[ack: rejected DUPLICATE, do not move valve] --> Z
   D -- No --> E{Already in requested state?}
   E -- Yes --> OK1[ack: ok, no movement] --> Z
   E -- No --> F[Drive valve motor]
@@ -2418,8 +2421,8 @@ Bugs are GitHub Issues with labels (`bug`, `security`, severity `S1` to `S4`). E
 
 | # | Tool | Purpose | Free plan / license | Official link | macOS install |
 |---|---|---|---|---|---|
-| 30 | **MQTT Explorer** | See every MQTT message as a live tree (great for learning and demos) | Free, open source (CC BY-ND) | https://mqtt-explorer.com | `brew install --cask mqtt-explorer` |
-| 31 | **MQTTX** | MQTT client to publish test commands, supports TLS | Free, open source (Apache-2) | https://mqttx.app | `brew install --cask mqttx` |
+| 30 | ~~MQTT Explorer~~ | Replaced by MQTTX (#31): its Homebrew cask was disabled in September 2026 because it fails the macOS Gatekeeper check | n/a | n/a | n/a |
+| 31 | **MQTTX** | Watch every MQTT message live and publish test commands; supports TLS | Free, open source (Apache-2) | https://mqttx.app | `brew install --cask mqttx` |
 | 32 | **Postman** | Try API calls; shareable collection | Free plan for individuals (small team limits) | https://www.postman.com | `brew install --cask postman` |
 | 33 | **Bruno** (recommended alternative) | Same as Postman, fully open source, collections stored as files in the repo | Free, open source (MIT) | https://www.usebruno.com | `brew install --cask bruno` |
 | 34 | **DBeaver Community** | Look inside the database with a GUI | Free, open source (Apache-2) | https://dbeaver.io | `brew install --cask dbeaver-community` |
@@ -2509,7 +2512,7 @@ The estimated effort assumes about 10 to 15 hours per week while learning. It is
 |---|---|---|---|---|---|---|
 | **M0: Tools and repository** | Install tools, create the GitHub repo with a professional skeleton | FR-74 (setup: gitleaks, pre-commit, `.env.example`) | Public GitHub repo with README skeleton, MIT license, folder structure, green "CI" badge (hello-world workflow + gitleaks) | `git clone` + `make help` works; CI passes; pre-commit blocks a fake secret | 1 to 15 | 1 week |
 | **M1: Infrastructure** | One-command stack: Mosquitto (dev profile), TimescaleDB, Caddy, Mailpit | Foundation for FR-10, FR-22 (no FR completed); NFR-17, NFR-29 | `docker compose up -d` → all containers healthy; publish/subscribe a test message with MQTTX; open DB in DBeaver; Mailpit at `localhost:8025` | `docker compose ps` all healthy; `make down && make up` works; doc page explains each container | Docker, MQTTX, DBeaver | 1 week |
-| **M2: Digital twin simulator** | 10 virtual homes + 1 tank speaking the MQTT contract | FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-07, FR-09, FR-10, FR-17 (simulator part) | MQTT Explorer shows 10 homes sending live data; send a `close` command with MQTTX and watch flow drop to 0; inject a leak via the simulator's Swagger UI; tank fills and pump switches | Contract tests and simulator unit tests pass in CI; all FR acceptance criteria above pass | Python, uv, MQTT Explorer | 2 weeks |
+| **M2: Digital twin simulator** | 10 virtual homes + 1 tank speaking the MQTT contract | FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-07, FR-09, FR-10, FR-17 (simulator part) | MQTTX shows 10 homes sending live data; send a `close` command with MQTTX and watch flow drop to 0; inject a leak via the simulator's Swagger UI; tank fills and pump switches | Contract tests and simulator unit tests pass in CI; all FR acceptance criteria above pass | Python, uv, MQTTX | 2 weeks |
 | **M3: Backend core** | API with login, roles, buildings, homes, residents, audit log | FR-18, FR-19, FR-20, FR-21, FR-28, FR-29, FR-31, FR-68, FR-69, FR-72 (API part) | Swagger UI at `/api/docs`: log in as owner and resident, create homes, see 403 when a resident tries owner actions; audit entries in DB | RBAC matrix test passes for all endpoints; coverage ≥ 80%; migrations up/down in CI | FastAPI, Bruno/Postman | 2 weeks |
 | **M4: Live data and valve control** | Ingestor stores telemetry; consumption; WebSocket; valve and pump commands; backfill | FR-08, FR-13, FR-22, FR-23, FR-24, FR-25, FR-26, FR-27, FR-72 (MQTT part) | `curl` the consumption API for 90 days of demo data; WebSocket test page shows live readings; close a valve via API and see the simulator obey; owner lock returns 423 to the resident | 10%-message-loss test within 0.5%; valve round trip p95 ≤ 2 s; backfill idempotent | k6 (light), websocat or test page | 2 weeks |
 | **M5: Secure MQTT and HTTPS** | TLS everywhere, per-device credentials, ACLs, provisioning, security headers | FR-11, FR-12, FR-14, FR-71 | `openssl s_client` shows TLS 1.3; a device trying another home's topic is refused (log shown); register a new device and get a one-time password + QR; HTTPS at `https://localhost` | Port 1883 closed in default profile; ACL negative tests pass; testssl.sh no high issues; STRIDE review #1 done | OpenSSL 3, testssl.sh | 1.5 weeks |
@@ -2549,7 +2552,7 @@ The estimated effort assumes about 10 to 15 hours per week while learning. It is
 | FR-07 | Tank and pump simulation | SIM | Must | M2 | TC-07 | Unit + Contract | `simulator/tests/test_tank_and_pump_simulation.py` |
 | FR-08 | Historical backfill for demo data | SIM | Must | M4 | TC-08 | Integration | `simulator/tests/test_backfill.py` |
 | FR-09 | Contract conformance (simulator ↔ real hardware) | SIM | Must | M2 (re-verified M11) | TC-09 | Unit + Contract | `simulator/tests/test_contract_conformance_simulator_real_hard.py` |
-| FR-10 | Versioned topic and payload contract | DEV | Must | M2 | TC-10 | Contract + Integration | `tests/contract/test_versioned_topic_and_payload_contract.py` |
+| FR-10 | Versioned topic and payload contract | DEV | Must | M2 | TC-10 | Contract + Integration | `simulator/tests/test_versioned_topic_and_payload_contract.py` |
 | FR-11 | Per-device credentials and topic ACLs | DEV | Must | M5 | TC-11 | Security (negative ACL) | `tests/contract/test_broker_acl.py` |
 | FR-12 | TLS-only broker | DEV | Must | M5 | TC-12 | Security + Integration | `tests/contract/test_broker_tls.py` |
 | FR-13 | Safe command delivery | DEV | Must | M4 | TC-13 | Contract + Integration | `tests/contract/test_safe_command_delivery.py` |

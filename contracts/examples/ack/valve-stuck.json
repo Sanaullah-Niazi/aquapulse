@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "cmdId": "0d6a6a2e-8f0e-4a8e-bb2a-4b9f2b7e0c11",
+  "result": "failed",
+  "reason": "VALVE_STUCK",
+  "state": "fault",
+  "ts": "2026-10-30T08:15:29Z"
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/common.v1.json",
+  "title": "Shared building blocks used by the other AquaPulse schemas",
+  "$defs": {
+    "v": {
+      "description": "Schema version. Messages with any other value are rejected (FR-10).",
+      "const": 1
+    },
+    "timestamp": {
+      "description": "UTC time in ISO 8601 with a Z suffix, e.g. 2026-10-30T08:15:20Z or 2026-10-30T08:15:20.123Z",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+    },
+    "uuid": {
+      "description": "Lower-case UUID, e.g. 0d6a6a2e-8f0e-4a8e-bb2a-4b9f2b7e0c11",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "deviceId": {
+      "description": "Device ID, also the MQTT username, e.g. home-b01-03 or tank-b01-01",
+      "type": "string",
+      "pattern": "^(home|tank)-[a-z0-9]{1,16}-[0-9]{2,3}$"
+    },
+    "seq": {
+      "description": "Message counter. +1 per telemetry message, back to 0 after a reboot (FR-03).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "bootId": {
+      "description": "Random ID chosen at every boot. A new bootId tells the server the device restarted.",
+      "$ref": "#/$defs/uuid"
+    },
+    "rssi": {
+      "description": "Wi-Fi signal strength in dBm (-30 is excellent, -90 is very weak)",
+      "type": "integer",
+      "minimum": -120,
+      "maximum": 0
+    },
+    "fw": {
+      "description": "Firmware version (semantic versioning)",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "intervalS": {
+      "description": "Seconds between telemetry messages",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    }
+  }
+}

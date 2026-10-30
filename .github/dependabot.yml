@@ -12,3 +12,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # Python packages of the simulator (M2), pinned in simulator/uv.lock.
+  - package-ecosystem: uv
+    directory: /simulator
+    schedule:
+      interval: weekly
+
+  # Base image in simulator/Dockerfile (M2).
+  - package-ecosystem: docker
+    directory: /simulator
+    schedule:
+      interval: weekly

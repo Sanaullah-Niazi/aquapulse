@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/telemetry-tank.v1.json",
+  "title": "Tank node telemetry",
+  "description": "Topic aquapulse/v1/dev/{tank-id}/telemetry · QoS 0 · not retained. levelPct and levelL are null while the level sensor is failing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ts", "bootId", "seq", "levelPct", "levelL", "capacityL", "pumpOn", "sumpOk", "sensorOk", "dryRunProtect", "overflowProtect", "mode", "lowPct", "highPct", "rssi", "fw", "boot"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "bootId": { "$ref": "common.v1.json#/$defs/bootId" },
+    "seq": { "$ref": "common.v1.json#/$defs/seq" },
+    "levelPct": { "description": "Tank level in percent", "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "levelL": { "description": "Water in the tank, in litres", "type": ["number", "null"], "minimum": 0 },
+    "capacityL": { "description": "Tank size in litres", "type": "number", "exclusiveMinimum": 0 },
+    "pumpOn": { "type": "boolean" },
+    "sumpOk": { "description": "false when the ground-level sump is empty", "type": "boolean" },
+    "sensorOk": { "description": "false when the ultrasonic level sensor gives no valid reading", "type": "boolean" },
+    "dryRunProtect": { "description": "true when the pump is held OFF because the sump is empty", "type": "boolean" },
+    "overflowProtect": { "description": "true when the pump is held OFF because the tank is (almost) full", "type": "boolean" },
+    "mode": { "enum": ["auto", "manual"] },
+    "lowPct": { "$ref": "common.v1.json#/$defs/percent" },
+    "highPct": { "$ref": "common.v1.json#/$defs/percent" },
+    "rssi": { "$ref": "common.v1.json#/$defs/rssi" },
+    "fw": { "$ref": "common.v1.json#/$defs/fw" },
+    "boot": { "type": "boolean" }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "ts": "2026-10-30T08:16:02.250Z",
+  "bootId": "a3d5f0c1-7b2e-4c8d-9e1f-2a3b4c5d6e7f",
+  "seq": 0,
+  "totalL": 128731.4,
+  "flowLpm": 0,
+  "ph": 7.2,
+  "tempC": 24.5,
+  "valve": "closed",
+  "rssi": -63,
+  "fw": "1.0.0",
+  "boot": true
+}

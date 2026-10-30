@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/state-tank.v1.json",
+  "title": "Tank node state",
+  "description": "Topic aquapulse/v1/dev/{tank-id}/state · QoS 1 · RETAINED · published on connect and whenever it changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ts", "pumpOn", "mode", "lowPct", "highPct", "intervalS", "fw"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "pumpOn": { "type": "boolean" },
+    "mode": { "enum": ["auto", "manual"] },
+    "lowPct": { "$ref": "common.v1.json#/$defs/percent" },
+    "highPct": { "$ref": "common.v1.json#/$defs/percent" },
+    "intervalS": { "$ref": "common.v1.json#/$defs/intervalS" },
+    "fw": { "$ref": "common.v1.json#/$defs/fw" }
+  }
+}

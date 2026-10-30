@@ -1,0 +1,47 @@
+# The AquaPulse simulator (digital twin): 10 virtual homes + 1 tank that
+# speak the same MQTT contract as the real ESP32 hardware (SRS FR-01 to FR-10, FR-17).
+[project]
+name = "aquapulse-sim"
+version = "0.2.0"
+description = "AquaPulse digital twin: virtual water meters, valves and a tank with pump, over MQTT"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+    "aiomqtt==2.5.1",     # async MQTT client (one connection per virtual device)
+    "fastapi==0.162.0",   # tiny control API with Swagger UI (scenarios, start/stop)
+    "uvicorn==0.54.0",    # web server that runs the control API
+    "jsonschema==4.26.0", # checks every message against /contracts before it is sent
+    "tzdata==2026.6",     # time zones (Asia/Karachi ...) inside the slim Docker image
+]
+
+[project.scripts]
+aquapulse-sim = "aquapulse_sim.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1",
+    "httpx2==2.16.0",     # used by FastAPI's TestClient
+    "ruff==0.17.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: needs the running Docker stack (make up); run with `make sim-test-live`",
+]
+# Unit tests only by default; integration tests are opted in with -m integration.
+addopts = "-m 'not integration' -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]

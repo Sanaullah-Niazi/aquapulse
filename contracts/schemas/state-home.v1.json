@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/state-home.v1.json",
+  "title": "Home node state",
+  "description": "Topic aquapulse/v1/dev/{home-id}/state · QoS 1 · RETAINED · published on connect and whenever it changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ts", "valve", "intervalS", "fw"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "valve": { "enum": ["open", "closed", "moving", "fault"] },
+    "intervalS": { "$ref": "common.v1.json#/$defs/intervalS" },
+    "fw": { "$ref": "common.v1.json#/$defs/fw" }
+  }
+}

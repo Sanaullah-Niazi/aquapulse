@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "cmdId": "7e2d4c6b-1a3f-4b5c-8d9e-0f1a2b3c4d5e",
+  "type": "thresholds",
+  "lowPct": 30,
+  "highPct": 90,
+  "issuedAt": "2026-10-30T08:15:21Z",
+  "expiresAt": "2026-10-30T08:15:51Z",
+  "by": "owner"
+}

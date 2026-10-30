@@ -1,0 +1,15 @@
+meta {
+  name: 05 Building audit log
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/buildings/{{buildingId}}/audit?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

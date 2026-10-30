@@ -1217,7 +1217,7 @@ flowchart TB
 | **ESP32 firmware** | C++ / Arduino framework, PlatformIO, `PubSubClient`, `ArduinoJson`, `WiFiClientSecure` | Real hardware nodes | FR-15, FR-16, FR-17 |
 | **Mosquitto broker** | Eclipse Mosquitto 2.x, TLS, Dynamic Security plugin | Message routing, authentication, per-device ACLs, Last Will | FR-10 to FR-14 |
 | **Ingestor** | Python, `aiomqtt`, SQLAlchemy 2 (async), `jsonschema` | Subscribe, validate, dedupe, compute litre deltas, store, notify | FR-22, FR-23, FR-72 |
-| **API** | FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PyJWT, argon2-cffi, slowapi | REST + WebSocket, auth, RBAC, commands, billing endpoints, Stripe | FR-18 to FR-31, FR-39, FR-68 to FR-72 |
+| **API** | FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PyJWT, argon2-cffi, a small built-in rate limiter | REST + WebSocket, auth, RBAC, commands, billing endpoints, Stripe | FR-18 to FR-31, FR-39, FR-68 to FR-72 |
 | **Worker** | Python, APScheduler, pandas, scikit-learn, statsmodels, WeasyPrint, Jinja2 | Bill generation and PDFs, alert rules, notifications, AI training and scoring, backups, audit verification | FR-34 to FR-38, FR-58 to FR-67, FR-73 |
 | **Database** | PostgreSQL 16 + TimescaleDB 2.x | Relational data, time-series, continuous aggregates, retention, compression | All |
 | **Caddy** | Caddy 2 | HTTPS (automatic certificates online, local CA on the Mac), security headers, static file hosting, reverse proxy | FR-71, FR-56 |
@@ -1772,8 +1772,8 @@ Roles: **SA** System Admin · **OW** Owner (own buildings) · **RE** Resident (o
 | GET / PATCH | `/buildings/{id}` | SA, OW | View / edit building (name, time zone, currency, policies) | FR-20, FR-32 |
 | GET | `/buildings/{id}/overview` | OW | Dashboard summary numbers | FR-42 |
 | GET | `/buildings/{id}/audit` | OW | Audit entries for this building | FR-28 |
-| GET / POST | `/buildings/{id}/homes` | OW | List / create homes | FR-20, FR-43 |
-| GET / PATCH / DELETE | `/homes/{id}` | OW (RE: GET own) | View / edit / archive home | FR-20 |
+| GET / POST | `/buildings/{id}/homes` | SA, OW | List / create homes | FR-20, FR-43 |
+| GET / PATCH / DELETE | `/homes/{id}` | SA, OW (RE: GET own) | View / edit / archive home | FR-20 |
 | POST | `/homes/{id}/invitations` | OW | Invite resident by email | FR-21, FR-46 |
 | GET | `/homes/{id}/occupancies` | OW | Occupancy history | FR-21 |
 | PATCH | `/occupancies/{id}` | OW | Set move-out date, billing contact | FR-21 |
@@ -2371,7 +2371,7 @@ Bugs are GitHub Issues with labels (`bug`, `security`, severity `S1` to `S4`). E
 | PyJWT + cryptography | JWT signing (EdDSA) | MIT / Apache-2 | https://pyjwt.readthedocs.io |
 | argon2-cffi | Password hashing | MIT | https://argon2-cffi.readthedocs.io |
 | pyotp | TOTP two-factor | MIT | https://pyauth.github.io/pyotp/ |
-| slowapi | Rate limiting | MIT | https://github.com/laurentS/slowapi |
+| python-multipart | Reads the login form used by Swagger's Authorize button | Apache-2 | https://github.com/Kludex/python-multipart |
 | APScheduler | Scheduled jobs in the worker | MIT | https://apscheduler.readthedocs.io |
 | WeasyPrint + Jinja2 | HTML → PDF bills | BSD | https://weasyprint.org |
 | stripe (Python SDK) | Stripe Checkout + webhooks (test mode) | MIT | https://github.com/stripe/stripe-python |

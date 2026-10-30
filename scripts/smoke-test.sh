@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 + M2).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M3).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -11,6 +11,8 @@
 #   - Mailpit:     send an email and find it in the inbox
 #   - Caddy:       fetch the health endpoint and the status page
 #   - Simulator:   10 homes + 1 tank online, all sending telemetry (M2)
+#   - API:         ready, demo login works, /metrics private, audit log
+#                  protected from the API's own database role (M3)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -24,11 +26,11 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 + M2)"
+echo "AquaPulse smoke test (M1 to M3)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in mqtt db mailpit caddy simulator; do
+for svc in mqtt db mailpit caddy simulator api; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi
@@ -107,11 +109,49 @@ else
   fail "Simulator: control API at http://localhost:8090 did not answer"
 fi
 
+# 7. API (M3) ----------------------------------------------------------------
+migrate_exit="$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose ps -aq migrate 2>/dev/null)" 2>/dev/null)"
+if [ "$migrate_exit" = "0" ]; then pass "Database migrations applied (migrate job finished OK)"; else fail "migrate job failed (try: docker compose logs migrate)"; fi
+
+ready="$(curl -sS http://localhost:8080/api/readyz 2>/dev/null)"
+if [ "$ready" = '{"database":true,"broker":true}' ]; then
+  pass "API: ready through Caddy, database + broker reachable (http://localhost:8080/api/docs)"
+else
+  fail "API: /api/readyz said '${ready:-nothing}' (try: make api-logs)"
+fi
+
+# Demo accounts (safe to repeat), then a real login with the password from .env.
+docker compose exec -T api python -m app.seed >/dev/null 2>&1
+demo_password="$(grep '^DEMO_PASSWORD=' .env | cut -d= -f2-)"
+login="$(curl -sS -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d "{\"email\":\"owner@example.com\",\"password\":\"$demo_password\"}" 2>/dev/null)"
+token="$(sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' <<<"$login")"
+buildings="$(curl -sS http://localhost:8080/api/v1/buildings -H "Authorization: Bearer $token" 2>/dev/null)"
+if [ -n "$token" ] && grep -q "AquaPulse Demo Tower" <<<"$buildings"; then
+  pass "API: owner@example.com logged in and sees the demo building"
+else
+  fail "API: demo login failed (did DEMO_PASSWORD in .env change after make seed?)"
+fi
+
+if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/metrics)" = "404" ] \
+  && docker compose exec -T api python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/metrics').read().decode())" 2>/dev/null | grep -q aquapulse_http_requests_total; then
+  pass "API: /metrics works inside Docker and is hidden from outside"
+else
+  fail "API: /metrics check failed"
+fi
+
+audit_out="$(docker compose exec -T db sh -c 'psql -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SET ROLE aquapulse_app; DELETE FROM audit_log;"' 2>&1)"
+if grep -q "permission denied" <<<"$audit_out"; then
+  pass "Audit log: the API's database role cannot delete history"
+else
+  fail "Audit log: DELETE was not refused: $audit_out"
+fi
+
 echo ""
 if [ "$failures" -eq 0 ]; then
   echo "All checks passed. 🎉"
 else
-  echo "$failures check(s) failed. See the Troubleshooting part of docs/milestones/M1-infrastructure.md and M2-digital-twin.md."
+  echo "$failures check(s) failed. See the Troubleshooting parts of the guides in docs/milestones/."
 fi
 echo ""
 exit "$failures"

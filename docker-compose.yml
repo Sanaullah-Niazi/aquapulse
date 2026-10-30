@@ -5,8 +5,9 @@
 #   Check:  make smoke
 #
 # M1 added the four "infrastructure" services that everything builds on.
-# M2 adds our first own service: the simulator (digital twin). The API,
-# ingestor and worker follow in M3 and M4.
+# M2 added our first own service: the simulator (digital twin).
+# M3 adds the API, plus `migrate`, a one-shot job that prepares the database
+# before the API starts. The ingestor and worker follow in M4.
 #
 # Security note: every port is published on 127.0.0.1 only, so nothing is
 # reachable from other computers on your Wi-Fi. MQTT is still plain and
@@ -14,6 +15,18 @@
 # (FR-11, FR-12). Image versions are pinned so everyone runs the same thing.
 # ---------------------------------------------------------------
 name: ${COMPOSE_PROJECT_NAME:-aquapulse}
+
+# Settings shared by the API and the migrate job (a YAML "anchor", reused below).
+x-backend-env: &backend-env
+  POSTGRES_DB: ${POSTGRES_DB:-aquapulse}
+  POSTGRES_USER: ${POSTGRES_USER:-aquapulse}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing. Run "make env" to create it.}
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is missing. Run "make env" to add it.}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is missing. Run "make env" to add it.}
+  JWT_PREVIOUS_SECRETS: ${JWT_PREVIOUS_SECRETS:-}
+  PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+  MQTT_HOST: mqtt
+  MQTT_PORT: 1883
 
 services:
   # --- MQTT broker: the "post office" between devices and the server ---
@@ -128,6 +141,52 @@ services:
       timeout: 5s
       retries: 6
       start_period: 15s
+
+  # --- migrate: prepares the database, then exits (M3) ---
+  # Creates the API's limited database role, applies new migrations and sets
+  # permissions. Runs on every `make up`; when nothing is new it does nothing.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: aquapulse/backend:dev
+    command: ["python", "-m", "app.migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+
+  # --- API: the FastAPI backend (M3) ---
+  # Reached through Caddy: http://localhost:8080/api/docs (Swagger UI).
+  # No port is published: the API is only reachable through Caddy, and
+  # /metrics stays inside the Docker network (FR-31).
+  api:
+    image: aquapulse/backend:dev
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mqtt:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      # Only used by `make seed` (demo accounts); never by the API itself.
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      DEMO_TIMEZONE: ${DEMO_TIMEZONE:-Asia/Karachi}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 # Named volumes keep data when containers are recreated.
 # `make reset` deletes them (all data gone, fresh start).

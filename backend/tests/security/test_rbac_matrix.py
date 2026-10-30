@@ -1,0 +1,110 @@
+"""NFR-09 / FR-19: every endpoint, called by every role, against the permission table.
+
+EXPECTED below is the permission table of SRS sections 3 and 8, written out
+by hand. The first test makes sure it lists *every* endpoint the app has, so
+a new endpoint without an entry here fails CI (100% coverage, NFR-09).
+"""
+
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+from app.main import app
+
+SA, OW, RE = "sysadmin", "owner", "resident"
+ALL = {SA, OW, RE}
+PUBLIC = "public"
+
+EXPECTED: dict[tuple[str, str], set[str] | str] = {
+    ("GET", "/api/healthz"): PUBLIC,
+    ("GET", "/api/readyz"): PUBLIC,
+    ("POST", "/api/v1/auth/login"): PUBLIC,
+    ("POST", "/api/v1/auth/token"): PUBLIC,
+    ("POST", "/api/v1/auth/refresh"): PUBLIC,
+    ("POST", "/api/v1/auth/password/forgot"): PUBLIC,
+    ("POST", "/api/v1/auth/password/reset"): PUBLIC,
+    ("POST", "/api/v1/auth/invitations/accept"): PUBLIC,
+    ("POST", "/api/v1/auth/logout"): ALL,
+    ("POST", "/api/v1/auth/logout-all"): ALL,
+    ("GET", "/api/v1/me"): ALL,
+    ("PATCH", "/api/v1/me"): ALL,
+    ("POST", "/api/v1/me/password"): ALL,
+    ("GET", "/api/v1/admin/owners"): {SA},
+    ("POST", "/api/v1/admin/owners"): {SA},
+    ("PATCH", "/api/v1/admin/owners/{owner_id}"): {SA},
+    ("GET", "/api/v1/admin/audit"): {SA},
+    ("POST", "/api/v1/admin/audit/verify"): {SA},
+    ("GET", "/api/v1/buildings"): {SA, OW},
+    ("POST", "/api/v1/buildings"): {SA, OW},
+    ("GET", "/api/v1/buildings/{building_id}"): {SA, OW},
+    ("PATCH", "/api/v1/buildings/{building_id}"): {SA, OW},
+    ("GET", "/api/v1/buildings/{building_id}/audit"): {OW},
+    ("GET", "/api/v1/buildings/{building_id}/homes"): {SA, OW},
+    ("POST", "/api/v1/buildings/{building_id}/homes"): {SA, OW},
+    ("GET", "/api/v1/homes/{home_id}"): ALL,
+    ("PATCH", "/api/v1/homes/{home_id}"): {SA, OW},
+    ("DELETE", "/api/v1/homes/{home_id}"): {SA, OW},
+    ("POST", "/api/v1/homes/{home_id}/invitations"): {OW},
+    ("GET", "/api/v1/homes/{home_id}/occupancies"): {OW},
+    ("PATCH", "/api/v1/occupancies/{occupancy_id}"): {OW},
+}
+
+
+def _app_endpoints() -> set[tuple[str, str]]:
+    # The OpenAPI document lists every endpoint (FR-29 checks nothing is hidden from it).
+    return {
+        (method.upper(), path)
+        for path, operations in app.openapi()["paths"].items()
+        for method in operations
+    }
+
+
+def test_every_endpoint_is_in_the_permission_table():
+    assert _app_endpoints() == set(EXPECTED)
+
+
+def _url(path: str) -> str:
+    # Random IDs: the role check must happen before anything is looked up.
+    return path.format(
+        owner_id=uuid.uuid4(),
+        building_id=uuid.uuid4(),
+        home_id=uuid.uuid4(),
+        occupancy_id=uuid.uuid4(),
+    )
+
+
+CASES = [
+    pytest.param(method, path, role, id=f"{role}-{method}-{path}")
+    for (method, path), allowed in EXPECTED.items()
+    if allowed != PUBLIC
+    for role in sorted(ALL)
+]
+
+
+@pytest.mark.parametrize(("method", "path", "role"), CASES)
+async def test_role_gets_exactly_the_access_in_the_table(client, make, method, path, role):
+    user = await make.user(role)
+    headers = await make.headers(user)
+    r = await client.request(method, _url(path), headers=headers, json={})
+    if role in EXPECTED[(method, path)]:
+        assert r.status_code not in (401, 403), r.text
+    else:
+        assert r.status_code == 403, r.text
+
+
+@pytest.mark.parametrize(
+    ("method", "path"), [k for k, v in EXPECTED.items() if v != PUBLIC], ids=lambda x: str(x)
+)
+async def test_every_private_endpoint_needs_a_login(client, method, path):
+    r = await client.request(method, _url(path), json={})
+    assert r.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("method", "path"), [k for k, v in EXPECTED.items() if v == PUBLIC], ids=lambda x: str(x)
+)
+async def test_public_endpoints_need_no_login(client, method, path):
+    r = await client.request(method, path, json={})
+    assert r.status_code not in (401, 403)

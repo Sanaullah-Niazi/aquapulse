@@ -72,20 +72,7 @@ async def current_caller(
         raise _unauthorized() from None
 
     user = await session.get(User, user_id)
-    if user is None or not user.is_active:
-        raise _unauthorized()
-    # After logout (or theft detection) the session has no live refresh token
-    # left, so its access tokens stop working at once, not 15 minutes later.
-    alive = await session.scalar(
-        select(
-            exists().where(
-                RefreshToken.family_id == sid,
-                RefreshToken.revoked_at.is_(None),
-                RefreshToken.expires_at > datetime.now(UTC),
-            )
-        )
-    )
-    if not alive:
+    if user is None or not await session_alive(session, user, sid):
         raise _unauthorized()
 
     key = str(user.id)
@@ -97,6 +84,27 @@ async def current_caller(
         )
     api_limiter.hit(key)
     return Caller(user, sid, client_ip(request))
+
+
+async def session_alive(session: AsyncSession, user: User, sid: uuid.UUID) -> bool:
+    """The account is active and this login session was not logged out.
+
+    After logout (or theft detection) the session has no live refresh token
+    left, so its access tokens stop working at once, not 15 minutes later.
+    The WebSocket checks this again every 30 seconds (FR-25)."""
+    if not user.is_active:
+        return False
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    RefreshToken.family_id == sid,
+                    RefreshToken.revoked_at.is_(None),
+                    RefreshToken.expires_at > datetime.now(UTC),
+                )
+            )
+        )
+    )
 
 
 def require(*roles: str):
@@ -157,3 +165,17 @@ async def visible_home(
         if lives_here:
             return home
     raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+
+
+async def resident_since(session: AsyncSession, caller: Caller, home: Home) -> date | None:
+    """For a resident: the move-in day of their current stay in this home.
+    Residents only see readings from their own time there, never the
+    previous tenant's (FR-19). None for owners and admins (no limit)."""
+    if caller.role != "resident":
+        return None
+    return await session.scalar(
+        select(Occupancy.move_in)
+        .where(Occupancy.home_id == home.id, *active_occupancy_filter(caller.id, date.today()))
+        .order_by(Occupancy.move_in.desc())
+        .limit(1)
+    )

@@ -1,8 +1,8 @@
-# AquaPulse backend: the FastAPI API (M3), and later the ingestor and worker (M4+).
+# AquaPulse backend: the FastAPI API (M3) and the MQTT ingestor (M4); the worker follows later.
 [project]
 name = "aquapulse-backend"
-version = "0.3.0"
-description = "AquaPulse API: login, roles, buildings, homes, residents and audit log"
+version = "0.4.0"
+description = "AquaPulse API and ingestor: accounts, buildings, live readings, valve and pump control"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
 dependencies = [
@@ -17,6 +17,9 @@ dependencies = [
     "email-validator==2.3.0",      # checks email addresses
     "prometheus-client==0.26.0",   # /metrics (FR-31)
     "python-multipart==0.0.32",    # reads the login form used by Swagger's Authorize button
+    "aiomqtt==2.5.1",              # MQTT client: the ingestor talks to the devices (M4)
+    "jsonschema==4.26.0",          # checks every device message against /contracts (FR-22)
+    "websockets==17.3",            # lets uvicorn serve the live WebSocket (FR-25)
 ]
 
 [dependency-groups]
@@ -39,7 +42,10 @@ asyncio_default_test_loop_scope = "session"
 addopts = "-q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80"
 
 [tool.coverage.run]
-omit = ["app/seed.py", "app/export_openapi.py"]  # command-line helpers, run by make
+omit = [
+    # command-line helpers, run by make
+    "app/seed.py", "app/export_openapi.py", "app/watch.py", "app/ingest/__main__.py",
+]
 # SQLAlchemy's async layer runs our code inside greenlets; without this,
 # coverage would miss every line after the first database call.
 concurrency = ["greenlet", "thread"]
@@ -54,4 +60,4 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S"]
 ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106"]  # test passwords are not secrets
+"tests/*" = ["S105", "S106", "S311"]  # test passwords are not secrets; random test data

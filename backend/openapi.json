@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AquaPulse API",
-    "description": "Smart water management: buildings, homes, residents, login and audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
-    "version": "0.3.0"
+    "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
+    "version": "0.4.0"
   },
   "paths": {
     "/api/healthz": {
@@ -1563,6 +1563,877 @@
           }
         }
       }
+    },
+    "/api/v1/homes/{home_id}/live": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Home Live",
+        "description": "Latest reading, the valve state the device reported, and any lock.",
+        "operationId": "home_live_api_v1_homes__home_id__live_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeLiveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/telemetry": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Home Telemetry",
+        "description": "Raw readings, oldest first: at most 7 days per call (default: the last hour).",
+        "operationId": "home_telemetry_api_v1_homes__home_id__telemetry_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReadingOut"
+                  },
+                  "title": "Response Home Telemetry Api V1 Homes  Home Id  Telemetry Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/consumption": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Home Consumption",
+        "description": "Litres per hour, day or month, in the building's time zone (FR-23).",
+        "operationId": "home_consumption_api_v1_homes__home_id__consumption_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hour",
+                "day",
+                "month"
+              ],
+              "type": "string",
+              "default": "day",
+              "title": "Granularity"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day",
+              "title": "From"
+            },
+            "description": "First local day"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day (included)",
+              "title": "To"
+            },
+            "description": "Last local day (included)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumptionOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/consumption": {
+      "get": {
+        "tags": [
+          "live data and consumption"
+        ],
+        "summary": "Building Consumption",
+        "description": "All homes together per hour, day or month, plus the total of each home.",
+        "operationId": "building_consumption_api_v1_buildings__building_id__consumption_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hour",
+                "day",
+                "month"
+              ],
+              "type": "string",
+              "default": "day",
+              "title": "Granularity"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day",
+              "title": "From"
+            },
+            "description": "First local day"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day (included)",
+              "title": "To"
+            },
+            "description": "Last local day (included)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumptionOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/valve": {
+      "post": {
+        "tags": [
+          "valve control"
+        ],
+        "summary": "Valve",
+        "description": "Open or close the home's water valve. Returns the command (202 Accepted).",
+        "operationId": "valve_api_v1_homes__home_id__valve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "423": {
+            "description": "Locked"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/commands/{command_id}": {
+      "get": {
+        "tags": [
+          "valve control"
+        ],
+        "summary": "Get Command",
+        "description": "What became of a command (FR-24).",
+        "operationId": "get_command_api_v1_commands__command_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "command_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Command Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/valve-lock": {
+      "post": {
+        "tags": [
+          "valve control"
+        ],
+        "summary": "Lock Valve",
+        "description": "Lock the valve open or closed, with a reason of 10+ characters (FR-27).\n\nThe valve is moved to the locked position at once, and the residents\nare told by email. Nobody can change it until the lock is removed.",
+        "operationId": "lock_valve_api_v1_homes__home_id__valve_lock_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValveLockIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValveLockOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/valve-unlock": {
+      "post": {
+        "tags": [
+          "valve control"
+        ],
+        "summary": "Unlock Valve",
+        "description": "Remove the lock, with a reason of 10+ characters. The valve stays where it is.",
+        "operationId": "unlock_valve_api_v1_homes__home_id__valve_unlock_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValveUnlockIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValveLockOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/tank": {
+      "get": {
+        "tags": [
+          "tank and pump"
+        ],
+        "summary": "Building Tank",
+        "description": "Live tank level, pump state, confirmed settings and commands still running.",
+        "operationId": "building_tank_api_v1_buildings__building_id__tank_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TankOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tanks/{tank_id}/history": {
+      "get": {
+        "tags": [
+          "tank and pump"
+        ],
+        "summary": "Tank History",
+        "description": "Tank level over time, and pump hours and energy per day (FR-26).",
+        "operationId": "tank_history_api_v1_tanks__tank_id__history_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tank Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day",
+              "title": "From"
+            },
+            "description": "First local day"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day (included)",
+              "title": "To"
+            },
+            "description": "Last local day (included)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TankHistoryOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/tanks/{tank_id}/settings": {
+      "patch": {
+        "tags": [
+          "tank and pump"
+        ],
+        "summary": "Tank Settings",
+        "description": "Change thresholds, auto/manual mode or the pump's power (kW).\n\nThresholds and mode are sent to the device (202): the values shown change\nonce the device confirms them. The pump's kW is only used for the energy\nestimate, so it is saved at once.",
+        "operationId": "tank_settings_api_v1_tanks__tank_id__settings_patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tank Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TankSettingsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TankSettingsOut"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TankSettingsOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/tanks/{tank_id}/pump": {
+      "post": {
+        "tags": [
+          "tank and pump"
+        ],
+        "summary": "Pump",
+        "description": "Switch the pump on or off by hand (the tank must be in manual mode).\n\nThe device has the last word: it refuses `on` when the sump is empty\n(UNSAFE_DRY_RUN) or the tank is full (UNSAFE_OVERFLOW), and the command\nthen ends as `rejected` with that reason.",
+        "operationId": "pump_api_v1_tanks__tank_id__pump_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tank Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PumpIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ws-ticket": {
+      "post": {
+        "tags": [
+          "live stream"
+        ],
+        "summary": "Ws Ticket",
+        "description": "A one-time ticket to open the live WebSocket, valid for 30 seconds.",
+        "operationId": "ws_ticket_api_v1_ws_ticket_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WsTicketOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2038,6 +2909,213 @@
           }
         ]
       },
+      "CommandOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "The cmdId the device sees"
+          },
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "requested_role": {
+            "type": "string",
+            "title": "Requested Role"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "pending",
+              "succeeded",
+              "failed",
+              "rejected",
+              "timeout"
+            ],
+            "title": "State"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          },
+          "acked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acked At"
+          },
+          "result_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Reason",
+            "description": "The device's reason, e.g. BUSY or VALVE_STUCK"
+          },
+          "result_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result State",
+            "description": "State the device reported after the command"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "device_id",
+          "type",
+          "action",
+          "params",
+          "reason",
+          "requested_role",
+          "state",
+          "created_at",
+          "issued_at",
+          "acked_at",
+          "result_reason",
+          "result_state"
+        ],
+        "title": "CommandOut"
+      },
+      "ConsumptionOut": {
+        "properties": {
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "day",
+              "month"
+            ],
+            "title": "Granularity"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "title": "To"
+          },
+          "total_litres": {
+            "type": "number",
+            "title": "Total Litres"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ConsumptionPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "homes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeTotal"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homes",
+            "description": "Building only: total per home"
+          }
+        },
+        "type": "object",
+        "required": [
+          "granularity",
+          "timezone",
+          "from",
+          "to",
+          "total_litres",
+          "points"
+        ],
+        "title": "ConsumptionOut"
+      },
+      "ConsumptionPoint": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "Start of the hour, day or month, in the building's zone"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "litres"
+        ],
+        "title": "ConsumptionPoint"
+      },
       "ForgotIn": {
         "properties": {
           "email": {
@@ -2117,6 +3195,96 @@
             "unit_no": "A-101"
           }
         ]
+      },
+      "HomeLiveOut": {
+        "properties": {
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "valve": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valve",
+            "description": "Valve state reported by the device (not just requested)"
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReadingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValveLockOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_command": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommandOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "home_id",
+          "device_id",
+          "online",
+          "last_seen_at",
+          "valve",
+          "reading",
+          "lock",
+          "pending_command"
+        ],
+        "title": "HomeLiveOut"
       },
       "HomeOut": {
         "properties": {
@@ -2239,6 +3407,30 @@
             "occupants": 4
           }
         ]
+      },
+      "HomeTotal": {
+        "properties": {
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "unit_no": {
+            "type": "string",
+            "title": "Unit No"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "home_id",
+          "unit_no",
+          "litres"
+        ],
+        "title": "HomeTotal"
       },
       "InvitationIn": {
         "properties": {
@@ -2617,6 +3809,113 @@
           }
         ]
       },
+      "PumpDay": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "pump_hours": {
+            "type": "number",
+            "title": "Pump Hours"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh",
+            "description": "pump_hours x pump_kw (an estimate)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "pump_hours",
+          "energy_kwh"
+        ],
+        "title": "PumpDay"
+      },
+      "PumpIn": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "PumpIn",
+        "examples": [
+          {
+            "action": "on",
+            "reason": "Fill up"
+          }
+        ]
+      },
+      "ReadingOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "total_l": {
+            "type": "number",
+            "title": "Total L",
+            "description": "The meter's own counter, in litres"
+          },
+          "delta_l": {
+            "type": "number",
+            "title": "Delta L",
+            "description": "Litres used since the previous reading"
+          },
+          "flow_lpm": {
+            "type": "number",
+            "title": "Flow Lpm"
+          },
+          "ph": {
+            "type": "number",
+            "title": "Ph"
+          },
+          "temp_c": {
+            "type": "number",
+            "title": "Temp C"
+          },
+          "valve": {
+            "type": "string",
+            "title": "Valve",
+            "description": "What the device reported: open, closed, moving or fault"
+          },
+          "rssi": {
+            "type": "integer",
+            "title": "Rssi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "total_l",
+          "delta_l",
+          "flow_lpm",
+          "ph",
+          "temp_c",
+          "valve",
+          "rssi"
+        ],
+        "title": "ReadingOut"
+      },
       "RefreshIn": {
         "properties": {
           "refresh_token": {
@@ -2666,6 +3965,339 @@
             "token": "the code from the email"
           }
         ]
+      },
+      "TankHistoryOut": {
+        "properties": {
+          "tank_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tank Id"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "title": "To"
+          },
+          "step_minutes": {
+            "type": "integer",
+            "title": "Step Minutes"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/TankLevelPoint"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PumpDay"
+            },
+            "type": "array",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tank_id",
+          "timezone",
+          "from",
+          "to",
+          "step_minutes",
+          "levels",
+          "days"
+        ],
+        "title": "TankHistoryOut"
+      },
+      "TankLevelPoint": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "level_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Pct",
+            "description": "Average level in this period"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "level_pct"
+        ],
+        "title": "TankLevelPoint"
+      },
+      "TankOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "capacity_l": {
+            "type": "integer",
+            "title": "Capacity L"
+          },
+          "low_pct": {
+            "type": "number",
+            "title": "Low Pct",
+            "description": "Pump starts below this level (confirmed by the device)"
+          },
+          "high_pct": {
+            "type": "number",
+            "title": "High Pct",
+            "description": "Pump stops at this level (confirmed by the device)"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "pump_kw": {
+            "type": "number",
+            "title": "Pump Kw"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TankReadingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open_commands": {
+            "items": {
+              "$ref": "#/components/schemas/CommandOut"
+            },
+            "type": "array",
+            "title": "Open Commands"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "building_id",
+          "capacity_l",
+          "low_pct",
+          "high_pct",
+          "mode",
+          "pump_kw",
+          "device_id",
+          "online",
+          "last_seen_at",
+          "reading",
+          "open_commands"
+        ],
+        "title": "TankOut"
+      },
+      "TankReadingOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "level_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Pct",
+            "description": "null when the level sensor failed"
+          },
+          "level_l": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level L"
+          },
+          "pump_on": {
+            "type": "boolean",
+            "title": "Pump On"
+          },
+          "sump_ok": {
+            "type": "boolean",
+            "title": "Sump Ok"
+          },
+          "sensor_ok": {
+            "type": "boolean",
+            "title": "Sensor Ok"
+          },
+          "dry_run_protect": {
+            "type": "boolean",
+            "title": "Dry Run Protect"
+          },
+          "overflow_protect": {
+            "type": "boolean",
+            "title": "Overflow Protect"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "level_pct",
+          "level_l",
+          "pump_on",
+          "sump_ok",
+          "sensor_ok",
+          "dry_run_protect",
+          "overflow_protect",
+          "mode"
+        ],
+        "title": "TankReadingOut"
+      },
+      "TankSettingsIn": {
+        "properties": {
+          "low_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 87.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Pct"
+          },
+          "high_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 97.0,
+                "minimum": 15.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Pct"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "pump_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 50.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pump Kw"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TankSettingsIn",
+        "examples": [
+          {
+            "high_pct": 90,
+            "low_pct": 30,
+            "mode": "auto"
+          }
+        ]
+      },
+      "TankSettingsOut": {
+        "properties": {
+          "tank": {
+            "$ref": "#/components/schemas/TankOut"
+          },
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/CommandOut"
+            },
+            "type": "array",
+            "title": "Commands",
+            "description": "Sent to the device; it confirms each one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tank",
+          "commands"
+        ],
+        "title": "TankSettingsOut"
       },
       "TokensOut": {
         "properties": {
@@ -2782,6 +4414,172 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValveIn": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "open",
+              "close"
+            ],
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "ValveIn",
+        "examples": [
+          {
+            "action": "close",
+            "reason": "Going on holiday"
+          }
+        ]
+      },
+      "ValveLockIn": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 10,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "reason"
+        ],
+        "title": "ValveLockIn",
+        "examples": [
+          {
+            "reason": "Plumber is fixing the kitchen pipe",
+            "state": "closed"
+          }
+        ]
+      },
+      "ValveLockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "locked_state": {
+            "type": "string",
+            "title": "Locked State"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "locked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Locked At"
+          },
+          "unlocked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlocked At"
+          },
+          "unlock_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "home_id",
+          "locked_state",
+          "reason",
+          "locked_at"
+        ],
+        "title": "ValveLockOut"
+      },
+      "ValveUnlockIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 10,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ValveUnlockIn",
+        "examples": [
+          {
+            "reason": "Repair finished, pipe tested"
+          }
+        ]
+      },
+      "WsTicketOut": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Seconds: open the WebSocket before then"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Where to connect, e.g. ws://localhost:8080/api/v1/ws?ticket=..."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_in",
+          "url"
+        ],
+        "title": "WsTicketOut"
       }
     },
     "securitySchemes": {

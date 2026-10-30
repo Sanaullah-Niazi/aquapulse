@@ -42,10 +42,11 @@ class Building:
         self.devices: dict[str, Device] = {d.id: d for d in [*self.homes, self.tank]}
         self.last_tick = now
 
-    def tick(self, now: float) -> None:
+    def tick(self, now: float, max_step_s: float = MAX_STEP_S) -> None:
+        """Move the physics to `now`. The backfill uses bigger steps (it has 90 days to do)."""
         t0 = self.last_tick
         while t0 < now:
-            t1 = min(now, t0 + MAX_STEP_S)
+            t1 = min(now, t0 + max_step_s)
             supply_ok = self.tank.can_supply()
             used = sum(home.step(t0, t1, supply_ok) for home in self.homes)
             self.tank.step(t0, t1, used)

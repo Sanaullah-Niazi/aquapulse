@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from . import __version__, db
-from .routers import admin, auth, buildings, health, me, residents
+from .routers import admin, auth, buildings, health, live, me, residents, stream, tanks, valves
 
 log = logging.getLogger("aquapulse.api")
 
@@ -59,7 +59,8 @@ def create_app() -> FastAPI:
         title="AquaPulse API",
         version=__version__,
         description=(
-            "Smart water management: buildings, homes, residents, login and audit log.\n\n"
+            "Smart water management: buildings, homes, residents, live readings, "
+            "water use, valve and pump control, and the audit log.\n\n"
             "Click **Authorize** and log in with a demo account (see `make seed`)."
         ),
         docs_url="/api/docs",
@@ -92,7 +93,7 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(health.router, prefix="/api")
-    for module in (auth, me, admin, buildings, residents):
+    for module in (auth, me, admin, buildings, residents, live, valves, tanks, stream):
         app.include_router(module.router, prefix=API_PREFIX)
 
     @app.get("/metrics", include_in_schema=False)

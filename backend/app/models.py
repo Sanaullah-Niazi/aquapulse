@@ -1,4 +1,4 @@
-"""Database tables for M3 (SRS section 7.1). Later milestones add more.
+"""Database tables (SRS section 7.1). M3: people and places. M4: devices and readings.
 
 Every table uses UUID keys, so IDs in URLs cannot be guessed by counting.
 """
@@ -15,10 +15,12 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -188,3 +190,170 @@ class AuditEntry(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     prev_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
     hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False, unique=True)
+
+
+# ----- M4: devices, readings and commands -----
+
+DEVICE_KINDS = ("home", "tank")
+COMMAND_STATES = ("queued", "pending", "succeeded", "failed", "rejected", "timeout")
+
+
+class Tank(Base):
+    """The building's overhead tank. Thresholds and mode are the values the
+    tank device last *confirmed*, not just what someone asked for (FR-26)."""
+
+    __tablename__ = "tanks"
+
+    id: Mapped[uuid.UUID] = _id()
+    building_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("buildings.id"), nullable=False, unique=True
+    )
+    capacity_l: Mapped[int] = mapped_column(Integer, nullable=False)
+    low_pct: Mapped[float] = mapped_column(Float, nullable=False, default=25.0)
+    high_pct: Mapped[float] = mapped_column(Float, nullable=False, default=95.0)
+    mode: Mapped[str] = mapped_column(String(8), nullable=False, default="auto")
+    pump_kw: Mapped[float] = mapped_column(Numeric(6, 3), nullable=False, default=0.75)
+
+
+class Device(Base):
+    """A home node or a tank node. Only registered, active devices are listened to (FR-22)."""
+
+    __tablename__ = "devices"
+    __table_args__ = (
+        CheckConstraint(f"kind IN {DEVICE_KINDS}", name="kind_valid"),
+        CheckConstraint("status IN ('active', 'revoked')", name="status_valid"),
+        CheckConstraint(
+            "(kind = 'home' AND home_id IS NOT NULL AND tank_id IS NULL)"
+            " OR (kind = 'tank' AND tank_id IS NOT NULL AND home_id IS NULL)",
+            name="kind_matches_target",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)  # e.g. home-b01-03
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    building_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("buildings.id"), nullable=False, index=True
+    )
+    home_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("homes.id"), unique=True)
+    tank_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tanks.id"), unique=True)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="active")
+    online: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    fw_version: Mapped[str | None] = mapped_column(String(16))
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _now()
+
+
+class Telemetry(Base):
+    """One reading from a home node. A TimescaleDB hypertable (see migration 0002)."""
+
+    __tablename__ = "telemetry"
+    __table_args__ = (Index("telemetry_home_time", "home_id", "time"),)
+
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    boot_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    seq: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    home_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    building_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    total_l: Mapped[float] = mapped_column(Float, nullable=False)  # the device's counter
+    delta_l: Mapped[float] = mapped_column(Float, nullable=False)  # litres since last reading
+    flow_lpm: Mapped[float] = mapped_column(Float, nullable=False)
+    ph: Mapped[float] = mapped_column(Float, nullable=False)
+    temp_c: Mapped[float] = mapped_column(Float, nullable=False)
+    valve: Mapped[str] = mapped_column(String(8), nullable=False)
+    rssi: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+
+class TankReading(Base):
+    """One reading from a tank node. A TimescaleDB hypertable."""
+
+    __tablename__ = "tank_readings"
+    __table_args__ = (Index("tank_readings_tank_time", "tank_id", "time"),)
+
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    boot_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    seq: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tank_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    level_pct: Mapped[float | None] = mapped_column(Float)  # null when the sensor failed
+    level_l: Mapped[float | None] = mapped_column(Float)
+    pump_on: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    pump_s: Mapped[float] = mapped_column(Float, nullable=False)  # pump seconds since last reading
+    sump_ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    sensor_ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    dry_run_protect: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    overflow_protect: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    mode: Mapped[str] = mapped_column(String(8), nullable=False)
+
+
+class DeviceCommand(Base):
+    """A valve, pump or setting command and what became of it (FR-13, FR-24).
+
+    queued   -> waiting for an earlier command to the same device to finish
+    pending  -> sent to the device, waiting for its ack
+    succeeded / failed / rejected -> what the device's ack said
+    timeout  -> no ack within 15 seconds
+    """
+
+    __tablename__ = "device_commands"
+    __table_args__ = (
+        CheckConstraint(f"state IN {COMMAND_STATES}", name="state_valid"),
+        Index("device_commands_open", "device_id", "created_at",
+              postgresql_where=text("state IN ('queued', 'pending')")),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()  # = the cmdId the device sees
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False)
+    building_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    home_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    action: Mapped[str | None] = mapped_column(String(8))
+    params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    requested_role: Mapped[str] = mapped_column(String(16), nullable=False)
+    state: Mapped[str] = mapped_column(String(10), nullable=False, default="queued")
+    created_at: Mapped[datetime] = _now()
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_reason: Mapped[str | None] = mapped_column(String(24))
+    result_state: Mapped[str | None] = mapped_column(String(8))
+
+
+class ValveLock(Base):
+    """Owner lock on a home's valve (FR-27). Kept after unlocking, as history."""
+
+    __tablename__ = "valve_locks"
+    __table_args__ = (
+        CheckConstraint("locked_state IN ('open', 'closed')", name="locked_state_valid"),
+        Index("one_active_lock_per_home", "home_id", unique=True,
+              postgresql_where=text("unlocked_at IS NULL")),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    home_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("homes.id"), nullable=False, index=True)
+    locked_state: Mapped[str] = mapped_column(String(8), nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    locked_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    locked_at: Mapped[datetime] = _now()
+    unlocked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    unlocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unlock_reason: Mapped[str | None] = mapped_column(String(300))
+
+
+class DeviceEvent(Base):
+    """Known events, e.g. the leaks the demo backfill put in on purpose (FR-08).
+    They are the "ground truth" the leak detector is scored against (M10)."""
+
+    __tablename__ = "device_events"
+    __table_args__ = (UniqueConstraint("device_id", "kind", "started_at", name="event_unique"),)
+
+    id: Mapped[uuid.UUID] = _id()
+    device_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16), nullable=False)  # backfill | scenario
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)

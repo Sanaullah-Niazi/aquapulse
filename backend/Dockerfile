@@ -1,4 +1,5 @@
-# AquaPulse backend image (M3): the API, and the one-shot `migrate` job.
+# AquaPulse backend image: the API and the one-shot `migrate` job (M3),
+# and the ingestor (M4). One image, different start commands.
 # Built by `make up` (docker compose build). Build context is the repo root.
 FROM python:3.12.13-slim-trixie
 
@@ -20,8 +21,11 @@ RUN uv sync --frozen --no-dev
 COPY backend/alembic.ini ./
 COPY backend/migrations ./migrations
 COPY backend/app ./app
+# The device contract (JSON Schemas): the ingestor checks every MQTT message with it.
+COPY contracts /app/contracts
 
-ENV PATH=/app/.venv/bin:$PATH
+ENV PATH=/app/.venv/bin:$PATH \
+    AQUAPULSE_CONTRACTS_DIR=/app/contracts
 
 # Run as a normal user, not root.
 RUN useradd --uid 10001 --no-create-home api

@@ -51,7 +51,7 @@ from app import db, migrate  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.deps import api_limiter  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Building, Home, Occupancy, User  # noqa: E402
+from app.models import Building, Device, Home, Occupancy, Tank, User  # noqa: E402
 from app.routers import auth  # noqa: E402
 from app.security.passwords import hash_password  # noqa: E402
 
@@ -78,7 +78,14 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 @pytest.fixture(autouse=True)
 def _fresh_rate_limits():
     """Every test starts with empty rate-limit counters."""
-    for limiter in (api_limiter, auth.login_failures_by_account, auth.login_failures_by_ip):
+    from app.control import command_limiter
+
+    for limiter in (
+        api_limiter,
+        auth.login_failures_by_account,
+        auth.login_failures_by_ip,
+        command_limiter,
+    ):
         limiter.clear()
 
 
@@ -99,10 +106,11 @@ def outbox(monkeypatch):
         sent.append((to, subject, body))
         return True
 
-    from app.routers import residents
+    from app.routers import residents, valves
 
     monkeypatch.setattr(auth, "send_email", fake_send)
     monkeypatch.setattr(residents, "send_email", fake_send)
+    monkeypatch.setattr(valves, "send_email", fake_send)
     return sent
 
 
@@ -161,6 +169,25 @@ class Factory:
                 is_billing_contact=billing,
             )
         )
+
+    async def device(self, home: Home | None = None, tank: Tank | None = None, **values) -> Device:
+        """A registered device for a home (or a tank), with a unique ID."""
+        target = home or tank
+        assert target is not None
+        kind = "home" if home else "tank"
+        return await self._add(
+            Device(
+                id=f"{kind}-t{uuid.uuid4().hex[:8]}",
+                kind=kind,
+                building_id=target.building_id,
+                home_id=home.id if home else None,
+                tank_id=tank.id if tank else None,
+                **values,
+            )
+        )
+
+    async def tank(self, building: Building, **values) -> Tank:
+        return await self._add(Tank(building_id=building.id, capacity_l=5000, **values))
 
     async def tokens(self, user: User) -> dict:
         r = await self.client.post(

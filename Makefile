@@ -6,7 +6,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
-	api-logs seed migrate api-test api-lint openapi
+	api-logs seed migrate api-test api-lint openapi \
+	ingest-logs demo-data live
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -111,5 +112,22 @@ api-lint: ## Check the backend code style (ruff)
 
 openapi: ## Regenerate backend/openapi.json after changing the API
 	cd backend && uv run python -m app.export_openapi
+
+# ---------------------------------------------------------------
+# M4: Live data and valve control
+# ---------------------------------------------------------------
+
+ingest-logs: ## Follow the ingestor's logs (Ctrl+C to stop)
+	docker compose logs -f --tail=50 ingestor
+
+DAYS ?= 90
+demo-data: ## Load 90 days of demo history (safe to run again): make demo-data (or DAYS=30)
+	@echo "Making $(DAYS) days of history with the simulator and loading it (1 to 3 minutes)..."
+	docker compose run --rm -T --no-deps simulator aquapulse-sim backfill --days $(DAYS) \
+		| docker compose exec -T api python -m app.backfill
+
+WHO ?= owner@example.com
+live: ## Print live events like an app sees them: make live (or WHO=resident03@example.com)
+	docker compose exec api python -m app.watch $(WHO)
 
 test: sim-test api-test ## Run all tests (grows with each milestone)

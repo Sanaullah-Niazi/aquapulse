@@ -6,8 +6,8 @@
 #
 # M1 added the four "infrastructure" services that everything builds on.
 # M2 added our first own service: the simulator (digital twin).
-# M3 adds the API, plus `migrate`, a one-shot job that prepares the database
-# before the API starts. The ingestor and worker follow in M4.
+# M3 added the API, plus `migrate`, a one-shot job that prepares the database
+# before the API starts. M4 adds the ingestor: MQTT in, database out.
 #
 # Security note: every port is published on 127.0.0.1 only, so nothing is
 # reachable from other computers on your Wi-Fi. MQTT is still plain and
@@ -92,7 +92,9 @@ services:
     ports:
       - "127.0.0.1:8080:80" # http://localhost:8080
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The whole folder, not just the file: Docker on macOS keeps showing a
+      # container the old copy of a single mounted file after `git pull`.
+      - ./infra/caddy:/etc/caddy:ro
       - ./infra/caddy/site:/srv:ro
       - caddy-data:/data
     healthcheck:
@@ -183,6 +185,33 @@ services:
         - python
         - -c
         - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # --- Ingestor: the bridge between MQTT and the database (M4) ---
+  # Checks and stores every device message, and sends valve/pump commands
+  # that the API queued. The only server program that talks MQTT.
+  ingestor:
+    image: aquapulse/backend:dev
+    command: ["python", "-m", "app.ingest"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mqtt:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+    healthcheck:
+      # Healthy = connected to the broker (its own metric says so). Metrics
+      # (port 9100) stay inside the Docker network.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; t=u.urlopen('http://127.0.0.1:9100/metrics', timeout=3).read().decode(); exit(0 if 'ingest_mqtt_connected 1.0' in t else 1)"
       interval: 10s
       timeout: 5s
       retries: 6

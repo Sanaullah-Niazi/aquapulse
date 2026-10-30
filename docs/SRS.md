@@ -371,7 +371,7 @@ One virtual *tank node* per building simulates an overhead tank (default 5,000 L
 #### FR-08 · Historical backfill for demo data
 **Priority:** Must · **Module:** SIM · **Milestone:** M4
 
-A backfill command generates N days of history (default: 10 homes, 90 days) using the same profile engine as FR-02, including some labelled leak and quality events, and loads it into the database through the same validation code as live data.
+A backfill command generates N days of history (default: 10 homes, 90 days) using the same profile engine as FR-02, including some labelled leak and quality events, and loads it into the database through the same validation code as live data. History uses one reading per device every 5 minutes (the contract allows 1 to 300 s), which keeps the load under 5 minutes; live devices keep 10 s.
 
 **Acceptance criteria**
 1. `make demo-data` (or `docker compose run --rm simulator backfill --days 90`) completes in under 5 minutes on the M1 Max.
@@ -410,7 +410,7 @@ Every device has its own username (its device ID) and a long random password (�
 1. Connecting without credentials, or with wrong credentials, is refused.
 2. Device `home-01` cannot publish to `aquapulse/v1/dev/home-02/telemetry` or subscribe to `aquapulse/v1/dev/home-02/cmd` (automated negative test).
 3. Device `home-01` cannot subscribe to `#` or `aquapulse/#`.
-4. The ingestor account can read telemetry/status/ack but cannot publish commands; only the API's command account can publish to `cmd` topics.
+4. The ingestor account can read telemetry/status/ack but cannot publish commands; only the command account (used by the command sender, see 6.3 B) can publish to `cmd` topics.
 
 #### FR-12 · TLS-only broker
 **Priority:** Must · **Module:** DEV · **Milestone:** M5
@@ -1238,19 +1238,19 @@ flowchart TB
 
 **A. Telemetry (every 10 s per device)**
 1. Device publishes JSON to `aquapulse/v1/dev/{id}/telemetry` (QoS 0).
-2. Broker checks the device's ACL and forwards it to the ingestor (shared subscription, so several ingestors can share the work).
+2. Broker checks the device's ACL and forwards it to the ingestor (from M5; a shared subscription for several ingestors is the NFR-26 growth path).
 3. Ingestor validates schema, size, device status and timestamp; drops duplicates; computes `delta_l` from the cumulative counter (handles reboots); inserts into the `telemetry` hypertable.
-4. Ingestor sends `NOTIFY telemetry, '{home, summary}'`.
+4. Ingestor sends `NOTIFY aquapulse_events, '{type, buildingId, homeId, summary}'` in the same transaction.
 5. API receives the notification and pushes a summary to WebSockets that are allowed to see that home.
-6. TimescaleDB continuous aggregates update hourly and daily totals in the background.
+6. A TimescaleDB continuous aggregate keeps 15-minute totals per home up to date; hourly, daily and monthly totals are added up from it in the building's time zone (15-minute blocks, because some zones are 30 or 45 minutes off the hour).
 
 **B. Valve command**
 1. User taps "Close water" → `POST /api/v1/homes/{id}/valve`.
-2. API checks role, ownership, lock and rate limit → creates `device_commands` row (`pending`) → audit entry.
-3. API publishes `cmd` (QoS 1, not retained, expires in 30 s).
+2. API checks role, ownership, lock and rate limit → creates `device_commands` row (`queued`) → audit entry → `NOTIFY aquapulse_commands`.
+3. The command sender (inside the ingestor service; from M5 with its own MQTT command account, see FR-11) marks it `pending` and publishes `cmd` (QoS 1, not retained, expires in 30 s). One command at a time per device, so quick opposite presses run in order. The API itself never connects to MQTT.
 4. Device moves valve → publishes `ack` and new `state`.
 5. Ingestor updates the command to `succeeded` → NOTIFY → API → WebSocket → UI shows "Closed ✓".
-6. If no ack arrives in 15 s, the worker marks it `timeout` and raises an alert.
+6. If no ack arrives in 15 s, the command sender marks it `timeout` (alerts for it arrive with M7).
 
 **C. Billing (monthly)**
 1. Worker job on the 1st at 02:00 building time.
@@ -2514,7 +2514,7 @@ The estimated effort assumes about 10 to 15 hours per week while learning. It is
 | **M1: Infrastructure** | One-command stack: Mosquitto (dev profile), TimescaleDB, Caddy, Mailpit | Foundation for FR-10, FR-22 (no FR completed); NFR-17, NFR-29 | `docker compose up -d` → all containers healthy; publish/subscribe a test message with MQTTX; open DB in DBeaver; Mailpit at `localhost:8025` | `docker compose ps` all healthy; `make down && make up` works; doc page explains each container | Docker, MQTTX, DBeaver | 1 week |
 | **M2: Digital twin simulator** | 10 virtual homes + 1 tank speaking the MQTT contract | FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-07, FR-09, FR-10, FR-17 (simulator part) | MQTTX shows 10 homes sending live data; send a `close` command with MQTTX and watch flow drop to 0; inject a leak via the simulator's Swagger UI; tank fills and pump switches | Contract tests and simulator unit tests pass in CI; all FR acceptance criteria above pass | Python, uv, MQTTX | 2 weeks |
 | **M3: Backend core** | API with login, roles, buildings, homes, residents, audit log | FR-18, FR-19, FR-20, FR-21, FR-28, FR-29, FR-31, FR-68, FR-69, FR-72 (API part) | Swagger UI at `/api/docs`: log in as owner and resident, create homes, see 403 when a resident tries owner actions; audit entries in DB | RBAC matrix test passes for all endpoints; coverage ≥ 80%; migrations up/down in CI | FastAPI, Bruno/Postman | 2 weeks |
-| **M4: Live data and valve control** | Ingestor stores telemetry; consumption; WebSocket; valve and pump commands; backfill | FR-08, FR-13, FR-22, FR-23, FR-24, FR-25, FR-26, FR-27, FR-72 (MQTT part) | `curl` the consumption API for 90 days of demo data; WebSocket test page shows live readings; close a valve via API and see the simulator obey; owner lock returns 423 to the resident | 10%-message-loss test within 0.5%; valve round trip p95 ≤ 2 s; backfill idempotent | k6 (light), websocat or test page | 2 weeks |
+| **M4: Live data and valve control** | Ingestor stores telemetry; consumption; WebSocket; valve and pump commands; backfill | FR-08, FR-13, FR-22, FR-23, FR-24, FR-25, FR-26, FR-27, FR-72 (MQTT part) | `curl` the consumption API for 90 days of demo data; `make live` prints the WebSocket stream; close a valve via API and see the simulator obey; owner lock returns 423 to the resident | 10%-message-loss test within 0.5%; valve round trip p95 ≤ 2 s plus the valve's own travel time (2 to 5 s in the simulator); backfill idempotent | k6 (light), `make live` | 2 weeks |
 | **M5: Secure MQTT and HTTPS** | TLS everywhere, per-device credentials, ACLs, provisioning, security headers | FR-11, FR-12, FR-14, FR-71 | `openssl s_client` shows TLS 1.3; a device trying another home's topic is refused (log shown); register a new device and get a one-time password + QR; HTTPS at `https://localhost` | Port 1883 closed in default profile; ACL negative tests pass; testssl.sh no high issues; STRIDE review #1 done | OpenSSL 3, testssl.sh | 1.5 weeks |
 | **M6: Billing and payments** | Currencies, tariffs, bill engine, monthly bills, PDFs, manual and Stripe test payments | FR-32, FR-33, FR-34, FR-35, FR-36, FR-37, FR-39, FR-40 | Generate October bills for 10 homes in PKR and a second demo building in KWD; open the PDF; record a cash payment; pay one bill with the Stripe test card | Billing engine 100% branch coverage; 20 worked examples pass; webhook signature and idempotency tests pass | WeasyPrint (Docker), Stripe CLI | 2 weeks |
 | **M7: Alerts and notifications** | Rule engine, alert lifecycle, in-app + email, overdue reminders, audit chain | FR-38, FR-58, FR-59, FR-60 (in-app, email), FR-62, FR-73 | Inject `ph_drift` → critical alert appears via WebSocket and an email arrives in Mailpit; acknowledge it; tamper with an audit row and watch verification fail | Each rule's scenario test passes; 7-day false-positive test passes; dedupe test (one alert per incident) | Mailpit | 1.5 weeks |

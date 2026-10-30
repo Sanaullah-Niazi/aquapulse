@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M3 of 12).**
+> 🚧 **Status: under active development (milestone M4 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -39,8 +39,8 @@ flowchart LR
 | M0 Tools and repository | ✅ done |
 | M1 Infrastructure (Docker Compose) | ✅ done |
 | M2 Digital twin simulator | ✅ done |
-| M3 Backend core (auth, roles, audit) | 🚧 in progress |
-| M4 Live data and valve control | ⏳ |
+| M3 Backend core (auth, roles, audit) | ✅ done |
+| M4 Live data and valve control | 🚧 in progress |
 | M5 Secure MQTT and HTTPS | ⏳ |
 | M6 Billing and payments | ⏳ |
 | M7 Alerts and notifications | ⏳ |
@@ -99,12 +99,24 @@ Guide: [docs/milestones/M2-digital-twin.md](docs/milestones/M2-digital-twin.md).
 
 Guide: [docs/milestones/M3-backend-core.md](docs/milestones/M3-backend-core.md).
 
+**Live data and valve control (M4).** An ingestor turns MQTT messages into checked, de-duplicated readings in TimescaleDB.
+
+- Every device message is checked (registered device, 2 KB limit, JSON Schema, clock) and counted by reason when rejected.
+- Litres come from the meter's cumulative counter, so lost messages lose nothing (tested: 10% loss, daily totals within 0.5%); reboots and counter jumps are handled.
+- Hourly, daily and monthly totals in the building's own time zone, DST included, from a TimescaleDB continuous aggregate.
+- Valve and pump commands with a full life cycle (queued, pending, succeeded, failed, rejected, timeout): QoS 1, never retained, expiring after 30 s, one at a time per device, and only the device's ack counts.
+- Owner valve locks with a written reason (residents get 423 and an email), tank level history, pump hours and energy, thresholds confirmed by the device.
+- A live WebSocket with one-time tickets, where each user only receives events they may see.
+- `make demo-data`: 90 days of history with labelled leaks and pH events, loaded through the same checks as live data.
+
+Guide: [docs/milestones/M4-live-data.md](docs/milestones/M4-live-data.md).
+
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3); ingestor, worker, billing engine, AI later            (M3+)
+backend/     API (M3), ingestor (M4); worker, billing engine, AI later        (M3+)
 web/         React web app / PWA                                              (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

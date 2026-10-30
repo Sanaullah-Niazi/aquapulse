@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/cmd.v1.json",
+  "title": "Command (server to device)",
+  "description": "Topic aquapulse/v1/dev/{id}/cmd · QoS 1 · NEVER retained. The device ignores expired commands and command IDs it has already seen (FR-04, FR-13). Its ack is the only proof that a command was executed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "cmdId", "type", "issuedAt", "expiresAt", "by"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "cmdId": { "$ref": "common.v1.json#/$defs/uuid" },
+    "type": {
+      "description": "valve (home): open/close · pump (tank, manual mode only): on/off · mode (tank): auto/manual · thresholds (tank): lowPct/highPct · interval (any): seconds",
+      "enum": ["valve", "pump", "mode", "thresholds", "interval"]
+    },
+    "action": { "enum": ["open", "close", "on", "off", "auto", "manual"] },
+    "lowPct": { "type": "number", "minimum": 5, "maximum": 90 },
+    "highPct": { "type": "number", "minimum": 15, "maximum": 97 },
+    "seconds": { "$ref": "common.v1.json#/$defs/intervalS" },
+    "issuedAt": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "expiresAt": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "by": { "description": "Role of the person or service that asked", "enum": ["owner", "resident", "admin", "system"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "valve" } } },
+      "then": { "required": ["action"], "properties": { "action": { "enum": ["open", "close"] } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "pump" } } },
+      "then": { "required": ["action"], "properties": { "action": { "enum": ["on", "off"] } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "mode" } } },
+      "then": { "required": ["action"], "properties": { "action": { "enum": ["auto", "manual"] } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "thresholds" } } },
+      "then": { "required": ["lowPct", "highPct"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "interval" } } },
+      "then": { "required": ["seconds"] }
+    }
+  ]
+}

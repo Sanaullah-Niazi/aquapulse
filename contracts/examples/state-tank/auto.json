@@ -1,0 +1,1 @@
+{ "v": 1, "ts": "2026-10-30T08:00:00Z", "pumpOn": false, "mode": "auto", "lowPct": 25, "highPct": 95, "intervalS": 10, "fw": "1.0.0" }

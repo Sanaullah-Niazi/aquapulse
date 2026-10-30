@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M1 of 12).**
+> 🚧 **Status: under active development (milestone M2 of 12).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -37,8 +37,8 @@ flowchart LR
 | Milestone | Status |
 |---|---|
 | M0 Tools and repository | ✅ done |
-| M1 Infrastructure (Docker Compose) | 🚧 in progress |
-| M2 Digital twin simulator | ⏳ |
+| M1 Infrastructure (Docker Compose) | ✅ done |
+| M2 Digital twin simulator | 🚧 in progress |
 | M3 Backend core (auth, roles, audit) | ⏳ |
 | M4 Live data and valve control | ⏳ |
 | M5 Secure MQTT and HTTPS | ⏳ |
@@ -59,8 +59,9 @@ git clone https://github.com/Sanaullah-Niazi/aquapulse.git
 cd aquapulse
 make check-tools   # are all tools installed?
 make setup         # create .env (with random secrets) and install git hooks
-make up            # start the stack: MQTT broker, TimescaleDB, Mailpit, Caddy
+make up            # start the stack: MQTT broker, TimescaleDB, Mailpit, Caddy, simulator
 make smoke         # prove every service works end to end
+make mqtt-watch    # watch 10 virtual homes + 1 tank send live readings
 ```
 
 | What | Where |
@@ -69,8 +70,21 @@ make smoke         # prove every service works end to end
 | Email inbox (Mailpit) | http://localhost:8025 |
 | MQTT broker (Mosquitto) | `localhost:1883` (development only; TLS arrives in M5) |
 | Database (TimescaleDB) | `localhost:5432`, password in your `.env` |
+| Simulator control API (Swagger) | http://localhost:8090/docs |
 
 Every service is reachable from your own computer only. `make help` lists all commands.
+
+## What works today
+
+**Digital twin (M2).** A building with 10 virtual homes and one overhead tank. Every home is its own MQTT device with a water meter, a motorised valve, and pH and temperature sensors. The tank has a level sensor and a pump with automatic control.
+
+- Realistic water use: morning and evening peaks, quiet nights, more on weekends, 1 to 6 people per home, 100 to 150 L per person per day. The same seed always gives the same data.
+- Valve commands over MQTT with acknowledgements, expiry and duplicate protection.
+- Tank automation: pump on below 25%, off above 95%, dry-run and overflow protection.
+- Fault injection for demos and AI testing: leak, burst, pH drift, temperature spike, stuck sensor, stuck valve, device offline (MQTT Last Will), reboot, tank sensor failure, empty sump.
+- Every message is checked against the shared JSON Schemas in [`contracts/`](contracts/README.md), the same contract the ESP32 firmware will follow.
+
+Guide: [docs/milestones/M2-digital-twin.md](docs/milestones/M2-digital-twin.md).
 
 ## Repository layout
 

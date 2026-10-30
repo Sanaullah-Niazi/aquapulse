@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------
 # CI: runs on every push and pull request.
-# M0 has two jobs: file hygiene checks and a full-history secret scan.
-# Later milestones add jobs for tests, builds and security scans.
+# M0: file hygiene checks and a full-history secret scan.
+# M1: start the Docker stack and run the smoke test.
+# M2: simulator lint + unit tests, and live MQTT tests against the stack.
 # ---------------------------------------------------------------
 name: CI
 
@@ -46,20 +47,44 @@ jobs:
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2 \
             git --config /repo/.gitleaks.toml --redact --verbose /repo
 
-  stack:
-    name: Docker stack smoke test (M1)
+  simulator:
+    name: Simulator lint + unit tests (M2)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: simulator
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          version: "0.11.32"
+      - name: Install exactly the locked versions
+        run: uv sync --frozen
+      - name: Lint (ruff)
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Unit + contract tests
+        run: uv run pytest
+
+  stack:
+    name: Docker stack smoke + live MQTT tests (M1, M2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          version: "0.11.32"
       - name: Create .env (random secrets, like on a developer's machine)
         run: make env
       - name: Validate docker-compose.yml
         run: docker compose config --quiet
-      - name: Start the stack and wait until healthy
-        run: docker compose up -d --wait --wait-timeout 300
-      - name: Smoke test (database, MQTT, email, web)
+      - name: Build our images, start the stack and wait until healthy
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Smoke test (database, MQTT, email, web, simulator)
         run: make smoke
+      - name: Live MQTT tests (Last Will, commands, broker restart ...)
+        run: make sim-test-live
       - name: Show logs if something failed
         if: failure()
         run: docker compose logs --no-color --tail=200

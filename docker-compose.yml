@@ -4,9 +4,9 @@
 #   Stop:   make down
 #   Check:  make smoke
 #
-# M1 (this version) runs the four "infrastructure" services that every
-# later milestone builds on. Our own services (simulator, API, ingestor,
-# worker) are added in M2 to M4.
+# M1 added the four "infrastructure" services that everything builds on.
+# M2 adds our first own service: the simulator (digital twin). The API,
+# ingestor and worker follow in M3 and M4.
 #
 # Security note: every port is published on 127.0.0.1 only, so nothing is
 # reachable from other computers on your Wi-Fi. MQTT is still plain and
@@ -88,9 +88,51 @@ services:
       timeout: 5s
       retries: 5
 
+  # --- Simulator: the digital twin (M2) ---
+  # 10 virtual homes + 1 tank, each with its own MQTT connection, sending the
+  # same messages real ESP32 hardware will send (contracts/ folder).
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    image: aquapulse/simulator:dev
+    restart: unless-stopped
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      SIM_HOMES: ${SIM_HOMES:-10}
+      SIM_INTERVAL_S: ${SIM_INTERVAL_S:-10}
+      SIM_SEED: ${SIM_SEED:-42}
+      SIM_BUILDING: ${SIM_BUILDING:-b01}
+      SIM_WEEKEND_DAYS: ${SIM_WEEKEND_DAYS:-sat,sun}
+      SIM_TANK_CAPACITY_L: ${SIM_TANK_CAPACITY_L:-5000}
+      SIM_TANK_START_PCT: ${SIM_TANK_START_PCT:-30}
+      SIM_PUMP_LPM: ${SIM_PUMP_LPM:-60}
+      DEMO_TIMEZONE: ${DEMO_TIMEZONE:-Asia/Karachi}
+    ports:
+      - "127.0.0.1:8090:8090" # control API + Swagger UI: http://localhost:8090/docs
+    volumes:
+      - sim-data:/data # the devices' "flash memory": litre counters survive restarts
+    healthcheck:
+      # Healthy = the control API answers and every device that should be online
+      # (not stopped, no "offline" scenario) is connected to MQTT.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request as u; h=json.load(u.urlopen('http://127.0.0.1:8090/healthz', timeout=3)); exit(0 if h['healthy'] else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
 # Named volumes keep data when containers are recreated.
 # `make reset` deletes them (all data gone, fresh start).
 volumes:
   mqtt-data:
   db-data:
   caddy-data:
+  sim-data:

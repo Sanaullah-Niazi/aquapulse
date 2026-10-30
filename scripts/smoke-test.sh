@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the M1 stack really works, end to end.
+# smoke-test.sh: proves the stack really works, end to end (M1 + M2).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -10,6 +10,7 @@
 #   - Mosquitto:   publish a message and receive it on a subscriber
 #   - Mailpit:     send an email and find it in the inbox
 #   - Caddy:       fetch the health endpoint and the status page
+#   - Simulator:   10 homes + 1 tank online, all sending telemetry (M2)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -23,11 +24,11 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1)"
+echo "AquaPulse smoke test (M1 + M2)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in mqtt db mailpit caddy; do
+for svc in mqtt db mailpit caddy simulator; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi
@@ -82,11 +83,35 @@ else
   fail "Caddy: http://localhost:8080 did not answer correctly"
 fi
 
+# 6. Simulator (M2): every virtual device online and sending telemetry ---------
+expected=11 # 10 homes + 1 tank (default SIM_HOMES=10)
+# Retained status messages: the broker hands us the latest one per device at once.
+online="$(docker compose exec -T mqtt mosquitto_sub -h localhost -t 'aquapulse/v1/dev/+/status' -v -W 3 2>/dev/null \
+  | grep -c '"state":"online"')"
+if [ "$online" -ge "$expected" ]; then
+  pass "Simulator: $online devices online (retained MQTT status)"
+else
+  fail "Simulator: only ${online:-0} of $expected devices online (try: make sim-logs)"
+fi
+# Telemetry is sent every 10 s, so 15 s is enough to hear from every device.
+senders="$(docker compose exec -T mqtt mosquitto_sub -h localhost -t 'aquapulse/v1/dev/+/telemetry' -v -W 15 2>/dev/null \
+  | cut -d/ -f4 | sort -u | wc -l | tr -d ' ')"
+if [ "$senders" -ge "$expected" ]; then
+  pass "Simulator: telemetry received from all $senders devices (watch: make mqtt-watch)"
+else
+  fail "Simulator: telemetry from only ${senders:-0} of $expected devices"
+fi
+if curl -fsS http://localhost:8090/healthz 2>/dev/null | grep -q '"healthy":true'; then
+  pass "Simulator: control API answers at http://localhost:8090/docs"
+else
+  fail "Simulator: control API at http://localhost:8090 did not answer"
+fi
+
 echo ""
 if [ "$failures" -eq 0 ]; then
-  echo "All M1 checks passed. 🎉"
+  echo "All checks passed. 🎉"
 else
-  echo "$failures check(s) failed. See docs/milestones/M1-infrastructure.md → Troubleshooting."
+  echo "$failures check(s) failed. See the Troubleshooting part of docs/milestones/M1-infrastructure.md and M2-digital-twin.md."
 fi
 echo ""
 exit "$failures"

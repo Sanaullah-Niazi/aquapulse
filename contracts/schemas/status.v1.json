@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/status.v1.json",
+  "title": "Device online/offline status",
+  "description": "Topic aquapulse/v1/dev/{id}/status · QoS 1 · RETAINED. The device publishes online after connecting. The same topic with state offline is registered as its MQTT Last Will, so the broker announces an unexpected disconnect (FR-06). The Last Will has no ts, because it is written at connect time; the receiver uses its own clock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "state"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "state": { "enum": ["online", "offline"] },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" }
+  }
+}

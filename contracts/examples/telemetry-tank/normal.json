@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "ts": "2026-10-30T08:15:20Z",
+  "bootId": "0b7a0f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+  "seq": 912,
+  "levelPct": 63.4,
+  "levelL": 3170,
+  "capacityL": 5000,
+  "pumpOn": false,
+  "sumpOk": true,
+  "sensorOk": true,
+  "dryRunProtect": false,
+  "overflowProtect": false,
+  "mode": "auto",
+  "lowPct": 25,
+  "highPct": 95,
+  "rssi": -58,
+  "fw": "1.0.0",
+  "boot": false
+}

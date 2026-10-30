@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/telemetry-home.v1.json",
+  "title": "Home node telemetry",
+  "description": "Topic aquapulse/v1/dev/{home-id}/telemetry · QoS 0 · not retained · every intervalS seconds. QoS 0 is safe because totalL is cumulative: a lost message loses no litres.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ts", "bootId", "seq", "totalL", "flowLpm", "ph", "tempC", "valve", "rssi", "fw", "boot"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" },
+    "bootId": { "$ref": "common.v1.json#/$defs/bootId" },
+    "seq": { "$ref": "common.v1.json#/$defs/seq" },
+    "totalL": {
+      "description": "Cumulative litres since the meter was installed. Only goes up (FR-01).",
+      "type": "number",
+      "minimum": 0
+    },
+    "flowLpm": {
+      "description": "Flow rate now, in litres per minute. Exactly 0 when the valve is closed (FR-04).",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 200
+    },
+    "ph": { "description": "Water pH (0 to 14). Normal tap water is 6.5 to 8.5.", "type": "number", "minimum": 0, "maximum": 14 },
+    "tempC": { "description": "Water temperature in °C", "type": "number", "minimum": -10, "maximum": 100 },
+    "valve": {
+      "description": "Valve position reported by the device: moving while the motor turns, fault if it did not reach the requested position.",
+      "enum": ["open", "closed", "moving", "fault"]
+    },
+    "rssi": { "$ref": "common.v1.json#/$defs/rssi" },
+    "fw": { "$ref": "common.v1.json#/$defs/fw" },
+    "boot": { "description": "true only on the first telemetry message after a (re)boot", "type": "boolean" }
+  }
+}

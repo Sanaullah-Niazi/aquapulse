@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aquapulse.dev/contracts/ack.v1.json",
+  "title": "Command acknowledgement (device to server)",
+  "description": "Topic aquapulse/v1/dev/{id}/ack · QoS 1 · not retained. cmdId is null only when the command was so broken that its ID could not be read.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "cmdId", "result", "reason", "state", "ts"],
+  "properties": {
+    "v": { "$ref": "common.v1.json#/$defs/v" },
+    "cmdId": { "anyOf": [{ "$ref": "common.v1.json#/$defs/uuid" }, { "type": "null" }] },
+    "result": {
+      "description": "ok = done · rejected = not done on purpose (expired, duplicate, invalid, unsafe ...) · failed = hardware problem",
+      "enum": ["ok", "rejected", "failed"]
+    },
+    "reason": {
+      "description": "null when result is ok",
+      "enum": [null, "INVALID", "EXPIRED", "DUPLICATE", "UNSUPPORTED", "BUSY", "NOT_MANUAL_MODE", "UNSAFE_OVERFLOW", "UNSAFE_DRY_RUN", "VALVE_STUCK"]
+    },
+    "state": {
+      "description": "State after the command: valve open/closed/fault, pump on/off, mode auto/manual, or null",
+      "enum": [null, "open", "closed", "fault", "on", "off", "auto", "manual"]
+    },
+    "ts": { "$ref": "common.v1.json#/$defs/timestamp" }
+  }
+}

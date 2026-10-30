@@ -26,17 +26,18 @@
 <body>
 <main>
   <h1>💧 AquaPulse</h1>
-  <p class="lead">Local development stack, milestone M1. If you can read this, Caddy (the web server) is running.</p>
+  <p class="lead">Local development stack, milestone M2. If you can read this, Caddy (the web server) is running.</p>
   <table>
     <thead><tr><th>Service</th><th>What it does</th><th>Where</th></tr></thead>
     <tbody>
       <tr><td>Caddy</td><td>Front door: serves this page now, the web app and API later</td><td><a href="http://localhost:8080">localhost:8080</a></td></tr>
       <tr><td>Mailpit</td><td>Fake email inbox: every email the system sends lands here</td><td><a href="http://localhost:8025">localhost:8025</a></td></tr>
       <tr><td>Mosquitto</td><td>MQTT broker: devices send readings and receive commands through it</td><td><code>localhost:1883</code> (open MQTTX)</td></tr>
+      <tr><td>Simulator</td><td>Digital twin: 10 virtual homes + 1 tank sending live readings. Inject leaks and faults here</td><td><a href="http://localhost:8090/docs">localhost:8090/docs</a></td></tr>
       <tr><td>TimescaleDB</td><td>Database for users, bills and millions of meter readings</td><td><code>localhost:5432</code> (open DBeaver)</td></tr>
     </tbody>
   </table>
-  <footer>Check everything from Terminal with <code>make smoke</code>. Guide: <code>docs/milestones/M1-infrastructure.md</code></footer>
+  <footer>Check everything from Terminal with <code>make smoke</code>. Guides: <code>docs/milestones/</code></footer>
 </main>
 </body>
 </html>

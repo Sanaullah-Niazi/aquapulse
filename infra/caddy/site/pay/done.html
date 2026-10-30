@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- Stripe Checkout sends the resident here after paying (M6, FR-39). This page
+     changes nothing: only Stripe's signed webhook marks a bill paid. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AquaPulse: payment sent</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <h1>💧 Payment sent</h1>
+  <p class="lead">Thank you. Stripe (test mode, no real money) now confirms the payment to AquaPulse. Your bill shows <strong>paid</strong> as soon as that confirmation arrives, normally within a few seconds.</p>
+  <p>Coming back to this page does not mark a bill paid by itself: only Stripe's signed message does.</p>
+  <footer>You can close this tab and return to the app.</footer>
+</main>
+</body>
+</html>

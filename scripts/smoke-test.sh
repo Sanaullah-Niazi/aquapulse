@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 to M5).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M6).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -19,6 +19,8 @@
 #                  WebSocket event, consumption totals (M4)
 #   - Devices:     register a device, it connects within 10 s; rotate and
 #                  revoke its password, the broker refuses it within 10 s (M5)
+#   - Billing:     a tariff, a month of readings, a generated KWD bill with
+#                  the right total, its PDF, a part payment and the rest (M6)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -35,11 +37,11 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 to M5)"
+echo "AquaPulse smoke test (M1 to M6)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in broker-auth mqtt db mailpit caddy simulator api ingestor; do
+for svc in broker-auth mqtt db mailpit caddy simulator api ingestor worker; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi
@@ -219,7 +221,7 @@ def call(method, path, token=None, body=None):
 async def main():
     token = call("POST", "/auth/login", body={"email": "owner@example.com",
                  "password": os.environ["DEMO_PASSWORD"]})["access_token"]
-    building = call("GET", "/buildings", token)[0]
+    building = next(b for b in call("GET", "/buildings", token) if b["name"] == "AquaPulse Demo Tower")
     home = next(h for h in call("GET", f"/buildings/{building['id']}/homes", token) if h["unit_no"] == "03")
     ticket = call("POST", "/ws-ticket", token)["ticket"]
     async with connect(f"ws://127.0.0.1:8000/api/v1/ws?ticket={ticket}") as ws:
@@ -305,7 +307,8 @@ async def kicked(client, topic):
 async def main():
     token = call("POST", "/auth/login", {"email": "owner@example.com",
                  "password": os.environ["DEMO_PASSWORD"]})["access_token"]
-    building = call("GET", "/buildings", token=token)[0]
+    building = next(b for b in call("GET", "/buildings", token=token)
+                    if b["name"] == "AquaPulse Demo Tower")
     home = call("POST", f"/buildings/{building['id']}/homes",
                 {"unit_no": f"SMOKE-{sys.argv[1]}"[:20], "occupants": 0}, token=token)
     try:
@@ -347,6 +350,107 @@ if [ -n "${revoked_refused:-}" ] && ! grep -q never <<<"$revoked_kicked $revoked
   pass "Devices: revoked device disconnected after $revoked_kicked and refused from then on"
 else
   fail "Devices: revoke: $(grep REVOKED <<<"$m5_out" || tail -n 3 <<<"$m5_out")"
+fi
+
+# 10. Billing (M6) ---------------------------------------------------------------
+# In a building kept for smoke tests ("Smoke Test Building", KWD): a new home
+# and resident each run, last month's readings, then the real API: generate,
+# issue, PDF, a part payment and the rest. The home is archived at the end.
+m6_out="$(docker compose exec -T api python - "$run_id" <<'PY' 2>&1
+import asyncio, os, sys, uuid
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+import urllib.request
+from sqlalchemy import select
+from app import db
+from app.backfill import refresh_consumption
+from app.models import Occupancy, Telemetry, User
+from app.watch import call
+
+API = "http://127.0.0.1:8000/api/v1"
+
+def pdf(path, token):
+    request = urllib.request.Request(API + path, headers={"Authorization": "Bearer " + token})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read()
+
+async def add_resident_and_water(home_id, building_id, first, days, zone):
+    """A billing contact and 7,000 L over last month, straight into the database."""
+    async with db.sessions()() as session, session.begin():
+        user = User(email=f"smoke-{uuid.uuid4().hex[:8]}@example.com", full_name="Smoke Resident",
+                    role="resident", password_hash=None)
+        session.add(user)
+        await session.flush()
+        session.add(Occupancy(home_id=home_id, user_id=user.id, move_in=first - timedelta(days=30),
+                              is_billing_contact=True))
+        boot, total, rows = uuid.uuid4(), 500.0, []
+        for n in range(days + 1):
+            at = datetime.combine(first + timedelta(days=n - 1), time(12), zone)
+            delta = 0.0 if n == 0 else 7000.0 / days
+            total += delta
+            rows.append(Telemetry(time=at, device_id="home-smoke-01", boot_id=boot, seq=n,
+                home_id=home_id, building_id=building_id, total_l=total, delta_l=delta,
+                flow_lpm=0, ph=7.2, temp_c=24, valve="open", rssi=-60))
+        session.add_all(rows)
+    await refresh_consumption(rows[0].time, rows[-1].time)
+
+async def main():
+    token = call("POST", "/auth/login", {"email": "owner@example.com",
+                 "password": os.environ["DEMO_PASSWORD"]})["access_token"]
+    building = next((b for b in call("GET", "/buildings", token=token)
+                     if b["name"] == "Smoke Test Building"), None)
+    if building is None:
+        building = call("POST", "/buildings", {"name": "Smoke Test Building", "timezone": "Asia/Kuwait",
+                        "currency_code": "KWD"}, token=token)
+    if not call("GET", f"/buildings/{building['id']}/tariffs", token=token):
+        call("POST", f"/buildings/{building['id']}/tariffs", {
+            "name": "Smoke tariff", "effective_from": "2020-01-01",
+            "slabs": [{"from_l": 0, "to_l": 5000, "rate_per_kl": "0.250"},
+                      {"from_l": 5000, "to_l": None, "rate_per_kl": "0.500"}],
+            "charges": [{"name": "Sewerage", "kind": "extra_percent", "value": "10"}]}, token=token)
+    zone = ZoneInfo(building["timezone"])
+    today = datetime.now(zone).date()
+    first = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    days = (today.replace(day=1) - first).days
+    home = call("POST", f"/buildings/{building['id']}/homes",
+                {"unit_no": f"SMOKE-{sys.argv[1]}"[:20], "occupants": 1}, token=token)
+    try:
+        await add_resident_and_water(uuid.UUID(home["id"]), uuid.UUID(building["id"]), first, days, zone)
+        call("POST", f"/buildings/{building['id']}/bills/generate", {"month": f"{first:%Y-%m}"}, token=token)
+        bill = next(b for b in call("GET", f"/buildings/{building['id']}/bills?month={first:%Y-%m}", token=token)
+                    if b["home_id"] == home["id"])
+        print("BILL", bill["status"], bill["litres"], bill["total_text"].replace(" ", "_"))
+        bill = call("POST", f"/bills/{bill['id']}/issue", token=token)
+        print("ISSUED", bill["bill_no"], bill["due_date"])
+        try:  # a PDF problem should not hide the payment checks below
+            document = pdf(f"/bills/{bill['id']}/pdf", token)
+            print("PDF", document[:5].decode(), len(document))
+        except Exception as error:
+            print("PDF failed:", error)
+        call("POST", f"/bills/{bill['id']}/payments", {"amount": "1.000", "method": "cash"}, token=token)
+        part = call("GET", f"/bills/{bill['id']}", token=token)["status"]
+        call("POST", f"/bills/{bill['id']}/payments", {"amount": "1.475", "method": "bank"}, token=token)
+        print("PAID", part, call("GET", f"/bills/{bill['id']}", token=token)["status"])
+    finally:
+        call("DELETE", f"/homes/{home['id']}", token=token)
+        await db.dispose()
+
+asyncio.run(main())
+PY
+)"
+if grep -q "BILL draft 7000.000 KWD_2.475" <<<"$m6_out"; then
+  pass "Billing: last month's bill generated from the readings: 7,000 L = KWD 2.475 (3 decimals)"
+else
+  fail "Billing: generation: $(grep BILL <<<"$m6_out" || tail -n 3 <<<"$m6_out")"
+fi
+read -r _ bill_no due <<<"$(grep ISSUED <<<"$m6_out")"
+if [[ "${bill_no:-}" =~ ^B[0-9]+-[0-9]{4}-[0-9]{6}$ ]]; then pass "Billing: issued as $bill_no, due $due"; else fail "Billing: issue: $(grep ISSUED <<<"$m6_out" || tail -n 3 <<<"$m6_out")"; fi
+read -r _ magic size _ <<<"$(grep '^PDF' <<<"$m6_out")"
+if [ "${magic:-}" = "%PDF-" ] && [ "${size:-0}" -gt 5000 ]; then pass "Billing: PDF bill downloaded ($((size / 1024)) KB)"; else fail "Billing: PDF: $(grep '^PDF' <<<"$m6_out" || tail -n 3 <<<"$m6_out")"; fi
+if grep -q "PAID partially_paid paid" <<<"$m6_out"; then
+  pass "Billing: cash part payment -> partially paid; bank transfer of the rest -> paid"
+else
+  fail "Billing: payments: $(grep PAID <<<"$m6_out" || tail -n 3 <<<"$m6_out")"
 fi
 
 echo ""

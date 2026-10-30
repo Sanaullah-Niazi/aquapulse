@@ -88,6 +88,7 @@ def _use_ticket(ticket: str) -> _Ticket | None:
 @dataclass
 class _Scope:
     role: str
+    user_id: str = ""
     buildings: set[str] = field(default_factory=set)
     homes: set[str] = field(default_factory=set)
 
@@ -96,12 +97,16 @@ class _Scope:
             return True
         if self.role == "owner":
             return event.get("buildingId") in self.buildings
+        if event.get("type") == "bill":
+            # Bills (M6): only the resident's OWN bills, and never drafts, even
+            # in a shared home or after the previous tenant's bill changes.
+            return event.get("userId") == self.user_id and event.get("status") != "draft"
         # Residents: only events about their own home (never tank or building events).
         return event.get("homeId") is not None and event["homeId"] in self.homes
 
 
 async def _load_scope(user: User) -> _Scope:
-    scope = _Scope(user.role)
+    scope = _Scope(user.role, str(user.id))
     async with db.sessions()() as session:
         if user.role == "owner":
             ids = await session.scalars(select(Building.id).where(Building.owner_id == user.id))

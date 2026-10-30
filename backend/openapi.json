@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AquaPulse API",
-    "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
-    "version": "0.5.0"
+    "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, tariffs, bills and payments, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
+    "version": "0.6.0"
   },
   "paths": {
     "/api/healthz": {
@@ -891,7 +891,7 @@
           "buildings and homes"
         ],
         "summary": "Update Building",
-        "description": "Edit name, address, time zone, currency or due days. Only a System Admin can\nmove a building to another owner.",
+        "description": "Edit name, address, time zone, currency, due days and the billing settings.\nThe currency is fixed once bills exist. Only a System Admin can move a\nbuilding to another owner.",
         "operationId": "update_building_api_v1_buildings__building_id__patch",
         "security": [
           {
@@ -2705,6 +2705,1074 @@
           }
         ]
       }
+    },
+    "/api/v1/buildings/{building_id}/tariffs": {
+      "get": {
+        "tags": [
+          "billing: tariffs"
+        ],
+        "summary": "List Tariffs",
+        "description": "Every version, newest first.",
+        "operationId": "list_tariffs_api_v1_buildings__building_id__tariffs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TariffOut"
+                  },
+                  "title": "Response List Tariffs Api V1 Buildings  Building Id  Tariffs Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "billing: tariffs"
+        ],
+        "summary": "Create Tariff",
+        "description": "Save a new tariff version. Slabs must start at 0, follow each other\nwith no gap or overlap, and the last one has no upper limit (to_l null).\nRates are per 1,000 litres in the building's currency.",
+        "operationId": "create_tariff_api_v1_buildings__building_id__tariffs_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TariffOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/{tariff_id}": {
+      "get": {
+        "tags": [
+          "billing: tariffs"
+        ],
+        "summary": "Get Tariff",
+        "operationId": "get_tariff_api_v1_tariffs__tariff_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tariff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tariff Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TariffOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/preview": {
+      "post": {
+        "tags": [
+          "billing: tariffs"
+        ],
+        "summary": "Preview",
+        "description": "An example bill for a tariff that is not saved yet, calculated by the\nsame engine as real bills, so the preview always matches (FR-45).",
+        "operationId": "preview_api_v1_tariffs_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/buildings/{building_id}/bills/generate": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Generate",
+        "description": "Make the draft bills of a finished month (e.g. \"2026-09\") from the meter\nreadings. Safe to run again: drafts are recalculated, issued bills are kept.",
+        "operationId": "generate_api_v1_buildings__building_id__bills_generate_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/bills": {
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "List Bills",
+        "description": "The building's bills, newest month first, by unit.",
+        "operationId": "list_bills_api_v1_buildings__building_id__bills_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(draft|issued|partially_paid|paid|overdue|void)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BillSummaryOut"
+                  },
+                  "title": "Response List Bills Api V1 Buildings  Building Id  Bills Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/bills/issue-all": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Issue All",
+        "description": "Issue every draft of the month in one go (FR-45 criterion 3).",
+        "operationId": "issue_all_api_v1_buildings__building_id__bills_issue_all_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueAllOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/bills": {
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "My Bills",
+        "description": "Your own bills, newest first (drafts are not shown until issued).",
+        "operationId": "my_bills_api_v1_me_bills_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillSummaryOut"
+                  },
+                  "type": "array",
+                  "title": "Response My Bills Api V1 Me Bills Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bills/{bill_id}": {
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Get Bill",
+        "description": "A bill with its lines and payments.",
+        "operationId": "get_bill_api_v1_bills__bill_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/pdf": {
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Get Bill Pdf",
+        "description": "The bill as an A4 PDF (FR-36).",
+        "operationId": "get_bill_pdf_api_v1_bills__bill_id__pdf_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/issue": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Issue Bill",
+        "description": "Issue a draft: it gets its number and due date, and the resident an email.",
+        "operationId": "issue_bill_api_v1_bills__bill_id__issue_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/void": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Void Bill",
+        "description": "Cancel a bill, with a reason of 10+ characters. To correct it, generate the\nmonth again: the new draft will say which bill it replaces.",
+        "operationId": "void_bill_api_v1_bills__bill_id__void_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/payments": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Record Payment",
+        "description": "Record cash, a bank transfer or another payment. Less than the amount due\nmakes the bill partially paid; more than it is refused.",
+        "operationId": "record_payment_api_v1_bills__bill_id__payments_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{payment_id}/reverse": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Reverse Payment",
+        "description": "Undo a payment recorded by mistake (it is kept, marked reversed). For a\nStripe payment, refund it in the Stripe dashboard too.",
+        "operationId": "reverse_payment_api_v1_payments__payment_id__reverse_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{payment_id}/receipt": {
+      "put": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Upload Receipt",
+        "description": "Attach a photo of the receipt (optional, FR-40).",
+        "operationId": "upload_receipt_api_v1_payments__payment_id__receipt_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_receipt_api_v1_payments__payment_id__receipt_put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "413": {
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Get Receipt",
+        "operationId": "get_receipt_api_v1_payments__payment_id__receipt_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Payment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "application/pdf": {}
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/shutoff-warning": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Shutoff Warning",
+        "description": "Warn the resident that the water may be closed for this overdue bill.\nA shut-off (valve lock with bill_id) is allowed 48 hours later at the\nearliest, and only if the building's policy allows it (FR-27).",
+        "operationId": "shutoff_warning_api_v1_bills__bill_id__shutoff_warning_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bills/{bill_id}/checkout": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Checkout",
+        "description": "Open a Stripe Checkout page (TEST mode, no real money) for what is still\nto pay. The bill is marked paid only when Stripe's signed webhook arrives.",
+        "operationId": "checkout_api_v1_bills__bill_id__checkout_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Bill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/stripe": {
+      "post": {
+        "tags": [
+          "billing: bills and payments"
+        ],
+        "summary": "Stripe Webhook",
+        "description": "Called by Stripe (not by apps). Only a correctly SIGNED message counts;\nthe same message twice is recorded once.",
+        "operationId": "stripe_webhook_api_v1_webhooks_stripe_post",
+        "parameters": [
+          {
+            "name": "stripe-signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "default": "",
+              "title": "Stripe-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2867,6 +3935,442 @@
         ],
         "title": "AuditVerifyOut"
       },
+      "BillLineOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "slab",
+              "extra",
+              "tax"
+            ],
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "quantity_l": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity L"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate",
+            "description": "Slabs: per 1,000 L. Taxes and extras: a percentage"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "description",
+          "quantity_l",
+          "rate",
+          "amount"
+        ],
+        "title": "BillLineOut"
+      },
+      "BillOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "bill_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill No",
+            "description": "Given when the bill is issued"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "bill_to": {
+            "type": "string",
+            "title": "Bill To"
+          },
+          "unit_no": {
+            "type": "string",
+            "title": "Unit No"
+          },
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "litres": {
+            "type": "string",
+            "title": "Litres"
+          },
+          "total": {
+            "type": "string",
+            "title": "Total"
+          },
+          "amount_paid": {
+            "type": "string",
+            "title": "Amount Paid"
+          },
+          "outstanding": {
+            "type": "string",
+            "title": "Outstanding"
+          },
+          "total_text": {
+            "type": "string",
+            "title": "Total Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued",
+              "partially_paid",
+              "paid",
+              "overdue",
+              "void"
+            ],
+            "title": "Status"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          },
+          "month_days": {
+            "type": "integer",
+            "title": "Month Days"
+          },
+          "reading_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Start"
+          },
+          "reading_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading End"
+          },
+          "subtotal": {
+            "type": "string",
+            "title": "Subtotal"
+          },
+          "tax_total": {
+            "type": "string",
+            "title": "Tax Total"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BillLineOut"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentOut"
+            },
+            "type": "array",
+            "title": "Payments"
+          },
+          "void_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Void Reason"
+          },
+          "replaces_bill_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Bill Id"
+          },
+          "shutoff_warned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shutoff Warned At"
+          },
+          "can_pay_online": {
+            "type": "boolean",
+            "title": "Can Pay Online",
+            "description": "Show the 'Pay online (test mode)' button (FR-39)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "bill_no",
+          "building_id",
+          "home_id",
+          "user_id",
+          "bill_to",
+          "unit_no",
+          "month",
+          "period_start",
+          "period_end",
+          "currency_code",
+          "litres",
+          "total",
+          "amount_paid",
+          "outstanding",
+          "total_text",
+          "status",
+          "due_date",
+          "issued_at",
+          "month_days",
+          "reading_start",
+          "reading_end",
+          "subtotal",
+          "tax_total",
+          "lines",
+          "payments",
+          "void_reason",
+          "replaces_bill_id",
+          "shutoff_warned_at",
+          "can_pay_online"
+        ],
+        "title": "BillOut"
+      },
+      "BillSummaryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "bill_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill No",
+            "description": "Given when the bill is issued"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "bill_to": {
+            "type": "string",
+            "title": "Bill To"
+          },
+          "unit_no": {
+            "type": "string",
+            "title": "Unit No"
+          },
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "litres": {
+            "type": "string",
+            "title": "Litres"
+          },
+          "total": {
+            "type": "string",
+            "title": "Total"
+          },
+          "amount_paid": {
+            "type": "string",
+            "title": "Amount Paid"
+          },
+          "outstanding": {
+            "type": "string",
+            "title": "Outstanding"
+          },
+          "total_text": {
+            "type": "string",
+            "title": "Total Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued",
+              "partially_paid",
+              "paid",
+              "overdue",
+              "void"
+            ],
+            "title": "Status"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "bill_no",
+          "building_id",
+          "home_id",
+          "user_id",
+          "bill_to",
+          "unit_no",
+          "month",
+          "period_start",
+          "period_end",
+          "currency_code",
+          "litres",
+          "total",
+          "amount_paid",
+          "outstanding",
+          "total_text",
+          "status",
+          "due_date",
+          "issued_at"
+        ],
+        "title": "BillSummaryOut"
+      },
       "Body_login_form_api_v1_auth_token_post": {
         "properties": {
           "grant_type": {
@@ -2925,6 +4429,21 @@
           "password"
         ],
         "title": "Body_login_form_api_v1_auth_token_post"
+      },
+      "Body_upload_receipt_api_v1_payments__payment_id__receipt_put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "JPEG, PNG or PDF, at most 2 MB"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_receipt_api_v1_payments__payment_id__receipt_put"
       },
       "BrokerInfo": {
         "properties": {
@@ -2987,21 +4506,13 @@
           },
           "currency_code": {
             "type": "string",
-            "enum": [
-              "PKR",
-              "USD",
-              "GBP",
-              "EUR",
-              "AUD",
-              "AED",
-              "SAR",
-              "QAR",
-              "KWD",
-              "BHD",
-              "OMR"
-            ],
+            "pattern": "^[A-Z]{3}$",
             "title": "Currency Code",
-            "default": "PKR"
+            "default": "PKR",
+            "examples": [
+              "PKR",
+              "KWD"
+            ]
           },
           "owner_id": {
             "anyOf": [
@@ -3068,6 +4579,15 @@
             "type": "integer",
             "title": "Due Days"
           },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Used in bill numbers, e.g. B01-2026-000123"
+          },
+          "bills_auto_issue": {
+            "type": "boolean",
+            "title": "Bills Auto Issue"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3084,6 +4604,8 @@
           "currency_code",
           "nonpayment_shutoff_enabled",
           "due_days",
+          "code",
+          "bills_auto_issue",
           "created_at"
         ],
         "title": "BuildingOut"
@@ -3130,25 +4652,18 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
+                "pattern": "^[A-Z]{3}$",
+                "examples": [
                   "PKR",
-                  "USD",
-                  "GBP",
-                  "EUR",
-                  "AUD",
-                  "AED",
-                  "SAR",
-                  "QAR",
-                  "KWD",
-                  "BHD",
-                  "OMR"
+                  "KWD"
                 ]
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Currency Code"
+            "title": "Currency Code",
+            "description": "Cannot change once the building has bills (FR-20)"
           },
           "due_days": {
             "anyOf": [
@@ -3162,6 +4677,30 @@
               }
             ],
             "title": "Due Days"
+          },
+          "nonpayment_shutoff_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nonpayment Shutoff Enabled",
+            "description": "Allow closing the water for an overdue bill, after a 48 h warning (FR-27)"
+          },
+          "bills_auto_issue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bills Auto Issue",
+            "description": "Issue monthly bills at once instead of leaving them as drafts"
           },
           "owner_id": {
             "anyOf": [
@@ -3215,6 +4754,109 @@
             "new_password": "three unrelated words"
           }
         ]
+      },
+      "ChargeIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tax_percent",
+              "extra_percent",
+              "extra_fixed"
+            ],
+            "title": "Kind",
+            "description": "tax_percent: % of water + extras; extra_percent: % of water; extra_fixed: a fixed amount per month (prorated for part months)"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "value"
+        ],
+        "title": "ChargeIn"
+      },
+      "ChargeOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "value"
+        ],
+        "title": "ChargeOut"
+      },
+      "CheckoutOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Open this page to pay (Stripe Checkout)"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount",
+            "description": "What Stripe will charge (3-decimal currencies: up to 9 fils more)"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "test_mode": {
+            "type": "boolean",
+            "title": "Test Mode",
+            "default": true
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": "Test mode, no real money. Test card: 4242 4242 4242 4242"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "session_id",
+          "amount",
+          "currency_code"
+        ],
+        "title": "CheckoutOut"
       },
       "CommandOut": {
         "properties": {
@@ -3617,6 +5259,78 @@
           }
         ]
       },
+      "GenerateIn": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+            "title": "Month"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month"
+        ],
+        "title": "GenerateIn",
+        "examples": [
+          {
+            "month": "2026-09"
+          }
+        ]
+      },
+      "GenerateOut": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "New draft bills"
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "description": "Drafts recalculated"
+          },
+          "replaced": {
+            "type": "integer",
+            "title": "Replaced",
+            "description": "New drafts for voided bills (also counted in created)"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept",
+            "description": "Bills already issued: never changed"
+          },
+          "issued": {
+            "type": "integer",
+            "title": "Issued",
+            "description": "Issued at once (building setting bills_auto_issue)"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "created",
+          "updated",
+          "replaced",
+          "kept",
+          "issued",
+          "problems"
+        ],
+        "title": "GenerateOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3990,6 +5704,27 @@
         ],
         "title": "InvitationOut"
       },
+      "IssueAllOut": {
+        "properties": {
+          "issued": {
+            "type": "integer",
+            "title": "Issued"
+          },
+          "bills": {
+            "items": {
+              "$ref": "#/components/schemas/BillSummaryOut"
+            },
+            "type": "array",
+            "title": "Bills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issued",
+          "bills"
+        ],
+        "title": "IssueAllOut"
+      },
       "LoginIn": {
         "properties": {
           "email": {
@@ -4290,6 +6025,194 @@
           }
         ]
       },
+      "PaymentIn": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "bank",
+              "other"
+            ],
+            "title": "Method"
+          },
+          "received_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received On",
+            "description": "Default: today"
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Reference",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "method"
+        ],
+        "title": "PaymentIn",
+        "examples": [
+          {
+            "amount": "500.00",
+            "method": "cash",
+            "reference": "Receipt book #12"
+          }
+        ]
+      },
+      "PaymentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "bill_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Bill Id"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "bank",
+              "stripe_test",
+              "other"
+            ],
+            "title": "Method"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "received_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Received On"
+          },
+          "has_receipt": {
+            "type": "boolean",
+            "title": "Has Receipt"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reversed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversed At"
+          },
+          "reversal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversal Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "bill_id",
+          "amount",
+          "method",
+          "reference",
+          "received_on",
+          "has_receipt",
+          "created_at",
+          "reversed_at",
+          "reversal_reason"
+        ],
+        "title": "PaymentOut"
+      },
+      "PreviewOut": {
+        "properties": {
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "litres": {
+            "type": "string",
+            "title": "Litres"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BillLineOut"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "subtotal": {
+            "type": "string",
+            "title": "Subtotal"
+          },
+          "tax_total": {
+            "type": "string",
+            "title": "Tax Total"
+          },
+          "total": {
+            "type": "string",
+            "title": "Total"
+          },
+          "total_text": {
+            "type": "string",
+            "title": "Total Text",
+            "description": "Formatted for people, e.g. Rs 1,250.00 or KWD 4.375"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency_code",
+          "litres",
+          "lines",
+          "subtotal",
+          "tax_total",
+          "total",
+          "total_text"
+        ],
+        "title": "PreviewOut"
+      },
       "PumpDay": {
         "properties": {
           "day": {
@@ -4446,6 +6369,103 @@
             "token": "the code from the email"
           }
         ]
+      },
+      "ReverseIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 10,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReverseIn",
+        "examples": [
+          {
+            "reason": "Recorded on the wrong bill"
+          }
+        ]
+      },
+      "SlabIn": {
+        "properties": {
+          "from_l": {
+            "type": "integer",
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "From L",
+            "description": "Litres where the slab starts (the first slab: 0)"
+          },
+          "to_l": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To L",
+            "description": "Where it ends; null for the last slab (no limit)"
+          },
+          "rate_per_kl": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Rate Per Kl",
+            "description": "Price per 1,000 litres, in the building's currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from_l",
+          "to_l",
+          "rate_per_kl"
+        ],
+        "title": "SlabIn"
+      },
+      "SlabOut": {
+        "properties": {
+          "from_l": {
+            "type": "integer",
+            "title": "From L"
+          },
+          "to_l": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To L"
+          },
+          "rate_per_kl": {
+            "type": "string",
+            "title": "Rate Per Kl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_l",
+          "to_l",
+          "rate_per_kl"
+        ],
+        "title": "SlabOut"
       },
       "TankHistoryOut": {
         "properties": {
@@ -4780,6 +6800,221 @@
         ],
         "title": "TankSettingsOut"
       },
+      "TariffIn": {
+        "properties": {
+          "slabs": {
+            "items": {
+              "$ref": "#/components/schemas/SlabIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Slabs"
+          },
+          "charges": {
+            "items": {
+              "$ref": "#/components/schemas/ChargeIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Charges"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slabs",
+          "name",
+          "effective_from"
+        ],
+        "title": "TariffIn",
+        "examples": [
+          {
+            "charges": [
+              {
+                "kind": "extra_percent",
+                "name": "Sewerage",
+                "value": "10"
+              }
+            ],
+            "effective_from": "2026-11-01",
+            "name": "Standard 2026",
+            "slabs": [
+              {
+                "from_l": 0,
+                "rate_per_kl": "60",
+                "to_l": 5000
+              },
+              {
+                "from_l": 5000,
+                "rate_per_kl": "120",
+                "to_l": 15000
+              },
+              {
+                "from_l": 15000,
+                "rate_per_kl": "200"
+              }
+            ]
+          }
+        ]
+      },
+      "TariffOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "slabs": {
+            "items": {
+              "$ref": "#/components/schemas/SlabOut"
+            },
+            "type": "array",
+            "title": "Slabs"
+          },
+          "charges": {
+            "items": {
+              "$ref": "#/components/schemas/ChargeOut"
+            },
+            "type": "array",
+            "title": "Charges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "building_id",
+          "name",
+          "version",
+          "effective_from",
+          "currency_code",
+          "created_at",
+          "slabs",
+          "charges"
+        ],
+        "title": "TariffOut"
+      },
+      "TariffPreviewIn": {
+        "properties": {
+          "slabs": {
+            "items": {
+              "$ref": "#/components/schemas/SlabIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Slabs"
+          },
+          "charges": {
+            "items": {
+              "$ref": "#/components/schemas/ChargeIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Charges"
+          },
+          "currency_code": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency Code",
+            "examples": [
+              "PKR",
+              "KWD"
+            ]
+          },
+          "litres": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Litres"
+          },
+          "days": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "default": 30
+          },
+          "month_days": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 28.0,
+            "title": "Month Days",
+            "default": 30
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slabs",
+          "currency_code",
+          "litres"
+        ],
+        "title": "TariffPreviewIn",
+        "examples": [
+          {
+            "charges": [],
+            "currency_code": "PKR",
+            "litres": "7000",
+            "slabs": [
+              {
+                "from_l": 0,
+                "rate_per_kl": "60",
+                "to_l": 5000
+              },
+              {
+                "from_l": 5000,
+                "rate_per_kl": "120"
+              }
+            ]
+          }
+        ]
+      },
       "TokensOut": {
         "properties": {
           "access_token": {
@@ -4941,6 +7176,19 @@
             "maxLength": 300,
             "minLength": 10,
             "title": "Reason"
+          },
+          "bill_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill Id",
+            "description": "Only for a shut-off because of an unpaid bill (FR-27): the building's policy must allow it, the bill must be overdue and the resident warned 48 h before"
           }
         },
         "additionalProperties": false,
@@ -5034,6 +7282,27 @@
         "examples": [
           {
             "reason": "Repair finished, pipe tested"
+          }
+        ]
+      },
+      "VoidIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 10,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "VoidIn",
+        "examples": [
+          {
+            "reason": "Wrong tariff: new tariff starts in October"
           }
         ]
       },

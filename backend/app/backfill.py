@@ -14,6 +14,11 @@ History is only added *before* the first live reading of each device:
   with a simulated counter.
 That is why a device needs at least one live reading first (`make up`
 starts the simulator and the ingestor; wait half a minute).
+
+`--history-only` (M6) is for devices that never send live data, like the
+second demo building (KWD), which only exists to show billing in a
+3-decimal currency: devices with no readings at all get the whole history.
+Run it again and those devices have readings, so nothing is added twice.
 """
 
 from __future__ import annotations
@@ -61,7 +66,7 @@ async def first_live_readings() -> dict[str, datetime]:
         return result
 
 
-async def load(lines: Iterable[str]) -> Summary:
+async def load(lines: Iterable[str], history_only: bool = False) -> Summary:
     summary = Summary()
     cutoff = await first_live_readings()
     handler = Handler(live=False)
@@ -87,9 +92,10 @@ async def load(lines: Iterable[str]) -> Summary:
         device_id = contract.parse_topic(item["topic"])[0]
         when = contract.parse_ts(item["payload"]["ts"])
         if device_id not in cutoff:
-            summary.no_live_data.add(device_id)
-            continue
-        if when >= cutoff[device_id]:
+            if not history_only:
+                summary.no_live_data.add(device_id)
+                continue
+        elif when >= cutoff[device_id]:
             summary.skipped += 1
             continue
         summary.first = min(summary.first or when, when)
@@ -101,13 +107,15 @@ async def load(lines: Iterable[str]) -> Summary:
     if batch:
         await flush()
 
-    summary.labels = await _store_labels(labels, cutoff)
+    summary.labels = await _store_labels(labels, cutoff, history_only)
     if summary.first is not None and summary.last is not None:
         await refresh_consumption(summary.first, summary.last)
     return summary
 
 
-async def _store_labels(labels: list[dict], cutoff: dict[str, datetime]) -> int:
+async def _store_labels(
+    labels: list[dict], cutoff: dict[str, datetime], history_only: bool = False
+) -> int:
     """The planted problems (leaks, pH drifts ...), kept as ground truth for M10."""
     rows = [
         {
@@ -119,8 +127,11 @@ async def _store_labels(labels: list[dict], cutoff: dict[str, datetime]) -> int:
             "details": label["details"],
         }
         for label in labels
-        if label["deviceId"] in cutoff
-        and contract.parse_ts(label["start"]) < cutoff[label["deviceId"]]
+        if (label["deviceId"] not in cutoff and history_only)
+        or (
+            label["deviceId"] in cutoff
+            and contract.parse_ts(label["start"]) < cutoff[label["deviceId"]]
+        )
     ]
     if not rows:
         return 0
@@ -174,7 +185,7 @@ def main() -> None:
 
 async def _main() -> Summary:
     try:
-        return await load(sys.stdin)
+        return await load(sys.stdin, history_only="--history-only" in sys.argv)
     finally:
         await db.dispose()
 

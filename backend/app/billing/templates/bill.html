@@ -1,0 +1,114 @@
+<!doctype html>
+<!--
+  The PDF bill (FR-36). Plain HTML + CSS: WeasyPrint turns it into an A4 PDF.
+  To change the design, edit this file; no Python changes are needed.
+  The values in double curly braces are filled in by app/billing/pdf.py
+  (Jinja2, which escapes every value, so a resident's name cannot inject HTML).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Water bill {{ bill_no }}</title>
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; color: #1f2933; margin: 0; }
+  h1 { font-size: 18pt; margin: 0; color: #0b5c8a; }
+  h2 { font-size: 10.5pt; margin: 14px 0 6px; color: #0b5c8a; border-bottom: 1px solid #c9d6df; padding-bottom: 3px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .building { color: #52606d; margin-top: 4px; }
+  .title { text-align: right; }
+  .title .doc { font-size: 13pt; font-weight: bold; letter-spacing: 1px; }
+  .badge { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 9px; font-weight: bold; font-size: 8.5pt; }
+  .badge.paid { background: #d4f5e2; color: #116b3a; }
+  .badge.open { background: #fff1c2; color: #7a5600; }
+  .badge.overdue, .badge.void { background: #ffd9d9; color: #8a1c1c; }
+  .badge.draft { background: #e4e7eb; color: #3e4c59; }
+  .grid { display: flex; gap: 10px; margin-top: 12px; }
+  .box { flex: 1; border: 1px solid #c9d6df; border-radius: 6px; padding: 7px 9px; }
+  .box .label { color: #7b8794; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .5px; }
+  .box .value { font-size: 10.5pt; font-weight: bold; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 8pt; color: #52606d; border-bottom: 1px solid #c9d6df; padding: 4px 3px; }
+  td { padding: 4px 3px; border-bottom: 1px solid #eef2f5; vertical-align: top; }
+  .num { text-align: right; white-space: nowrap; }
+  tr.sum td { border-bottom: none; font-weight: bold; }
+  tr.total td { font-size: 12pt; font-weight: bold; color: #0b5c8a; border-top: 2px solid #0b5c8a; }
+  .notice { margin-top: 10px; padding: 7px 9px; border-radius: 6px; background: #ffd9d9; color: #8a1c1c; }
+  .chart { margin-top: 4px; }
+  .foot { margin-top: 14px; color: #7b8794; font-size: 7.5pt; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>{{ building_name }}</h1>
+      <div class="building">{{ building_address }}</div>
+    </div>
+    <div class="title">
+      <div class="doc">WATER BILL</div>
+      <div>{{ bill_no or "Draft (not issued yet)" }}</div>
+      <div class="badge {{ badge }}">{{ status_text }}</div>
+    </div>
+  </div>
+
+  {% if void_reason %}<div class="notice">This bill was voided: {{ void_reason }}</div>{% endif %}
+
+  <div class="grid">
+    <div class="box"><div class="label">Bill to</div><div class="value">{{ bill_to }}</div><div>Unit {{ unit_no }}</div></div>
+    <div class="box"><div class="label">Period</div><div class="value">{{ period }}</div><div>{{ days }} of {{ month_days }} days</div></div>
+    <div class="box"><div class="label">Issued</div><div class="value">{{ issued_on or "-" }}</div><div>Due {{ due_date or "-" }}</div></div>
+    <div class="box"><div class="label">Amount due</div><div class="value">{{ outstanding }}</div><div>Total {{ total }}</div></div>
+  </div>
+
+  <h2>Meter</h2>
+  <table>
+    <tr><th>Reading at start</th><th>Reading at end</th><th class="num">Water used</th></tr>
+    <tr><td>{{ reading_start }}</td><td>{{ reading_end }}</td><td class="num">{{ litres }} L</td></tr>
+  </table>
+
+  <h2>Charges</h2>
+  <table>
+    <tr><th>Description</th><th class="num">Litres</th><th class="num">Rate</th><th class="num">Amount</th></tr>
+    {% for line in lines %}
+    <tr><td>{{ line.description }}</td><td class="num">{{ line.quantity }}</td><td class="num">{{ line.rate }}</td><td class="num">{{ line.amount }}</td></tr>
+    {% else %}
+    <tr><td colspan="4">No charges: no water was used.</td></tr>
+    {% endfor %}
+    <tr class="sum"><td colspan="3">Subtotal</td><td class="num">{{ subtotal }}</td></tr>
+    <tr class="sum"><td colspan="3">Taxes</td><td class="num">{{ tax_total }}</td></tr>
+    <tr class="total"><td colspan="3">Total</td><td class="num">{{ total }}</td></tr>
+  </table>
+  <div class="foot">Rates are per 1,000 litres. Percentages are shown in the Rate column.</div>
+
+  <h2>Payments</h2>
+  <table>
+    <tr><th>Date</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr>
+    {% for p in payments %}
+    <tr><td>{{ p.date }}</td><td>{{ p.method }}</td><td>{{ p.reference }}</td><td class="num">{{ p.amount }}</td></tr>
+    {% else %}
+    <tr><td colspan="4">No payments yet.</td></tr>
+    {% endfor %}
+    <tr class="sum"><td colspan="3">Paid</td><td class="num">{{ amount_paid }}</td></tr>
+    <tr class="sum"><td colspan="3">Still to pay</td><td class="num">{{ outstanding }}</td></tr>
+  </table>
+
+  <h2>Your water use, last 6 months (litres)</h2>
+  <svg class="chart" width="480" height="110" viewBox="0 0 480 110" xmlns="http://www.w3.org/2000/svg">
+    {% for bar in chart %}
+    <g transform="translate({{ 20 + loop.index0 * 76 }}, 0)">
+      <rect x="0" y="{{ 80 - bar.height }}" width="44" height="{{ bar.height }}" rx="3" fill="{{ '#0b5c8a' if loop.last else '#8fb8d0' }}"/>
+      <text x="22" y="{{ 76 - bar.height }}" font-size="8" text-anchor="middle" fill="#1f2933">{{ bar.value }}</text>
+      <text x="22" y="95" font-size="8" text-anchor="middle" fill="#52606d">{{ bar.label }}</text>
+    </g>
+    {% endfor %}
+    <line x1="10" y1="80.5" x2="470" y2="80.5" stroke="#c9d6df"/>
+  </svg>
+
+  <div class="foot">
+    All amounts in {{ currency_name }} ({{ currency_code }}).
+    {% if replaces %}This bill replaces bill {{ replaces }}.{% endif %}
+    Made by AquaPulse from the water meter's readings.
+  </div>
+</body>
+</html>

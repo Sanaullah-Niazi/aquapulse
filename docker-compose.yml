@@ -10,6 +10,7 @@
 # before the API starts. M4 added the ingestor: MQTT in, database out.
 # M5 locks everything down: MQTT only over TLS with a password per device
 # (broker-auth keeps the broker's password list), and HTTPS through Caddy.
+# M6 adds the worker: scheduled jobs such as the monthly bills.
 #
 # Security note: every port is published on 127.0.0.1 only, so nothing is
 # reachable from other computers on your Wi-Fi. Certificates come from
@@ -233,6 +234,9 @@ services:
         condition: service_healthy
     environment:
       <<: *backend-env
+      # Online payment in Stripe TEST mode (M6, optional: empty = switched off).
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       # Only used by `make seed` (demo accounts); never by the API itself.
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       DEMO_TIMEZONE: ${DEMO_TIMEZONE:-Asia/Karachi}
@@ -281,6 +285,32 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+      start_period: 10s
+
+  # --- Worker: jobs on a schedule (M6) ---
+  # Monthly bills on the 1st at 02:00 building time, and overdue bills.
+  # Alerts and the AI jobs join it in later milestones.
+  worker:
+    image: aquapulse/backend:dev
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+    healthcheck:
+      # Healthy = it finished a round in the last 3 minutes.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,time; exit(0 if time.time() - os.path.getmtime('/tmp/aquapulse-worker-alive') < 180 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 8
       start_period: 10s
 
 # Named volumes keep data when containers are recreated.

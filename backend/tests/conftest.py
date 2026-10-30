@@ -110,8 +110,10 @@ def outbox(monkeypatch):
         sent.append((to, subject, body))
         return True
 
+    from app import emailer
     from app.routers import residents, valves
 
+    monkeypatch.setattr(emailer, "send_email", fake_send)  # billing calls emailer.send_email
     monkeypatch.setattr(auth, "send_email", fake_send)
     monkeypatch.setattr(residents, "send_email", fake_send)
     monkeypatch.setattr(valves, "send_email", fake_send)

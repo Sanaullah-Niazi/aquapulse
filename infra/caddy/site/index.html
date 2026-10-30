@@ -9,11 +9,11 @@
 <body>
 <main>
   <h1>💧 AquaPulse</h1>
-  <p class="lead">Local development stack, milestone M5 (HTTPS and secure MQTT). If you can read this, Caddy (the web server) is running.</p>
+  <p class="lead">Local development stack, milestone M6 (billing and payments). If you can read this, Caddy (the web server) is running.</p>
   <table>
     <thead><tr><th>Service</th><th>What it does</th><th>Where</th></tr></thead>
     <tbody>
-      <tr><td>API</td><td>The backend: login, roles, buildings, homes, residents, audit log. Try every endpoint in Swagger</td><td><a href="/api/docs">localhost:8443/api/docs</a></td></tr>
+      <tr><td>API</td><td>The backend: login, roles, buildings, homes, residents, live data, valves, tariffs, bills, payments, audit log. Try every endpoint in Swagger</td><td><a href="/api/docs">localhost:8443/api/docs</a></td></tr>
       <tr><td>Caddy</td><td>Front door, HTTPS only: serves this page and forwards <code>/api</code> to the API; the web app comes later</td><td><a href="/">https://localhost:8443</a></td></tr>
       <tr><td>Mailpit</td><td>Fake email inbox: every email the system sends lands here</td><td><a href="http://localhost:8025">localhost:8025</a></td></tr>
       <tr><td>Mosquitto</td><td>MQTT broker: devices send readings and receive commands through it. Every device has its own password and may only use its own topics</td><td><code>localhost:8883</code> (TLS + password; MQTTX, see the M5 guide)</td></tr>

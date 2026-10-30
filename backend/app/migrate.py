@@ -9,6 +9,8 @@ starts. It is safe to run any number of times. Three steps:
 3. Give the API role only the rights it needs ("least privilege", FR-72):
    read and write the normal tables, but on audit_log only SELECT and
    INSERT, so a bug or an attacker in the API cannot rewrite history (FR-28).
+   Bills and payments cannot be deleted either (FR-20, FR-40): bills are
+   voided and payments reversed, and both stay on record.
 """
 
 from __future__ import annotations
@@ -76,6 +78,7 @@ async def grant_rights(settings: Settings, database: str) -> None:
         await _sql(conn, "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I", user)
         # The exceptions: history may only grow, and the schema version is not the API's business.
         await _sql(conn, "REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM %I", user)
+        await _sql(conn, "REVOKE DELETE, TRUNCATE ON bills, payments FROM %I", user)
         await _sql(conn, "REVOKE ALL ON alembic_version FROM %I", user)
     await engine.dispose()
 

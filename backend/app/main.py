@@ -27,6 +27,7 @@ from .config import get_settings
 from .routers import (
     admin,
     auth,
+    bills,
     buildings,
     devices,
     health,
@@ -35,6 +36,7 @@ from .routers import (
     residents,
     stream,
     tanks,
+    tariffs,
     valves,
 )
 
@@ -74,7 +76,8 @@ def create_app() -> FastAPI:
         version=__version__,
         description=(
             "Smart water management: buildings, homes, residents, live readings, "
-            "water use, valve and pump control, and the audit log.\n\n"
+            "water use, valve and pump control, tariffs, bills and payments, "
+            "and the audit log.\n\n"
             "Click **Authorize** and log in with a demo account (see `make seed`)."
         ),
         docs_url="/api/docs",
@@ -118,7 +121,10 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix="/api")
-    for module in (auth, me, admin, buildings, residents, live, valves, tanks, devices, stream):
+    for module in (
+        auth, me, admin, buildings, residents, live, valves, tanks, devices, stream,
+        tariffs, bills,
+    ):  # fmt: skip
         app.include_router(module.router, prefix=API_PREFIX)
 
     @app.get("/metrics", include_in_schema=False)

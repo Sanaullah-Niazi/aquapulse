@@ -7,6 +7,8 @@
 #     and the API checks in the stack smoke test.
 # M5: certificates for TLS (make certs), broker access-rule tests, a TLS
 #     scan (testssl.sh) and a full-restart test.
+# M6: Pango for PDF bills, 100% branch coverage for the billing engine,
+#     and the billing checks in the stack smoke test.
 # ---------------------------------------------------------------
 name: CI
 
@@ -71,7 +73,7 @@ jobs:
         run: uv run pytest
 
   backend:
-    name: Backend lint + API and ingestor tests (M3, M4)
+    name: Backend lint + API, ingestor and billing tests (M3 to M6)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -82,6 +84,12 @@ jobs:
       - name: Install exactly the locked versions
         working-directory: backend
         run: uv sync --frozen
+      - name: Install Pango, used by WeasyPrint to draw PDF bills (M6)
+        # libharfbuzz-subset0 makes the fonts in each PDF small, fast.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
       - name: Lint (ruff)
         working-directory: backend
         run: uv run ruff check . && uv run ruff format --check .
@@ -95,6 +103,11 @@ jobs:
         # Also fails if backend/openapi.json is out of date (fix: make openapi).
         working-directory: backend
         run: uv run pytest
+      - name: Billing engine has 100% branch coverage (FR-34)
+        working-directory: backend
+        run: >-
+          uv run pytest tests/billing/test_bill_calculation_engine.py -o addopts=""
+          --cov=app.billing.engine --cov-branch --cov-fail-under=100
       - name: Show logs if something failed
         if: failure()
         run: docker compose logs --no-color --tail=100 db mqtt broker-auth
@@ -103,7 +116,7 @@ jobs:
         run: docker compose down -v
 
   stack:
-    name: Docker stack smoke + live MQTT + TLS tests (M1 to M5)
+    name: Docker stack smoke + live MQTT + TLS tests (M1 to M6)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -119,7 +132,7 @@ jobs:
         run: docker compose config --quiet
       - name: Build our images, start the stack and wait until healthy
         run: docker compose up -d --build --wait --wait-timeout 300
-      - name: Smoke test (database, MQTT over TLS, email, HTTPS, simulator, API, ingestor, devices)
+      - name: Smoke test (database, MQTT over TLS, email, HTTPS, simulator, API, ingestor, devices, billing)
         run: make smoke
       - name: TLS check (port 1883 closed, TLS 1.3, testssl.sh finds nothing)
         run: make tls-check
@@ -128,7 +141,8 @@ jobs:
           make demo-data DAYS=7 | tee first.txt
           make demo-data DAYS=7 | tee second.txt
           grep -q "labelled events" first.txt
-          grep -q "Demo history: 0 readings stored" second.txt
+          # One line per demo building (M6 added the KWD one): both must say 0.
+          test "$(grep -c "Demo history: 0 readings stored" second.txt)" = 2
       - name: Live MQTT tests (Last Will, commands, broker restart ...)
         run: make sim-test-live
       - name: Restart test (all healthy again within 90 s, NFR-17)

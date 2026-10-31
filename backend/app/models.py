@@ -779,3 +779,35 @@ class ServiceHeartbeat(Base):
     details: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+
+
+class AiModel(Base):
+    """One trained AI model version for a building (FR-67), and its scores.
+
+    The worker trains a new version every night on the last 60 days. It goes
+    live only if its scores are not worse than the live version's; the old
+    versions stay as history (the owner sees them on the AI page).
+    """
+
+    __tablename__ = "ai_models"
+    __table_args__ = (
+        UniqueConstraint("building_id", "kind", "version", name="ai_model_version_unique"),
+        Index("one_live_model", "building_id", "kind", unique=True,
+              postgresql_where=text("live")),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    building_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("buildings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)  # unusual_use, forecast
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    trained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    data_from: Mapped[date] = mapped_column(Date, nullable=False)
+    data_to: Mapped[date] = mapped_column(Date, nullable=False)
+    rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    live: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    note: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    blob: Mapped[bytes | None] = mapped_column(LargeBinary)  # the trained model (pickle)

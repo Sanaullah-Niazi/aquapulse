@@ -77,9 +77,14 @@ RULES: dict[str, Rule] = {r.id: r for r in [
          "flow above the home's normal maximum (99.9th percentile, at least 24 L/min) for "
          "'minutes' minutes", {
              "minutes": Limit(5, 2, 30, "minutes of very high flow", whole=True)}),
+    # M10 (FR-64): the nightly unusual-use model, see app/ai/unusual.py.
+    Rule("unusual_use", "Unusual water use", "info", "home",
+         "yesterday's water was unlike this home's normal days (Isolation Forest, retrained "
+         "nightly)"),
 ]}  # fmt: skip
 
-AI_RULES = ("leak", "burst")
+AI_RULES = ("leak", "burst", "unusual_use")
+LIVE_AI_RULES = ("leak", "burst")  # found from live readings (app/ai/monitor.py)
 
 # Not configurable: raised by the worker's daily audit check, for System Admins.
 AUDIT_RULE = Rule("audit_chain", "Audit log changed", "critical", "system",

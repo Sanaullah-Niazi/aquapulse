@@ -17,6 +17,7 @@ SCENARIO_TYPES: dict[str, tuple[str, str]] = {
     # type: (device kind it applies to, description)
     "leak": ("home", "Small flow (0.2 to 2 L/min) that never stops, like a running toilet"),
     "burst": ("home", "Very high flow (25 to 40 L/min), like a broken pipe"),
+    "abnormal": ("home", "Guests: 'extra' (default 1) more households' worth of water"),
     "ph_drift": ("home", "pH slowly moves outside the safe 6.5 to 8.5 range"),
     "temp_spike": ("home", "Water temperature jumps by about 18 °C"),
     "sensor_stuck": ("home", "pH and temperature readings freeze at one value"),
@@ -64,6 +65,8 @@ class ScenarioBook:
             params.setdefault("lpm", round(rng.uniform(0.2, 2.0), 2))
         elif type_ == "burst":
             params.setdefault("lpm", round(rng.uniform(25.0, 40.0), 1))
+        elif type_ == "abnormal":
+            params.setdefault("extra", 1)
         elif type_ == "ph_drift":
             params.setdefault("direction", rng.choice(["up", "down"]))
         elif type_ == "temp_spike":

@@ -18,6 +18,7 @@ const ruleNames = {
   'sensor_stuck': 'Sensor stuck',
   'leak': 'Possible leak',
   'burst': 'Burst pipe suspected',
+  'unusual_use': 'Unusual water use',
   'tank_low': 'Tank low',
   'tank_overflow': 'Tank overflow risk',
   'dry_run': 'Pump dry-run',

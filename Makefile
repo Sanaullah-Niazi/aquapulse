@@ -134,7 +134,7 @@ ingest-logs: ## Follow the ingestor's logs (Ctrl+C to stop)
 	docker compose logs -f --tail=50 ingestor
 
 DAYS ?= 90
-ai-eval: ## M10: score the leak detector on a labelled simulator test set, write docs/ai-evaluation.md (about 3 min)
+ai-eval: ## M10: score the leak, unusual-use and forecast models on a labelled simulator test set, write docs/ai-evaluation.md (about 5 min)
 	cd simulator && uv run aquapulse-sim eval-set \
 		| (cd ../backend && uv run python -m app.ai.evaluate --check --write ../docs/ai-evaluation.md) \
 		| sed -n '/^| Measure/,/^$$/p'

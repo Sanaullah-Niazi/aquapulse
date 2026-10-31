@@ -165,7 +165,7 @@ Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
 Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
 
-**AI (M10, in progress).** Part 1: leak and burst detection on every live reading, each alert with a plain-language reason and its evidence, and optional automatic shut-off (at most once per hour, never on a locked valve). The scores in [docs/ai-evaluation.md](docs/ai-evaluation.md) are made by `make ai-eval` on a labelled simulator test set, and CI checks them on every push.
+**AI (M10, in progress).** Part 1: leak and burst detection on every live reading, each alert with a plain-language reason and its evidence, and optional automatic shut-off (at most once per hour, never on a locked valve). Part 2: a 7-day forecast per home and per building (Holt-Winters with an 80% range) with a month-end bill estimate from the real tariff, unusual-use flags (Isolation Forest) with reasons, and a model registry: models retrain every night and a new version goes live only if it is not worse. The scores in [docs/ai-evaluation.md](docs/ai-evaluation.md) are made by `make ai-eval` on a labelled simulator test set, and CI checks them on every push.
 
 Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 
@@ -174,7 +174,7 @@ Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
+backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7), AI (M10)
 web/         React web app / PWA: resident, owner and System Admin screens  (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

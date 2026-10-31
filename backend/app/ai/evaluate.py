@@ -1,4 +1,4 @@
-"""Score the leak detector on simulator data whose leaks are known (FR-63).
+"""Score the AI on simulator data whose problems are known (FR-63, FR-64, FR-65).
 
     aquapulse-sim eval-set | python -m app.ai.evaluate --write ../docs/ai-evaluation.md
 
@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import TextIO
 from zoneinfo import ZoneInfo
 
+from . import forecast as fc
+from . import unusual
 from .leak import Baseline, FlowWatch, LeakLimits, baseline_from, percentile_999
 
 MATCH_AFTER_END = timedelta(minutes=15)
@@ -40,7 +42,12 @@ TARGETS = {
     "precision": 0.80,
     "slow_median_minutes": 120,
     "burst_median_minutes": 10,
+    "unusual_recall": 0.80,  # FR-64: at least 80% of unusual days flagged
+    "unusual_false_per_2_weeks": 1.0,  # at most 1 false flag per home per 2 weeks
+    "forecast_mape": 0.20,  # FR-65: building 7-day MAPE at most 20%
 }
+RETRAIN_EVERY = 7  # days; the worker retrains nightly, weekly is enough to score
+TRAIN_DAYS = 60
 
 
 @dataclass
@@ -97,11 +104,25 @@ def evaluate(lines: Iterable[str], tz: ZoneInfo, limits: LeakLimits | None = Non
     episodes: list[Episode] = []
     readings = 0
     first = last = None
+    # M10 part 2: daily litres per home, for unusual use and the forecast
+    days: dict[tuple[str, object], dict] = {}
+    totals: dict[str, float] = {}
+    unusual_days: set[tuple[str, object]] = set()
+    busy_days: set[tuple[str, object]] = set()  # leak or burst: left out of FR-64 scoring
 
     for raw in lines:
         item = json.loads(raw)
         if "label" in item:
             lab = item["label"]
+            start_day = _ts(lab["start"]).astimezone(tz).date()
+            end_day = _ts(lab["end"]).astimezone(tz).date()
+            if lab["kind"] == "abnormal":
+                unusual_days.add((lab["deviceId"], start_day))
+            elif lab["kind"] in ("leak", "burst"):
+                d = start_day
+                while d <= end_day:
+                    busy_days.add((lab["deviceId"], d))
+                    d += timedelta(days=1)
             if lab["kind"] in ("leak", "burst"):
                 labels.append(
                     Label(lab["deviceId"], lab["kind"], _ts(lab["start"]), _ts(lab["end"]),
@@ -132,6 +153,17 @@ def evaluate(lines: Iterable[str], tz: ZoneInfo, limits: LeakLimits | None = Non
             home.night_lows.append(home.night_low)
             home.night_low = None
         home.flows.append((now, flow))
+        if "totalL" in payload:
+            total = float(payload["totalL"])
+            delta = max(0.0, total - totals.get(device, total))
+            totals[device] = total
+            stats = days.setdefault(
+                (device, local.date()), {"litres": 0.0, "hourly": [0.0] * 24, "night": None}
+            )
+            stats["litres"] += delta
+            stats["hourly"][local.hour] += delta
+            if limits.night_from <= local.hour < limits.night_until:
+                stats["night"] = flow if stats["night"] is None else min(stats["night"], flow)
         for lab in by_device[device]:
             if lab.seen is None and lab.start <= now:
                 lab.seen = now
@@ -152,7 +184,70 @@ def evaluate(lines: Iterable[str], tz: ZoneInfo, limits: LeakLimits | None = Non
                 if lab.found_at is None or ep.start < lab.found_at:
                     lab.found_at, lab.found_as = ep.start, ep.kind
                 break
-    return _scores(labels, episodes, readings, first, last, len(homes))
+    scores = _scores(labels, episodes, readings, first, last, len(homes))
+    day_list = [
+        unusual.Day(device, d, v["litres"], tuple(v["hourly"]), v["night"] or 0.0)
+        for (device, d), v in sorted(days.items(), key=lambda kv: (kv[0][0], kv[0][1]))
+    ]
+    if day_list:
+        scores["unusual"] = _unusual_scores(day_list, unusual_days, busy_days)
+        scores["forecast"] = _forecast_scores(day_list)
+        u, f = scores["unusual"], scores["forecast"]
+        scores["passed"]["unusual_recall"] = u["recall"] >= TARGETS["unusual_recall"]
+        scores["passed"]["unusual_false"] = (
+            u["false_per_home_2_weeks"] <= TARGETS["unusual_false_per_2_weeks"]
+        )
+        scores["passed"]["forecast_mape"] = (f["mape"] or 1.0) <= TARGETS["forecast_mape"]
+        scores["passed"]["forecast_beats_naive"] = (f["mape"] or 1.0) < (f["naive_mape"] or 0.0)
+    return scores
+
+
+def _unusual_scores(days: list[unusual.Day], labelled: set, busy: set) -> dict:
+    """Train like the worker (on the 60 days before), score the next week, repeat."""
+    rows = unusual.rows_from(days)
+    all_days = sorted({r.day for r in rows})
+    flagged: set[tuple[str, object]] = set()
+    scored: list[unusual.Row] = []
+    examples: list[str] = []
+    start = 14  # two weeks of rows to learn from first
+    for i in range(start, len(all_days), RETRAIN_EVERY):
+        week = set(all_days[i : i + RETRAIN_EVERY])
+        first_train = all_days[max(0, i - TRAIN_DAYS)]
+        train = [r for r in rows if first_train <= r.day < all_days[i]]
+        test = [r for r in rows if r.day in week]
+        model = unusual.train(train)
+        for row, _score in model.flags(test):
+            flagged.add((row.home, row.day))
+            if (row.home, row.day) in labelled and len(examples) < 1:
+                examples.append(unusual.explain(row, model.top_features(row)))
+        scored += test
+    keys = {(r.home, r.day) for r in scored} - busy
+    planted = {k for k in labelled if k in keys}
+    normal = keys - labelled
+    found = planted & flagged
+    false = (normal & flagged) - planted
+    homes = len({h for h, _ in keys}) or 1
+    normal_days_per_home = len(normal) / homes
+    return {
+        "planted": len(planted),
+        "found": len(found),
+        "recall": len(found) / len(planted) if planted else 0.0,
+        "false": len(false),
+        "normal_days": len(normal),
+        "false_per_home_2_weeks": (len(false) / homes) / (normal_days_per_home / 14)
+        if normal_days_per_home
+        else 0.0,
+        "example": examples[0] if examples else "",
+    }
+
+
+def _forecast_scores(days: list[unusual.Day]) -> dict:
+    """Building total per day, back-tested from day 28 on (FR-65 criterion 1)."""
+    per_day: dict[object, float] = defaultdict(float)
+    for d in days:
+        per_day[d.day] += d.litres
+    ordered = [per_day[d] for d in sorted(per_day)]
+    return {"days": len(ordered), **fc.backtest(ordered)}
 
 
 def _minutes(lab: Label) -> float:
@@ -277,8 +372,46 @@ def report(s: dict) -> str:
             for f in s["false"]
         ]
         lines.append("")
+    if "unusual" in s:
+        u, f = s["unusual"], s["forecast"]
+        lines += [
+            "## Unusual use (FR-64)",
+            "",
+            "An Isolation Forest per building, trained on the 60 days before and retrained "
+            "every week here (nightly in the worker), scores each home-day. "
+            f"{u['planted']} whole days of unusual use (1.8 to 3 times normal) were planted. "
+            "Days with a planted leak or burst are left out (the leak detector covers those).",
+            "",
+            "| Measure | Result | Target | |",
+            "|---|---|---|---|",
+            f"| Unusual days flagged | {u['recall']:.1%} ({u['found']} of {u['planted']}) "
+            f"| ≥ 80% | {_ok(p['unusual_recall'])} |",
+            f"| False flags per home per 2 weeks | {u['false_per_home_2_weeks']:.2f} "
+            f"({u['false']} on {u['normal_days']:,} normal home-days) | ≤ 1 "
+            f"| {_ok(p['unusual_false'])} |",
+            "",
+            f'Example explanation: "{u["example"]}"',
+            "",
+            "## Forecast (FR-65)",
+            "",
+            f"Building total litres per day over {f['days']} days. From day 28 on, every day "
+            "the model forecasts the next 7 days from the days before, and the forecast is "
+            f"compared with what really happened ({f['origins']} forecasts).",
+            "",
+            "| Measure | Result | Target | |",
+            "|---|---|---|---|",
+            f"| MAPE, Holt-Winters (weekly season) | {f['mape']:.1%} | ≤ 20% "
+            f"| {_ok(p['forecast_mape'])} |",
+            f"| MAPE, seasonal naive (same weekday last week) | {f['naive_mape']:.1%} "
+            f"| Holt-Winters must be lower | {_ok(p['forecast_beats_naive'])} |",
+            f"| Real litres inside the 80% range | {f['coverage']:.0%} | about 80% | |",
+            "",
+            "MAPE = mean absolute percentage error: on average, how far the forecast was "
+            "from the real litres, in percent.",
+            "",
+        ]
     lines += [
-        "### Limits of this test",
+        "## Limits of this test",
         "",
         "- The data is simulated. Real homes have things the twin does not, such as a "
         "water filter that flushes at night. The night baseline (the home's usual lowest "

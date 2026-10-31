@@ -28,7 +28,7 @@ def _url(site) -> str:
 async def test_defaults_come_from_the_srs(site, client, make):
     r = await client.get(_url(site), headers=await make.headers(site.owner))
     rules = {rule["rule"]: rule for rule in r.json()["rules"]}
-    assert len(rules) == 11 and all(rule["enabled"] for rule in rules.values())  # 9 + 2 AI (M10)
+    assert len(rules) == 12 and all(rule["enabled"] for rule in rules.values())  # 9 + 3 AI (M10)
     assert rules["ph_unsafe"]["values"] == {"low": 6.5, "high": 8.5, "readings": 5}
     assert rules["ph_unsafe"]["limits"]["low"] == {"default": 6.5, "min": 4.0, "max": 7.0,
                                                    "help": "unsafe below this pH"}  # fmt: skip

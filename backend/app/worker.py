@@ -34,13 +34,15 @@ import asyncio
 import logging
 import os
 import time
-from datetime import UTC, datetime, timedelta
+import uuid
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
 from . import audit, db, heartbeat
+from .ai.registry import TRAIN_HOUR, nightly
 from .alerts.deliver import deliver_due
 from .alerts.engine import AlertEngine
 from .alerts.store import audit_signal_saved
@@ -93,8 +95,36 @@ async def tick(now: datetime | None = None) -> dict[str, int]:
             log.warning("building %s: %s", code, err)
         except Exception:
             log.exception("building %s: job failed, trying again next round", code)
+    done["ai_models"] = await nightly_ai(buildings, now)
     done["audit_checks"] = await daily_audit_check(now)
     return done
+
+
+# building id -> the building day the AI job last ran. Kept in memory so that a
+# building with too little data to train is not read again every minute; after
+# a restart it simply tries once more.
+_ai_tried: dict[uuid.UUID, date] = {}
+
+
+async def nightly_ai(buildings: list[Building], now: datetime) -> int:
+    """Nightly AI training and unusual-use flags (FR-64, FR-65, FR-67)."""
+    trained = 0
+    for building_id, code, tz in [(b.id, b.code, b.timezone) for b in buildings]:
+        today = local_today(tz, now)
+        if _ai_tried.get(building_id) == today:
+            continue
+        try:
+            async with db.sessions()() as session, session.begin():
+                building = await session.get(Building, building_id)
+                assert building is not None
+                done = await nightly(session, building, now)
+            if done or now.astimezone(ZoneInfo(tz)).hour >= TRAIN_HOUR:
+                _ai_tried[building_id] = today
+            trained += done.get("models", 0)
+        except Exception:
+            log.exception("building %s: AI training failed, trying again tomorrow", code)
+            _ai_tried[building_id] = today
+    return trained
 
 
 async def daily_audit_check(now: datetime) -> int:

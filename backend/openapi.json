@@ -5194,6 +5194,166 @@
           }
         }
       }
+    },
+    "/api/v1/homes/{home_id}/forecast": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Home Forecast",
+        "description": "The next 7 days of litres with an 80% range, and the month-end total and\nbill estimate, made with the building's real tariff (FR-65). Residents:\nfrom their move-in day only.",
+        "operationId": "home_forecast_api_v1_homes__home_id__forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/forecast": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Building Forecast",
+        "description": "The whole building: total litres forecast, and the sum of every home's\nmonth-end bill estimate.",
+        "operationId": "building_forecast_api_v1_buildings__building_id__forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/ai/models": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Ai Models",
+        "description": "Every trained version, newest first, with its scores and whether it is live.",
+        "operationId": "ai_models_api_v1_buildings__building_id__ai_models_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiModelOut"
+                  },
+                  "title": "Response Ai Models Api V1 Buildings  Building Id  Ai Models Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5226,6 +5386,76 @@
             "token": "the code from the email"
           }
         ]
+      },
+      "AiModelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "trained_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Trained At"
+          },
+          "data_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Data From"
+          },
+          "data_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Data To"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "version",
+          "trained_at",
+          "data_from",
+          "data_to",
+          "rows",
+          "metrics",
+          "params",
+          "live",
+          "note"
+        ],
+        "title": "AiModelOut",
+        "description": "One model version in the registry (FR-67). The model itself is not sent."
       },
       "AlertOut": {
         "properties": {
@@ -6132,6 +6362,68 @@
           "can_pay_online"
         ],
         "title": "BillOut"
+      },
+      "BillProjectionOut": {
+        "properties": {
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "total_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Text"
+          },
+          "low_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Text"
+          },
+          "high_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Text"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency_code"
+        ],
+        "title": "BillProjectionOut"
       },
       "BillSummaryOut": {
         "properties": {
@@ -7041,6 +7333,25 @@
         ],
         "title": "ConsumptionPoint"
       },
+      "DayLitresOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "litres"
+        ],
+        "title": "DayLitresOut"
+      },
       "DeviceCredentialsOut": {
         "properties": {
           "device": {
@@ -7214,6 +7525,87 @@
           "has_own_password"
         ],
         "title": "DeviceOut"
+      },
+      "ForecastDayOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low",
+            "description": "80% range: low end"
+          },
+          "high": {
+            "type": "number",
+            "title": "High",
+            "description": "80% range: high end"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "litres",
+          "low",
+          "high"
+        ],
+        "title": "ForecastDayOut"
+      },
+      "ForecastOut": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "holt_winters, or seasonal_naive with little history"
+          },
+          "history_days": {
+            "type": "integer",
+            "title": "History Days"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/DayLitresOut"
+            },
+            "type": "array",
+            "title": "Recent",
+            "description": "The real litres of the last 14 days"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "month_end": {
+            "$ref": "#/components/schemas/MonthEndOut"
+          },
+          "bill": {
+            "$ref": "#/components/schemas/BillProjectionOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "history_days",
+          "explanation",
+          "recent",
+          "days",
+          "month_end",
+          "bill"
+        ],
+        "title": "ForecastOut",
+        "description": "The next 7 days and the month's end (FR-65), with why (FR-66)."
       },
       "ForgotIn": {
         "properties": {
@@ -8082,6 +8474,35 @@
           "message"
         ],
         "title": "MessageOut"
+      },
+      "MonthEndOut": {
+        "properties": {
+          "last_day": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_day",
+          "litres",
+          "low",
+          "high"
+        ],
+        "title": "MonthEndOut"
       },
       "NotificationOut": {
         "properties": {

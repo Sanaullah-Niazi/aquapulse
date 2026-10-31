@@ -33,6 +33,23 @@ def test_burst_is_very_high_flow(building):
     assert home.flow_lpm >= 25
 
 
+def test_abnormal_adds_guests_water(building):
+    """M10 (FR-64): a whole day with 2 more households' worth of water, from
+    more water events (not stronger ones)."""
+    home = building.homes[0]
+    building.tick(NIGHT)
+    building.add_scenario("abnormal", home.id, 24 * 60, NIGHT, {"extra": 2})
+    before, t, peak = home.total_l, NIGHT, 0.0
+    while t < NIGHT + 24 * 3600:
+        t += 60
+        building.tick(t)
+        peak = max(peak, home.flow_lpm)
+    day = 86_400
+    expected = sum(home.profile.litres_between(NIGHT - k * day, t - k * day) for k in (0, 1, 2))
+    assert home.total_l - before == pytest.approx(expected, rel=0.01)
+    assert home.total_l - before > 2 * home.profile.litres_between(NIGHT, t)
+
+
 def test_ph_drift_leaves_the_safe_range(building):
     home = building.homes[0]
     building.add_scenario("ph_drift", home.id, 60, NIGHT, {"direction": "up"})
@@ -89,7 +106,7 @@ def test_sump_empty_reports_sump_not_ok(building):
 
 def test_every_scenario_type_has_a_test_above():
     tested = {
-        "leak", "burst", "ph_drift", "temp_spike", "sensor_stuck", "valve_stuck",
+        "leak", "burst", "abnormal", "ph_drift", "temp_spike", "sensor_stuck", "valve_stuck",
         "offline", "reboot", "tank_sensor_fail", "sump_empty",
     }  # fmt: skip
     assert tested == set(SCENARIO_TYPES)

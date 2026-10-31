@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import push
 from ..alerts.detect import Signal
-from ..alerts.rules import AI_RULES, RULES
+from ..alerts.rules import LIVE_AI_RULES, RULES
 from ..control import queue_command
 from ..models import (
     Building,
@@ -60,7 +60,7 @@ async def maybe_shut_off(
     session: AsyncSession, signal: Signal, now: datetime, alert_id: uuid.UUID | None = None
 ) -> DeviceCommand | None:
     """Close the valve if this finding calls for it. Returns the command, or None."""
-    if signal.rule not in AI_RULES or not signal.active or not signal.home_id:
+    if signal.rule not in LIVE_AI_RULES or not signal.active or not signal.home_id:
         return None
     if not (signal.details or {}).get("high"):
         return None

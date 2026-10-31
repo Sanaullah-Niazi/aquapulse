@@ -1204,3 +1204,59 @@ class InsightOut(BaseModel):
         default_factory=dict,
         description="The numbers behind the explanation; points = [time, L/min] for a chart",
     )
+
+
+class ForecastDayOut(BaseModel):
+    day: date
+    litres: float
+    low: float = Field(description="80% range: low end")
+    high: float = Field(description="80% range: high end")
+
+
+class DayLitresOut(BaseModel):
+    day: date
+    litres: float
+
+
+class MonthEndOut(BaseModel):
+    last_day: date
+    litres: float
+    low: float
+    high: float
+
+
+class BillProjectionOut(BaseModel):
+    currency_code: str
+    total: Decimal | None = None
+    total_text: str | None = None
+    low_text: str | None = None
+    high_text: str | None = None
+    message: str = ""
+
+
+class ForecastOut(BaseModel):
+    """The next 7 days and the month's end (FR-65), with why (FR-66)."""
+
+    method: str = Field(description="holt_winters, or seasonal_naive with little history")
+    history_days: int
+    explanation: str
+    recent: list[DayLitresOut] = Field(description="The real litres of the last 14 days")
+    days: list[ForecastDayOut]
+    month_end: MonthEndOut
+    bill: BillProjectionOut
+
+
+class AiModelOut(Out):
+    """One model version in the registry (FR-67). The model itself is not sent."""
+
+    id: uuid.UUID
+    kind: str
+    version: int
+    trained_at: datetime
+    data_from: date
+    data_to: date
+    rows: int
+    metrics: dict[str, Any]
+    params: dict[str, Any]
+    live: bool
+    note: str

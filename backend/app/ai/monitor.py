@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..alerts.detect import Signal
-from ..alerts.rules import AI_RULES, DEFAULTS, RuleSettings
+from ..alerts.rules import DEFAULTS, LIVE_AI_RULES, RuleSettings
 from .leak import Baseline, Finding, FlowWatch, LeakLimits, baseline_from
 
 log = logging.getLogger("aquapulse.ai")
@@ -125,7 +125,7 @@ class LeakMonitor:
             count += 1
         for key in open_keys:
             rule, _, device = key.partition(":")
-            if rule in AI_RULES and device in self.homes:
+            if rule in LIVE_AI_RULES and device in self.homes:
                 self.homes[device].kind = rule
         log.info("leak detector replayed %d readings for %d homes", count, len(self.homes))
 

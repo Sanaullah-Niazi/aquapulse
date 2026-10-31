@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from app import db
+from app.backfill import refresh_consumption
 from app.models import Device, Telemetry
 
 
@@ -27,6 +28,10 @@ async def _readings(device, times_and_litres: list[tuple[datetime, float]]) -> N
         )  # fmt: skip
     async with db.sessions()() as session, session.begin():
         session.add_all(rows)
+    # Old readings: add them to the 15-minute totals by hand. (Other tests may
+    # already have refreshed past these days, and then the live part of the
+    # totals would no longer cover them.)
+    await refresh_consumption(rows[0].time, rows[-1].time)
 
 
 @pytest.fixture

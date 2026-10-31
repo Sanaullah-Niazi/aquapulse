@@ -25,7 +25,7 @@ from ..ai.monitor import LeakMonitor
 from ..ai.shutoff import maybe_shut_off
 from ..models import Alert, Building
 from .detect import Detector, Signal
-from .rules import AI_RULES, DEFAULTS, RuleSettings
+from .rules import DEFAULTS, LIVE_AI_RULES, RuleSettings
 from .store import (
     apply,
     auto_resolve,
@@ -77,7 +77,7 @@ class AlertEngine:
         async with db.sessions()() as session, session.begin():
             opened = await apply(session, signals, now)
             for signal in signals:
-                if signal.rule in AI_RULES and signal.active:
+                if signal.rule in LIVE_AI_RULES and signal.active:
                     alert = await session.scalar(
                         select(Alert.id).where(
                             Alert.dedupe_key == signal.key,

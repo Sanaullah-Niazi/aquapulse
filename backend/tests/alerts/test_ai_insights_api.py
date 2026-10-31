@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import select
 
 from app import db
@@ -23,7 +25,9 @@ async def test_insights_show_the_reason_and_evidence_to_who_may_see_the_home(
     [found] = r.json()
     assert found["kind"] == "burst" and found["severity"] == "critical"
     assert found["high_confidence"] is True and found["confidence"] >= 0.9
-    assert "30.0 L/min" in found["explanation"]
+    # 30 L/min from the burst, plus whatever the household was using then.
+    peak = re.search(r"up to (\d+\.\d) L/min", found["explanation"])
+    assert peak and float(peak.group(1)) >= 30.0
     assert found["evidence"]["points"] and found["evidence"]["burst_lpm"] >= 20
     assert "confidence" not in found["evidence"]  # moved to its own field
 

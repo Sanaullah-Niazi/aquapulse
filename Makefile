@@ -259,7 +259,8 @@ apk-install: ## Install the APK on the running emulator or USB phone and connect
 	@# adb reverse: on the phone, https://localhost:8443 now reaches your Mac's port 8443.
 	adb reverse tcp:8443 tcp:8443
 	adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk
-	adb shell monkey -p io.github.sanaullahniazi.aquapulse -c android.intent.category.LAUNCHER 1 >/dev/null
+	@# --pct-syskeys 0: emulators without hardware keys otherwise stop monkey with error 251.
+	adb shell monkey --pct-syskeys 0 -p io.github.sanaullahniazi.aquapulse -c android.intent.category.LAUNCHER 1 >/dev/null
 	@echo "AquaPulse is open on the phone. Server: https://localhost:8443"
 
 # ---------------------------------------------------------------

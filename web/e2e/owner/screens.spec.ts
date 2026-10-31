@@ -57,7 +57,8 @@ test("the overview adds up the homes and shows the tank", async () => {
   await expect(page.getByText("Meters online", { exact: true })).toBeVisible();
   await expect(page.getByText(/^\d+ \/ 10$/)).toBeVisible(); // 10 demo homes
   await expect(page.getByRole("meter", { name: "Water level" })).toBeVisible();
-  await expect(page.getByText(/milestone M10/)).toBeVisible(); // no fake AI numbers
+  // The AI card only says what the AI page shows: no made-up numbers here.
+  await expect(page.getByText(/water forecast and bill estimate/)).toBeVisible();
 });
 
 test("homes can be searched and sorted", async () => {

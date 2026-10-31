@@ -77,6 +77,12 @@ def main() -> int:
 
     ca_lines = [line for line in CA.read_text().splitlines() if line.strip()]
     ca = " \\\n".join(f'  "{line}\\n"' for line in ca_lines)
+    # The ESP32 needs its Wi-Fi and broker passwords in the firmware, so they
+    # are written in plain text on purpose. The file is git-ignored and only
+    # readable by you (mode 600). CodeQL reports this as "clear-text storage";
+    # see docs/security/scan-exceptions.md.
+    OUT.touch(mode=0o600, exist_ok=True)
+    OUT.chmod(0o600)
     OUT.write_text(
         "// Made by make firmware-secrets. Git-ignored: never commit this file.\n"
         "#pragma once\n\n"

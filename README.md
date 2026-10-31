@@ -20,6 +20,34 @@ AquaPulse turns a normal apartment building into a smart-water building:
 
 The full plan is in the [Software Requirements Specification](docs/SRS.md) (IEEE 29148 style): 75 functional and 30 non-functional requirements, architecture, database, API, STRIDE threat model and test plan.
 
+## Screenshots
+
+Real pages of the running demo (`make demo`), taken by `make screenshots`
+(Playwright). Nothing is drawn or edited. All of them, phone and desktop, are
+in [docs/screenshots](docs/screenshots).
+
+| Building owner | Resident |
+|---|---|
+| ![Owner overview](docs/screenshots/desktop/owner-01-overview.png) | ![Resident home](docs/screenshots/desktop/resident-01-my-home.png) |
+| ![AI forecast for the building](docs/screenshots/desktop/owner-10-ai.png) | ![Water use per day](docs/screenshots/desktop/resident-02-usage.png) |
+| ![Tank and pump](docs/screenshots/desktop/owner-04-tank-and-pump.png) | ![A bill with its slabs](docs/screenshots/desktop/resident-07-bill.png) |
+
+| Phone | | | |
+|---|---|---|---|
+| ![Owner overview on a phone](docs/screenshots/phone/owner-01-overview.png) | ![AI insights on a phone](docs/screenshots/phone/resident-05-ai-insights.png) | ![Tank and pump on a phone](docs/screenshots/phone/owner-04-tank-and-pump.png) | ![Dark mode](docs/screenshots/phone/resident-08-my-home-dark.png) |
+
+**Hardware (Wokwi).** The two ESP32 circuits, drawn from the simulator's own
+files in `firmware/wokwi`. In CI both nodes run their demo scenarios in the
+Wokwi simulator: the tank node turns the pump on when the tank is low and off
+when it is full, and the home node counts the water when a tap opens. What
+they printed is in
+[tank-node-serial.txt](docs/screenshots/hardware/tank-node-serial.txt) and
+[home-node-serial.txt](docs/screenshots/hardware/home-node-serial.txt).
+
+| Home node | Tank node |
+|---|---|
+| ![Home node circuit](docs/screenshots/hardware/hardware-01-home-node.png) | ![Tank node circuit](docs/screenshots/hardware/hardware-02-tank-node.png) |
+
 ## Architecture
 
 ```mermaid

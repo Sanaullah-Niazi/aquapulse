@@ -8,7 +8,7 @@
     { "type": "wokwi-slide-switch", "id": "sump", "top": -60, "left": 160, "attrs": { "value": "1" } },
     { "type": "wokwi-led", "id": "pump", "top": 60, "left": 200, "attrs": { "color": "blue", "label": "pump relay" } },
     { "type": "wokwi-text", "id": "note1", "top": -180, "left": -60, "attrs": { "text": "tank level: click the sensor, move the distance (150 cm empty, 25 cm full)" } },
-    { "type": "wokwi-text", "id": "note2", "top": -90, "left": 140, "attrs": { "text": "sump: water / empty" } }
+    { "type": "wokwi-text", "id": "note2", "top": -90, "left": 140, "attrs": { "text": "sump float switch: right = water, left = empty" } }
   ],
   "connections": [
     [ "esp:TX0", "$serialMonitor:RX", "", [] ],
@@ -18,8 +18,8 @@
     [ "level:TRIG", "esp:D5", "orange", [] ],
     [ "level:ECHO", "esp:D19", "purple", [] ],
     [ "sump:2", "esp:D21", "green", [] ],
-    [ "sump:1", "esp:GND.1", "black", [] ],
-    [ "sump:3", "esp:3V3", "red", [] ],
+    [ "sump:1", "esp:3V3", "red", [] ],
+    [ "sump:3", "esp:GND.1", "black", [] ],
     [ "pump:A", "esp:D23", "blue", [] ],
     [ "pump:C", "esp:GND.1", "black", [] ]
   ],

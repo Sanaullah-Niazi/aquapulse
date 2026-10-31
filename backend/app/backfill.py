@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -66,9 +67,20 @@ async def first_live_readings() -> dict[str, datetime]:
         return result
 
 
-async def load(lines: Iterable[str], history_only: bool = False) -> Summary:
+async def load(lines: Iterable[str], history_only: bool = False, wait_live_s: float = 0) -> Summary:
+    """Store the history lines. A device with no live reading yet is waited
+    for up to `wait_live_s` seconds in total (a demo started a moment ago:
+    the simulator's first live messages are still on the way)."""
     summary = Summary()
     cutoff = await first_live_readings()
+    deadline = time.monotonic() + wait_live_s
+
+    async def has_live_data(device_id: str) -> bool:
+        while device_id not in cutoff and time.monotonic() < deadline:
+            await asyncio.sleep(3)
+            cutoff.update(await first_live_readings())
+        return device_id in cutoff
+
     handler = Handler(live=False)
     batch: list[Incoming] = []
     labels: list[dict] = []
@@ -91,6 +103,8 @@ async def load(lines: Iterable[str], history_only: bool = False) -> Summary:
             continue
         device_id = contract.parse_topic(item["topic"])[0]
         when = contract.parse_ts(item["payload"]["ts"])
+        if device_id not in cutoff and not history_only:
+            await has_live_data(device_id)
         if device_id not in cutoff:
             if not history_only:
                 summary.no_live_data.add(device_id)
@@ -185,7 +199,8 @@ def main() -> None:
 
 async def _main() -> Summary:
     try:
-        return await load(sys.stdin, history_only="--history-only" in sys.argv)
+        # Up to 3 minutes for the live data of a demo that was just started.
+        return await load(sys.stdin, history_only="--history-only" in sys.argv, wait_live_s=180)
     finally:
         await db.dispose()
 

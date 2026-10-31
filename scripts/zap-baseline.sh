@@ -36,6 +36,9 @@ alerts = [a for site in json.load(open(sys.argv[1]))["site"] for a in site["aler
 alerts.sort(key=lambda a: -int(a["riskcode"]))
 for a in alerts:
     print(f"  {names[a['riskcode']]:6} {a['name']} ({a['count']} URLs)")
+    if a["riskcode"] in ("3", "2", "1"):  # show where, so each one can be reviewed
+        for uri in sorted({i["uri"] for i in a.get("instances", [])})[:4]:
+            print(f"           {uri}")
 high = [a for a in alerts if a["riskcode"] == "3"]
 counts = {n: sum(1 for a in alerts if names[a["riskcode"]] == n) for n in names.values()}
 print("ZAP findings: " + ", ".join(f"{v} {k}" for k, v in counts.items()))

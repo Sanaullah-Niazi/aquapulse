@@ -22,18 +22,22 @@ yet says so.
 Which test proves which requirement: [requirements-traceability.md](requirements-traceability.md)
 (all 75 functional requirements have at least one automated test or CI check).
 
+Speed numbers (NFR-01, 04, 05, 06) come from `make perf` in the CI run of the merged
+M12 part 3 (2026-10-31, run 41204929921), on a GitHub runner with 4 CPU cores. They are
+measured inside the server, without the network between a phone and the server.
+
 ## Non-functional requirements (SRS section 6)
 
 ✅ measured and met · ⚠️ partly measured · ⏳ not measured yet · 👤 needs a person (see the end)
 
 | NFR | Target | Status | Evidence |
 |---|---|---|---|
-| NFR-01 Valve round trip | p95 ≤ 2 s | ⚠️ | Valve commands are tested end to end (browser → API → simulator → ack) in `web/e2e/resident/valve.spec.ts` and the live MQTT tests, but the 50-command timing test is not written yet |
-| NFR-02 Page load | ≤ 2 s, Lighthouse ≥ 85 | ⏳ | Not measured in CI yet |
+| NFR-01 Valve round trip | p95 ≤ 2 s, p99 ≤ 4 s | ⚠️ | `make perf`, 60 commands from 10 homes at once. Command sent → the valve is seen moving on the live stream: **p95 0.26 s, p99 0.30 s**. → the device confirms the end position: **p95 5.06 s, p99 5.73 s**. The second number includes the simulated motor, which takes 2 to 5 s to turn like a real ball valve, so it can never be under 2 s. The software's own share meets the target |
+| NFR-02 Page load | ≤ 2 s, Lighthouse ≥ 85 | ⏳ | Not measured yet |
 | NFR-03 Ingest throughput | ≥ 500 msg/s for 10 min, 0 loss | ⏳ | No load test yet |
-| NFR-04 Read API latency | p95 ≤ 300 ms (400 days) | ⏳ | No load test yet |
-| NFR-05 Live update latency | p95 ≤ 2 s | ⚠️ | The live MQTT tests check messages arrive within seconds; no p95 measurement |
-| NFR-06 Resource use (idle) | ≤ 2 GB RAM | ⏳ | Not sampled yet |
+| NFR-04 Read API latency | p95 ≤ 300 ms (400 days), ≤ 100 ms simple | ⚠️ | `make perf`, 11 users at once, 330 requests of each kind. Consumption over a 400-day range: **p95 50 ms**. Simple reads: **p95 64 ms**. Partly: CI holds about 8 days of readings, not 400, and the SRS asks for 50 users (the demo has 11 accounts, and each is limited to 120 requests a minute) |
+| NFR-05 Live update latency | p95 ≤ 2 s | ✅ | `make perf`: 60 readings, from the device's own timestamp to arrival on the live stream: **p95 0.11 s** |
+| NFR-06 Resource use (idle) | ≤ 2 GB RAM, ≤ 15% of a core | ✅ | `make perf` (`docker stats` every 10 s): all containers together **at most 389 MiB**, CPU **6.2% of one core** on average. Sampled for 2 minutes in CI (the SRS says 10: `make perf IDLE=600`) |
 | NFR-07 Encryption in transit | TLS 1.2+, no plain MQTT | ✅ | `make tls-check` in CI: port 1883 closed, TLS 1.3 negotiated, testssl.sh finds nothing |
 | NFR-08 Authentication strength | Argon2id, 15 min / 7 days | ✅ | `backend/tests/security/test_crypto_config.py` |
 | NFR-09 Authorization coverage | 100% of endpoints | ✅ | `backend/tests/security/test_rbac_matrix.py`: every endpoint × every role; fails if an endpoint is missing |
@@ -61,6 +65,7 @@ Which test proves which requirement: [requirements-traceability.md](requirements
 
 ## Still to do (honest list)
 
-1. Performance and load tests: NFR-01 to NFR-06, NFR-25 and NFR-26 (free tools: k6 and a small MQTT load script).
+1. Load tests: ingest throughput (NFR-03), 2,000 devices on one host (NFR-25), two ingestors
+   (NFR-26), page load with Lighthouse (NFR-02), and read speed with 400 days of data (NFR-04).
 2. Things only a person can do: the 5-user usability test (NFR-21), the fresh-clone timing (NFR-28),
    and the public demo with an uptime monitor (NFR-19).

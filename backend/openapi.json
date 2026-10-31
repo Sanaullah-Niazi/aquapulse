@@ -3,7 +3,7 @@
   "info": {
     "title": "AquaPulse API",
     "description": "Smart water management: buildings, homes, residents, live readings, water use, valve and pump control, tariffs, bills and payments, alerts and notifications, and the audit log.\n\nClick **Authorize** and log in with a demo account (see `make seed`).",
-    "version": "0.7.0"
+    "version": "1.0.0"
   },
   "paths": {
     "/api/healthz": {

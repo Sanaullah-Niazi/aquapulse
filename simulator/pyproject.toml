@@ -2,7 +2,7 @@
 # speak the same MQTT contract as the real ESP32 hardware (SRS FR-01 to FR-10, FR-17).
 [project]
 name = "aquapulse-sim"
-version = "0.2.0"
+version = "1.0.0"
 description = "AquaPulse digital twin: virtual water meters, valves and a tank with pump, over MQTT"
 requires-python = ">=3.12,<3.13"
 license = "MIT"

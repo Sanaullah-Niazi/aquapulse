@@ -68,7 +68,7 @@ def _out(s: Scenario, now: float) -> ScenarioOut:
 def create_app(building: Building, clock=time.time) -> FastAPI:
     app = FastAPI(
         title="AquaPulse simulator",
-        version="0.2.0",
+        version="1.0.0",
         description="Control the digital twin: list devices, switch them off and on, "
         "and inject problems (leaks, bursts, sensor faults ...). Every scenario is kept "
         "with its exact start and end time as ground truth for the AI (M9).",

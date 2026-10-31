@@ -24,7 +24,7 @@ dependencies = [
     "weasyprint==70.0",            # PDF bills from an HTML template (M6, FR-36)
     "jinja2==3.1.6",               # fills the bill template
     "stripe==16.0.1",              # online payment in Stripe TEST mode (M6, FR-39)
-    "pyotp==2.9.0",                # two-factor login codes from any authenticator app (M8, FR-70)
+    "pyotp==2.10.0",                # two-factor login codes from any authenticator app (M8, FR-70)
     "statsmodels==0.15.0",         # Holt-Winters forecasts (M10, FR-65)
     "scikit-learn==1.9.1",         # Isolation Forest for unusual use (M10, FR-64)
 ]

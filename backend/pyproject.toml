@@ -23,7 +23,7 @@ dependencies = [
     "segno==1.6.6",                # QR codes with a new device's settings (M5, FR-14)
     "weasyprint==70.0",            # PDF bills from an HTML template (M6, FR-36)
     "jinja2==3.1.6",               # fills the bill template
-    "stripe==16.0.0",              # online payment in Stripe TEST mode (M6, FR-39)
+    "stripe==16.0.1",              # online payment in Stripe TEST mode (M6, FR-39)
     "pyotp==2.9.0",                # two-factor login codes from any authenticator app (M8, FR-70)
 ]
 

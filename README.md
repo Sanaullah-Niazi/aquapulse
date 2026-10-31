@@ -7,7 +7,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![Security](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status: all 12 milestones built; v1.0 release in preparation.** Everything below works and is tested in CI.
+> **Status: v1.0.0 released.** All 12 milestones are built and tested in CI. The Android APK is on the [Releases page](https://github.com/Sanaullah-Niazi/aquapulse/releases). What changed: [CHANGELOG.md](CHANGELOG.md).
 > What is measured and what is not yet: [docs/test-report.md](docs/test-report.md).
 
 ## What it does
@@ -54,7 +54,7 @@ Everything runs with one command on a laptop (Docker Compose). Design decisions 
 | M9 Android app | ✅ done |
 | M10 AI: leak detection and forecasting | ✅ done |
 | M11 ESP32 firmware and hardware | ✅ done |
-| M12 Demo data, polish and v1.0 release | ⏳ (parts 1 and 2 done) |
+| M12 Demo data, polish and v1.0 release | ✅ done |
 
 ## Getting started (developers)
 
@@ -179,6 +179,8 @@ Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 **ESP32 firmware (M11).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Part 2: the tank node, which runs the pump by itself with dry-run and overflow protection even when the server is down, plus parts lists and wiring diagrams in [docs/hardware](docs/hardware). Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
 
 **Privacy and security scans (M12, part 1).** Every user can download their own data as one JSON file, and residents can delete their account (name, email and phone removed; bills kept without a name for accounting). Raw readings older than 13 months are deleted automatically, and failed-login logs no longer store the email. A Security workflow runs pip-audit, pnpm audit, Bandit, CodeQL and Trivy on every push and every week, and Dependabot watches every part of the project. Guide: [docs/milestones/M12-polish-and-release.md](docs/milestones/M12-polish-and-release.md).
+
+**Backups and speed checks (M12, part 3).** A `backup` service copies the database into `backups/` every day and keeps a week. CI restores a backup on every push and checks it ([docs/backups.md](docs/backups.md)). `make perf` measures valve, live-update and API speed and the stack's memory and CPU. The numbers are in the [test report](docs/test-report.md).
 
 **Demo, scans and reports (M12, part 2).** `make demo` builds the whole demo in one command: the stack, the accounts, 90 days of history and two months of real bills (some paid, some not). An OWASP ZAP baseline scan of the web app runs in CI. The [test report](docs/test-report.md), the [traceability matrix](docs/requirements-traceability.md) (made from the tests, checked in CI) and the [ASVS checklist](docs/security/asvs-checklist.md) say plainly what is proven and what is not yet.
 

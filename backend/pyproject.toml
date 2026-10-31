@@ -1,7 +1,7 @@
 # AquaPulse backend: the FastAPI API (M3), the MQTT ingestor (M4) and the worker (M6).
 [project]
 name = "aquapulse-backend"
-version = "0.7.0"
+version = "1.0.0"
 description = "AquaPulse API, ingestor and worker: accounts, buildings, live readings, valve and pump control, billing"
 requires-python = ">=3.12,<3.13"
 license = "MIT"

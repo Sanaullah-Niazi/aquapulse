@@ -39,11 +39,11 @@ Building total litres per day over 91 days. From day 28 on, every day the model 
 
 | Measure | Result | Target | |
 |---|---|---|---|
-| MAPE, Holt-Winters (weekly season) | 15.7% | ≤ 20% | ✅ met |
-| MAPE, seasonal naive (same weekday last week) | 19.5% | Holt-Winters must be lower | ✅ met |
+| MAPE, Holt-Winters (weekly season) | 16% | ≤ 20% | ✅ met |
+| MAPE, seasonal naive (same weekday last week) | 19% | Holt-Winters must be lower | ✅ met |
 | Real litres inside the 80% range | 85% | about 80% | |
 
-MAPE = mean absolute percentage error: on average, how far the forecast was from the real litres, in percent.
+MAPE = mean absolute percentage error: on average, how far the forecast was from the real litres, in percent. These numbers are rounded (MAPE to 1%, the range to 5%): the model's fitting can differ in the last decimal from one computer to another, and the committed report must match on every machine.
 
 ## Limits of this test
 

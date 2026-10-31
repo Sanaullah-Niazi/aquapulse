@@ -159,7 +159,7 @@ With too little history (under about 2 weeks) it trains nothing and tries again 
 |---|---|---|
 | Unusual days flagged | 100% (25 of 25 scored) | ≥ 80% |
 | False flags per home per 2 weeks | 0.30 | ≤ 1 |
-| Forecast error (MAPE), Holt-Winters | 15.7% | ≤ 20%, and lower than the simple rule (19.5%) |
+| Forecast error (MAPE), Holt-Winters | 16% | ≤ 20%, and lower than the simple rule (19%) |
 | Real litres inside the 80% range | 85% | about 80% |
 
 Leak detection is unchanged: 100% found, 100% real, slow leaks in 2 h, bursts in 5 min.

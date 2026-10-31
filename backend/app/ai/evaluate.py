@@ -400,14 +400,17 @@ def report(s: dict) -> str:
             "",
             "| Measure | Result | Target | |",
             "|---|---|---|---|",
-            f"| MAPE, Holt-Winters (weekly season) | {f['mape']:.1%} | ≤ 20% "
+            f"| MAPE, Holt-Winters (weekly season) | {f['mape']:.0%} | ≤ 20% "
             f"| {_ok(p['forecast_mape'])} |",
-            f"| MAPE, seasonal naive (same weekday last week) | {f['naive_mape']:.1%} "
+            f"| MAPE, seasonal naive (same weekday last week) | {f['naive_mape']:.0%} "
             f"| Holt-Winters must be lower | {_ok(p['forecast_beats_naive'])} |",
-            f"| Real litres inside the 80% range | {f['coverage']:.0%} | about 80% | |",
+            f"| Real litres inside the 80% range | {5 * round(f['coverage'] * 20)}% "
+            "| about 80% | |",
             "",
             "MAPE = mean absolute percentage error: on average, how far the forecast was "
-            "from the real litres, in percent.",
+            "from the real litres, in percent. These numbers are rounded (MAPE to 1%, the "
+            "range to 5%): the model's fitting can differ in the last decimal from one "
+            "computer to another, and the committed report must match on every machine.",
             "",
         ]
     lines += [

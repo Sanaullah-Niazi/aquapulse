@@ -4,7 +4,7 @@
 # New targets are added milestone by milestone (see docs/milestones).
 # ---------------------------------------------------------------
 .DEFAULT_GOAL := help
-.PHONY: help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
+.PHONY: animation animation-sound help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
@@ -265,6 +265,18 @@ web-test: ## Type check and unit tests for the web app (no Docker needed)
 web-e2e: ## Click through the app in a real browser, phone and desktop size (make up first)
 	@# The tests log in as the demo accounts, so they need the demo password from .env.
 	cd web && DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' ../.env | cut -d= -f2-)" pnpm e2e
+
+animation: ## The moving picture of the whole system (docs/animation/system.html): GIF, and MP4 if ffmpeg is installed
+	cd web && node scripts/animation-frames.mjs ../docs/animation/system.html ../.cache/animation-frames 20
+	uv run --with pillow python scripts/frames-to-gif.py .cache/animation-frames docs/screenshots/animation/aquapulse-system.gif 10 960 2
+	@if command -v ffmpeg >/dev/null; then \
+		ffmpeg -loglevel error -y -framerate 20 -i .cache/animation-frames/f%04d.png -vf "scale=1280:-2" -c:v libx264 -pix_fmt yuv420p -crf 20 -movflags +faststart \
+			docs/screenshots/animation/aquapulse-system.mp4 && echo "docs/screenshots/animation/aquapulse-system.mp4 (for LinkedIn)"; \
+	else echo "No ffmpeg: skipped the MP4 (brew install ffmpeg)"; fi
+	rm -rf .cache/animation-frames
+
+animation-sound: ## Add soft music and sound effects to the MP4 (make animation first; needs ffmpeg)
+	uv run --with numpy python scripts/animation-sound.py docs/screenshots/animation/aquapulse-system.mp4 docs/screenshots/animation/aquapulse-system-sound.mp4
 
 screenshots: ## Portfolio pictures of every web screen, phone and desktop, into docs/screenshots (make demo first)
 	@# Real pages with the demo data, taken by a real browser; nothing is drawn by hand.

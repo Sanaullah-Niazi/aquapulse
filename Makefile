@@ -7,7 +7,7 @@
 .PHONY: help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
 	api-logs seed migrate api-test api-lint openapi \
-	ingest-logs demo-data live \
+	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
 	worker-logs bills problem alerts \
 	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
@@ -250,4 +250,31 @@ apk-install: ## Install the APK on the running emulator or USB phone and connect
 	adb shell monkey -p io.github.sanaullahniazi.aquapulse -c android.intent.category.LAUNCHER 1 >/dev/null
 	@echo "AquaPulse is open on the phone. Server: https://localhost:8443"
 
-test: sim-test api-test web-test app-test ## Run all tests (grows with each milestone)
+# ---------------------------------------------------------------
+# M11: ESP32 firmware (firmware/). The device logic is plain C++ that is
+# tested on your Mac; PlatformIO builds it for the ESP32. See docs/milestones/M11.
+# ---------------------------------------------------------------
+
+PIO ?= uvx --from platformio==6.1.18 pio
+FW_CXX ?= c++
+FW_TEST := firmware/.pio/native/test_core
+
+firmware-test: ## Firmware logic tests on your Mac, and every message checked against the device contract
+	@mkdir -p firmware/.pio/native
+	$(FW_CXX) -std=c++17 -O1 -Wall -Wextra -Werror -Wshadow -Wconversion -Wno-sign-conversion \
+		-Ifirmware/lib/aquapulse_core/src firmware/lib/aquapulse_core/src/aquapulse_core.cpp \
+		firmware/test/native/test_core.cpp -o $(FW_TEST)
+	./$(FW_TEST)
+	./$(FW_TEST) --dump | (cd simulator && uv run python ../firmware/test/check_contract.py)
+
+firmware-build: ## Build the ESP32 firmware (real board and Wokwi); the first run downloads the tools
+	cd firmware && $(PIO) run
+
+firmware-secrets: certs ## Write firmware/include/secrets.h: make firmware-secrets (or DEVICE=home-b01-04 PASSWORD=... HOST=... WIFI=... WIFI_PASSWORD=...)
+	python3 scripts/firmware-secrets.py --device "$(or $(DEVICE),home-b01-10)" --password "$(PASSWORD)" \
+		--host "$(or $(HOST),host.wokwi.internal)" --wifi-ssid "$(or $(WIFI),Wokwi-GUEST)" --wifi-password "$(WIFI_PASSWORD)"
+
+firmware-upload: ## Flash a real ESP32 over USB and show its serial output (Ctrl+C to stop)
+	cd firmware && $(PIO) run -e home-node -t upload && $(PIO) device monitor
+
+test: sim-test api-test web-test app-test firmware-test ## Run all tests (grows with each milestone)

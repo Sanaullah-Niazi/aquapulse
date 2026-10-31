@@ -13,6 +13,8 @@
 #     against the running stack.
 # M9: Android app (Flutter): analyze, widget tests, and a release APK
 #     you can download from the run's "Artifacts".
+# M11: ESP32 firmware: logic tests on a computer, every message checked
+#     against the device contract, and a PlatformIO build (real + Wokwi).
 # ---------------------------------------------------------------
 name: CI
 
@@ -215,6 +217,35 @@ jobs:
           JSON
           flutter build apk --release
           rm android/app/google-services.json
+
+  firmware:
+    name: ESP32 firmware tests + contract check + build (M11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: "0.11.32"
+      - name: Install the simulator (its contract validator checks the messages)
+        working-directory: simulator
+        run: uv sync --frozen
+      - name: Logic tests on a computer + contract check
+        run: make firmware-test FW_CXX=g++
+      - uses: actions/cache@v5
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Build for the ESP32 (home node, real and Wokwi)
+        run: make firmware-build
+      - name: Keep the Wokwi firmware (download it from this run's Artifacts)
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-home-node-wokwi
+          path: |
+            firmware/.pio/build/home-node-wokwi/firmware.bin
+            firmware/.pio/build/home-node-wokwi/firmware.elf
+          retention-days: 14
 
   stack:
     name: Docker stack smoke + browser + live MQTT + TLS tests (M1 to M8)

@@ -16,6 +16,9 @@
 #
 # Everything is git-ignored. Safe to run again: existing files are kept
 # unless you pass --force (then everything is made new; restart the stack).
+# M11: if the server certificate is older and lacks a name it needs now
+# (host.wokwi.internal, for the Wokwi ESP32), only the server certificate is
+# made again with the same CA, so the APK, phones and devices keep working.
 # Usage: ./scripts/make-certs.sh [--force]   (or: make certs)
 # Needs: openssl (OpenSSL 3 or the LibreSSL that comes with macOS).
 # ---------------------------------------------------------------
@@ -28,15 +31,19 @@ days_server=825 # the longest that Apple devices accept for a server certificate
 if [ "${1:-}" = "--force" ]; then
   rm -rf "$dir"
 fi
-if [ -f "$dir/server/server.crt" ] && [ -f "$dir/public/ca.crt" ]; then
-  echo "Certificates already exist in $dir (use --force to make new ones)"
-  exit 0
-fi
+# Every name clients use to reach the server (see step 2).
+san="DNS:localhost, DNS:mqtt, DNS:caddy, DNS:host.wokwi.internal, IP:127.0.0.1, IP:::1"
 
 # Homebrew's OpenSSL 3 if it is installed, otherwise the system one.
 openssl_bin="openssl"
 if command -v brew >/dev/null 2>&1 && [ -x "$(brew --prefix openssl@3 2>/dev/null)/bin/openssl" ]; then
   openssl_bin="$(brew --prefix openssl@3)/bin/openssl"
+fi
+
+if [ -f "$dir/server/server.crt" ] && [ -f "$dir/public/ca.crt" ] &&
+  "$openssl_bin" x509 -in "$dir/server/server.crt" -noout -text | grep -q "host.wokwi.internal"; then
+  echo "Certificates already exist in $dir (use --force to make new ones)"
+  exit 0
 fi
 
 mkdir -p "$dir/ca" "$dir/server" "$dir/public"
@@ -46,25 +53,31 @@ trap 'rm -rf "$tmp"' EXIT
 
 # 1. The CA: an elliptic-curve key (P-256: small, fast and strong) and a
 #    self-signed certificate that may only sign other certificates.
-"$openssl_bin" ecparam -name prime256v1 -genkey -noout -out "$dir/ca/ca.key"
-cat >"$tmp/ca.ext" <<'EOF'
+#    Kept if it exists: then only the server certificate is made new.
+if [ -f "$dir/ca/ca.key" ] && [ -f "$dir/ca/ca.crt" ]; then
+  echo "Making a new server certificate (it needs the name host.wokwi.internal); the CA stays the same."
+else
+  "$openssl_bin" ecparam -name prime256v1 -genkey -noout -out "$dir/ca/ca.key"
+  cat >"$tmp/ca.ext" <<'EOF'
 basicConstraints = critical, CA:TRUE, pathlen:0
 keyUsage = critical, keyCertSign, cRLSign
 subjectKeyIdentifier = hash
 EOF
-"$openssl_bin" req -new -key "$dir/ca/ca.key" -subj "/O=AquaPulse/CN=AquaPulse Local CA" -out "$tmp/ca.csr"
-"$openssl_bin" x509 -req -in "$tmp/ca.csr" -signkey "$dir/ca/ca.key" -days "$days_ca" -sha256 \
-  -extfile "$tmp/ca.ext" -out "$dir/ca/ca.crt" 2>/dev/null
+  "$openssl_bin" req -new -key "$dir/ca/ca.key" -subj "/O=AquaPulse/CN=AquaPulse Local CA" -out "$tmp/ca.csr"
+  "$openssl_bin" x509 -req -in "$tmp/ca.csr" -signkey "$dir/ca/ca.key" -days "$days_ca" -sha256 \
+    -extfile "$tmp/ca.ext" -out "$dir/ca/ca.crt" 2>/dev/null
+fi
 
 # 2. The server certificate, signed by the CA. "subjectAltName" lists every
 #    name clients use to reach the server: localhost on your Mac, and the
-#    service names inside the Docker network (mqtt, caddy).
+#    service names inside the Docker network (mqtt, caddy), and
+#    host.wokwi.internal: how the Wokwi simulator's ESP32 reaches your Mac.
 "$openssl_bin" ecparam -name prime256v1 -genkey -noout -out "$dir/server/server.key"
-cat >"$tmp/server.ext" <<'EOF'
+cat >"$tmp/server.ext" <<EOF
 basicConstraints = critical, CA:FALSE
 keyUsage = critical, digitalSignature
 extendedKeyUsage = serverAuth
-subjectAltName = DNS:localhost, DNS:mqtt, DNS:caddy, IP:127.0.0.1, IP:::1
+subjectAltName = $san
 authorityKeyIdentifier = keyid
 EOF
 "$openssl_bin" req -new -key "$dir/server/server.key" -subj "/O=AquaPulse/CN=localhost" -out "$tmp/server.csr"
@@ -80,6 +93,6 @@ chmod 600 "$dir/ca/ca.key"
 chmod 644 "$dir/server/server.key"
 
 "$openssl_bin" verify -CAfile "$dir/ca/ca.crt" "$dir/server/server.crt" >/dev/null
-echo "Created the AquaPulse CA and server certificate in $dir"
+echo "Created the AquaPulse server certificate in $dir (if the stack is running: make down && make up)"
 echo "  CA fingerprint: $("$openssl_bin" x509 -in "$dir/ca/ca.crt" -noout -fingerprint -sha256 | cut -d= -f2)"
 echo "  Optional: make trust-ca  (your Mac's browsers then trust https://localhost:8443)"

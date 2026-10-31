@@ -68,9 +68,9 @@ jobs:
         working-directory: simulator
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.11.32"
+          version: "0.13.4"
       - name: Install exactly the locked versions
         run: uv sync --frozen
       - name: Lint (ruff)
@@ -84,9 +84,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.11.32"
+          version: "0.13.4"
       - name: Install exactly the locked versions
         run: |
           (cd simulator && uv sync --frozen)
@@ -108,9 +108,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.11.32"
+          version: "0.13.4"
       - name: Install exactly the locked versions
         working-directory: backend
         run: uv sync --frozen
@@ -179,7 +179,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.47.9"
           channel: stable
@@ -224,9 +224,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.11.32"
+          version: "0.13.4"
       - name: Install the simulator (its contract validator checks the messages)
         working-directory: simulator
         run: uv sync --frozen
@@ -253,9 +253,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.11.32"
+          version: "0.13.4"
       - name: Create .env (random secrets) and certificates, like on a developer's machine
         run: |
           make env

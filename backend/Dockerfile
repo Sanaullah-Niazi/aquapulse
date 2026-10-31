@@ -10,7 +10,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # uv installs exactly the versions in uv.lock (reproducible builds).
-RUN pip install --no-cache-dir uv==0.11.32
+RUN pip install --no-cache-dir uv==0.13.4
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

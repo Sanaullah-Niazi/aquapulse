@@ -112,16 +112,30 @@ jobs:
           mkdir -p docs/screenshots/hardware
           for node in tank-node home-node; do
             echo "== $node"
-            ~/.wokwi/bin/wokwi-cli --timeout 120000 \
-              --scenario demo.scenario.yaml \
-              --serial-log-file "$PWD/docs/screenshots/hardware/$node-serial.txt" \
-              "firmware/wokwi/$node" || status=1
             log="docs/screenshots/hardware/$node-serial.txt"
+            ok=0
+            # Up to 3 tries: the Wokwi cloud sometimes drops the connection.
+            for try in 1 2 3; do
+              if ~/.wokwi/bin/wokwi-cli --timeout 120000 \
+                --scenario demo.scenario.yaml \
+                --serial-log-file "$RUNNER_TEMP/$node.txt" \
+                "firmware/wokwi/$node"; then
+                ok=1
+                break
+              fi
+              sleep 10
+            done
             # Plain text for the repo's file checks: no CR, no trailing spaces, one final newline.
-            if [ -f "$log" ]; then
-              sed -i 's/\r$//; s/[[:space:]]*$//' "$log"
-              printf '%s\n' "$(cat "$log")" > "$log.tmp" && mv "$log.tmp" "$log"
-              cat "$log"
+            if [ -f "$RUNNER_TEMP/$node.txt" ]; then
+              sed -i 's/\r$//; s/[[:space:]]*$//' "$RUNNER_TEMP/$node.txt"
+              printf '%s\n' "$(cat "$RUNNER_TEMP/$node.txt")" > "$RUNNER_TEMP/$node.clean"
+              cat "$RUNNER_TEMP/$node.clean"
+            fi
+            # Only a passing run replaces the kept output.
+            if [ "$ok" = 1 ]; then
+              cp "$RUNNER_TEMP/$node.clean" "$log"
+            else
+              status=1
             fi
           done
           exit "${status:-0}"

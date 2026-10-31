@@ -6,9 +6,10 @@ Thanks for your interest! This project follows its [SRS](docs/SRS.md): every cha
 
 1. Open an issue (or pick one) and mention the requirement IDs.
 2. Create a branch: `git switch -c feat/fr-24-valve-lifecycle`.
-3. Make your change with tests. Run `make lint` (and `make test` once it exists).
+3. Make your change with tests. Run `make lint` and `make test`.
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/), e.g. `feat(api): valve command lifecycle (FR-24)`.
-5. Open a pull request and fill in the template.
+5. If you add or change tests for a requirement, run `make rtm` (CI checks the traceability matrix).
+6. Open a pull request and fill in the template.
 
 ## Rules
 

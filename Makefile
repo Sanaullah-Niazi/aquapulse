@@ -9,7 +9,7 @@
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
-	worker-logs bills problem alerts \
+	worker-logs bills problem alerts demo rtm zap \
 	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
 
 help: ## Show this help
@@ -148,6 +148,18 @@ demo-data: ## Load 90 days of demo history (safe to run again): make demo-data (
 		-e DEMO_TIMEZONE=Asia/Kuwait simulator aquapulse-sim backfill --days $(DAYS) \
 		| docker compose exec -T api python -m app.backfill --history-only
 
+demo: up ## M12: the whole demo in one command: stack, accounts, 90 days of history, bills (a few minutes)
+	@$(MAKE) --no-print-directory seed
+	@$(MAKE) --no-print-directory demo-data
+	@echo "Making, issuing and paying the last two months of bills..."
+	docker compose exec -T api python -m app.demo
+	@echo ""
+	@echo "Demo ready. Open https://localhost:8443/app/ and log in with (password = DEMO_PASSWORD in .env):"
+	@echo "  owner@example.com        Building Owner (two buildings: PKR and KWD)"
+	@echo "  resident01@example.com   Resident of unit 1 (up to resident10)"
+	@echo "  admin@example.com        System Admin (asks you to set up two-factor login first)"
+	@echo "Things to try: make leak · make problem · make valve-close DEVICE=home-b01-03"
+
 WHO ?= owner@example.com
 live: ## Print live events like an app sees them: make live (or WHO=resident03@example.com)
 	docker compose exec api python -m app.watch $(WHO)
@@ -276,5 +288,11 @@ firmware-secrets: certs ## Write firmware/include/secrets.h: make firmware-secre
 
 firmware-upload: ## Flash a real ESP32 over USB and show its output: make firmware-upload (or NODE=tank)
 	cd firmware && $(PIO) run -e $(or $(NODE),home)-node -t upload && $(PIO) device monitor
+
+zap: ## M12: OWASP ZAP baseline scan of the running web app (fails on High risk; make up first)
+	./scripts/zap-baseline.sh
+
+rtm: ## M12: rewrite docs/requirements-traceability.md (which tests prove each requirement)
+	python3 scripts/traceability.py
 
 test: sim-test api-test web-test app-test firmware-test ## Run all tests (grows with each milestone)

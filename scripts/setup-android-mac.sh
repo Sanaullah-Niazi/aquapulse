@@ -33,13 +33,16 @@ fi
 export ANDROID_HOME JAVA_HOME
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 
-# 4. The Android SDK pieces: platform 35, build tools, emulator and a phone image
+# 4. The Android SDK pieces: platforms, build tools, NDK, emulator and a phone image
 say "Downloading the Android SDK (a few GB, please wait)"
 SDK="sdkmanager --sdk_root=$ANDROID_HOME"
 yes | $SDK --licenses >/dev/null || true
 $SDK "cmdline-tools;latest" "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
      "platforms;android-36" "build-tools;36.0.0" "build-tools;28.0.3" \
-     "emulator" "system-images;android-35;google_apis;arm64-v8a"
+     "emulator" "system-images;android-35;google_apis;arm64-v8a" \
+     "ndk;28.2.13676358" "cmake;3.22.1"
+# (The NDK and CMake are here so the first `make apk` does not download about
+# 1 GB silently in the middle of the build, where a slow line can hang it.)
 
 # 5. Tell Flutter where things are, and accept the licences
 say "Setting up Flutter"

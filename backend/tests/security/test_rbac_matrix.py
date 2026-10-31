@@ -98,6 +98,8 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("PATCH", "/api/v1/buildings/{building_id}/alert-rules"): {OW},
     ("GET", "/api/v1/me/notifications"): ALL,
     ("PATCH", "/api/v1/me/notifications"): ALL,
+    ("POST", "/api/v1/me/push-devices"): ALL,
+    ("POST", "/api/v1/me/push-devices/forget"): ALL,
     # M8: two-factor login (FR-70) and the resident's screens (FR-48, FR-49)
     ("POST", "/api/v1/me/2fa/setup"): ALL,
     ("POST", "/api/v1/me/2fa/enable"): ALL,

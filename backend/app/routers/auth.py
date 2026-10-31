@@ -43,7 +43,7 @@ login_failures_by_ip = SlidingWindow(limit=5, window_s=15 * 60, max_events=20)
 BAD_LOGIN = "Wrong email or password"  # the same text whether or not the email exists
 NEED_CODE = "Two-factor code required"
 BAD_CODE = "Wrong two-factor code"
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 Config = Annotated[Settings, Depends(get_settings)]
 
 

@@ -29,7 +29,7 @@ from .admin import audit_query
 from .tariffs import currency_or_422
 
 router = APIRouter(tags=["buildings and homes"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOrAdmin = Annotated[Caller, Depends(require("owner", "sysadmin"))]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 AnyRole = Annotated[Caller, Depends(require("owner", "sysadmin", "resident"))]

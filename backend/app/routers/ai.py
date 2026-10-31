@@ -32,7 +32,7 @@ from ..schemas import (
 from .alerts import _resident_can_see
 
 router = APIRouter(tags=["ai"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 AnyRole = Annotated[Caller, Depends(require("owner", "sysadmin", "resident"))]
 OwnerOrAdmin = Annotated[Caller, Depends(require("owner", "sysadmin"))]
 

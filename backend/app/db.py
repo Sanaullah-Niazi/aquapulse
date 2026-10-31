@@ -37,7 +37,12 @@ def sessions() -> async_sessionmaker[AsyncSession]:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency: a session that commits if the request succeeds."""
+    """FastAPI dependency: a session that commits if the request succeeds.
+
+    Use it with scope="function": the commit then happens before the response
+    is sent, so a client that gets "201 Created" can use the new row at once.
+    (With FastAPI's default scope the commit ran after the response, and a
+    quick next request could get 404.)"""
     async with sessions()() as session:
         try:
             yield session

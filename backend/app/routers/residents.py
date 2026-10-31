@@ -21,7 +21,7 @@ from ..schemas import InvitationIn, InvitationOut, OccupancyOut, OccupancyPatch
 from ..security.tokens import new_opaque_token
 
 router = APIRouter(tags=["residents"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 
 

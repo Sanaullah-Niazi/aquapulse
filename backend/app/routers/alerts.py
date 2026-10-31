@@ -41,7 +41,7 @@ from ..schemas import (
 )
 
 router = APIRouter(tags=["alerts"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 AnyRole = Annotated[Caller, Depends(require("owner", "sysadmin", "resident"))]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 OwnerOrAdmin = Annotated[Caller, Depends(require("owner", "sysadmin"))]

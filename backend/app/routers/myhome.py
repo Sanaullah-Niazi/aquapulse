@@ -37,7 +37,7 @@ from ..models import Building, Currency, Home, Occupancy, Tariff
 from ..schemas import BillEstimateOut, ComparisonOut
 
 router = APIRouter(tags=["live data and consumption"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOrResident = Annotated[Caller, Depends(require("owner", "resident"))]
 
 MIN_HOMES_FOR_AVERAGE = 3  # FR-49 criterion 1

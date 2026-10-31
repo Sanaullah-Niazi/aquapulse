@@ -23,7 +23,7 @@ from ..models import Bill, Currency, Tariff, TariffCharge, TariffSlab
 from ..schemas import BillLineOut, PreviewOut, TariffIn, TariffOut, TariffPreviewIn, TariffRules
 
 router = APIRouter(tags=["billing: tariffs"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 
 

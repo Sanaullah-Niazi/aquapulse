@@ -40,7 +40,7 @@ from ..schemas import BrokerInfo, DeviceCredentialsOut, DeviceOut
 from ..security.mqtt_passwords import mosquitto_hash, new_password
 
 router = APIRouter(tags=["devices"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 
 CONFLICT = {409: {"description": "There is already an active device here"}}

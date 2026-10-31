@@ -40,7 +40,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
-from . import audit, db
+from . import audit, db, heartbeat
 from .alerts.deliver import deliver_due
 from .alerts.engine import AlertEngine
 from .alerts.store import audit_signal_saved
@@ -136,6 +136,10 @@ async def billing_forever() -> None:
             log.exception("round failed")
         else:
             HEARTBEAT.touch()
+            try:  # the health page reads this one (FR-55)
+                await heartbeat.beat("worker", {"last_round": {k: int(v) for k, v in done.items()}})
+            except Exception:
+                log.exception("heartbeat failed")
         await asyncio.sleep(max(1.0, TICK_S - (time.monotonic() - started)))
 
 

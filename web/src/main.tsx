@@ -11,6 +11,11 @@ import "./i18n";
 import "./styles.css";
 import "./theme";
 
+// A link straight to a page of the app on a static website comes back from
+// the website's 404 page as ?to=bills (scripts/web-site.sh). Open that page.
+const to = new URLSearchParams(window.location.search).get("to");
+if (to !== null) window.history.replaceState(null, "", BASE_PATH + to.replace(/^\/+/, ""));
+
 const queries = new QueryClient({
   defaultOptions: {
     queries: {

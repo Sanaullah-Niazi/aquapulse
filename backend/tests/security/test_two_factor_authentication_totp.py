@@ -155,3 +155,51 @@ async def test_swagger_authorize_takes_the_code_as_client_secret(client, make):
     form = {"username": owner.email, "password": PASSWORD, "client_secret": _code(secret, 1)}
     r = await client.post("/api/v1/auth/token", data=form)
     assert r.status_code == 200
+
+
+async def test_system_admins_must_turn_it_on(client, make, wait):
+    """FR-70: "System Admins must". Until they do, only their own account works."""
+    admin = await make.user("sysadmin", two_factor=False)
+    headers = await make.headers(admin)  # the password alone still logs in...
+    r = await client.get("/api/v1/admin/owners", headers=headers)
+    assert r.status_code == 403  # ...but nothing else works yet
+    assert r.headers["X-Two-Factor"] == "setup-required"
+    assert (await client.get("/api/v1/buildings", headers=headers)).status_code == 403
+    me = await client.get("/api/v1/me", headers=headers)
+    assert me.status_code == 200 and me.json()["two_factor"] is False
+
+    secret, _ = await _turn_on(client, make, admin)  # the same session goes on working
+    assert (await client.get("/api/v1/admin/owners", headers=headers)).status_code == 200
+
+    # And it stays on: a System Admin cannot switch it off.
+    wait()
+    r = await client.post("/api/v1/me/2fa/disable", headers=headers,
+                          json={"password": PASSWORD, "code": _code(secret)})  # fmt: skip
+    assert r.status_code == 409
+    assert "must keep" in r.json()["detail"]
+
+
+async def test_admins_are_made_and_reset_from_the_command_line(client, make, wait):
+    """`make admin` and `make admin-reset-2fa` (app/admins.py): the way to make a
+    System Admin, and the way back in for one who lost their phone."""
+    from app import admins
+
+    email = f"cli-admin-{time.time_ns()}@example.com"
+    assert "created" in await admins.add(email, "System Admin", PASSWORD)
+    assert "already has an account" in await admins.add(email, "System Admin", PASSWORD)
+    async with db.sessions()() as session:
+        admin = await session.scalar(select(User).where(User.email == email))
+    assert admin.role == "sysadmin" and admin.totp_enabled_at is None
+
+    await _turn_on(client, make, admin)
+    login = await client.post(LOGIN, json={"email": email, "password": PASSWORD})
+    assert login.status_code == 401  # a code is needed now
+
+    assert "reset" in await admins.reset_two_factor(email)
+    login = await client.post(LOGIN, json={"email": email, "password": PASSWORD})
+    assert login.status_code == 200  # the password alone logs in again, to set it up
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert (await client.get("/api/v1/admin/owners", headers=headers)).status_code == 403
+    assert "No System Admin" in await admins.reset_two_factor("nobody@example.com")
+    actions = await audit_actions(target_id=str(admin.id))
+    assert actions[0] == "admin.sysadmin_created" and "admin.2fa_reset" in actions

@@ -111,6 +111,8 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("GET", "/api/v1/buildings/{building_id}/overview"): {OW},
     ("GET", "/api/v1/buildings/{building_id}/export/{kind}.csv"): {OW},
     ("GET", "/api/v1/homes/{home_id}/export/{kind}.csv"): {OW, RE},
+    # M8 part 3: system health for System Admins (FR-55)
+    ("GET", "/api/v1/admin/health"): {SA},
 }
 
 

@@ -19,3 +19,22 @@ COMMAND_SECONDS = Histogram(
     buckets=(0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 15),
 )
 CONNECTED = Gauge("ingest_mqtt_connected", "1 while connected to the MQTT broker")
+
+
+def totals() -> dict:
+    """The counters so far (since this ingestor started), for its heartbeat (FR-55)."""
+
+    def counts(counter: Counter, label: str | None = None) -> dict[str, int]:
+        return {
+            (sample.labels[label] if label else "all"): int(sample.value)
+            for metric in counter.collect()
+            for sample in metric.samples
+            if sample.name.endswith("_total")
+        }
+
+    return {
+        "received": sum(counts(RECEIVED, "channel").values()),
+        "stored": sum(counts(STORED).values()),
+        "duplicates": sum(counts(DUPLICATES).values()),
+        "rejected": counts(REJECTED, "reason"),
+    }

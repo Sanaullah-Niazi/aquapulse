@@ -30,7 +30,7 @@ import aiomqtt
 from prometheus_client import start_http_server
 from sqlalchemy import text
 
-from .. import db
+from .. import db, heartbeat
 from .. import events as bus
 from ..config import get_settings
 from . import commands, metrics
@@ -52,6 +52,7 @@ BATCH_WAIT_S = 0.1
 COMMAND_TICK_S = 1.0
 QUEUE_LIMIT = 20_000  # when full, the reader waits: MQTT slows down instead of us losing data
 METRICS_PORT = 9100
+HEARTBEAT_S = 15  # how often the ingestor says "alive" in the database
 
 
 def mqtt_client(username: str, identifier: str, **options) -> aiomqtt.Client:
@@ -143,12 +144,17 @@ class Ingestor:
             # replayed to the device every time it reconnects.
             await client.publish(topic, payload, qos=1, retain=False, timeout=5)
 
+        last_beat = 0.0
         while True:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self.command_wake.wait(), COMMAND_TICK_S)
             self.command_wake.clear()
             await commands.expire()
             await commands.dispatch(publish)
+            if time.monotonic() - last_beat >= HEARTBEAT_S:
+                # Connected and working: tell the health page (FR-55).
+                await heartbeat.beat("ingestor", {"connected": True, **metrics.totals()})
+                last_beat = time.monotonic()
 
     # ----- connection handling -----
 

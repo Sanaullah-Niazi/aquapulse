@@ -473,10 +473,11 @@ fi
 # A real problem on demo unit 05: the simulator makes its water about 25 °C
 # hotter. The worker's rule engine must open ONE "temperature" alert, email
 # the owner (in Mailpit) and let the owner acknowledge and resolve it. Then
-# the System Admin checks the audit chain on demand.
+# the audit chain is checked, the System Admin must use 2FA (M8) and the
+# ingestor and worker must report they are alive (health page, M8).
 echo "  (alerts: waiting up to 2 minutes for 5 hot readings in a row...)"
 m7_out="$(docker compose exec -T api python - <<'PY' 2>&1
-import json, os, time, urllib.parse, urllib.request
+import json, os, time, urllib.error, urllib.parse, urllib.request
 from datetime import UTC, datetime
 
 API, SIM, MAIL = "http://127.0.0.1:8000/api/v1", "http://simulator:8090", "http://mailpit:8025"
@@ -527,9 +528,34 @@ else:
     acked = call("POST", f"/alerts/{alert['id']}/acknowledge", {}, token=owner)
     resolved = call("POST", f"/alerts/{alert['id']}/resolve", {"note": "smoke test"}, token=owner)
     print("CLOSED", acked["state"], resolved["state"])
-admin = login("admin@example.com")
-check = call("POST", "/admin/audit/verify", token=admin)
-print("AUDIT", check["ok"], check["entries"], check["seconds"])
+# FR-70 (M8): a System Admin must use two-factor login. The demo admin either
+# has it on (the password alone is refused) or not yet (only /me works).
+try:
+    admin = login("admin@example.com")
+    try:
+        call("GET", "/admin/health", token=admin)
+        print("ADMIN2FA not-enforced")
+    except urllib.error.HTTPError as err:
+        print("ADMIN2FA", "setup-required" if err.headers.get("X-Two-Factor") == "setup-required" else err.code)
+except urllib.error.HTTPError as err:
+    print("ADMIN2FA", "code-required" if err.headers.get("X-Two-Factor") == "required" else err.code)
+
+# The audit chain check and the services' heartbeats, read the way the API
+# does (the smoke test has no authenticator app for the admin's code).
+import asyncio
+from sqlalchemy import select
+from app import audit, db
+from app.models import ServiceHeartbeat
+
+async def inside():
+    async with db.sessions()() as session, session.begin():
+        check = await audit.check_chain(session)
+        print("AUDIT", check.ok, check.entries, check.seconds)
+        now = datetime.now(UTC)
+        for beat in await session.scalars(select(ServiceHeartbeat)):
+            print("BEAT", beat.service, round((now - beat.seen_at).total_seconds()))
+
+asyncio.run(inside())
 PY
 )"
 if grep -q "ALERT temp_abnormal warning open" <<<"$m7_out"; then
@@ -546,6 +572,19 @@ if grep -q "CLOSED acknowledged resolved" <<<"$m7_out"; then
   pass "Alerts: the owner acknowledged it, then resolved it"
 else
   fail "Alerts: acknowledge/resolve: $(grep CLOSED <<<"$m7_out" || tail -n 3 <<<"$m7_out")"
+fi
+read -r _ admin_2fa <<<"$(grep '^ADMIN2FA' <<<"$m7_out")"
+case "${admin_2fa:-}" in
+  setup-required) pass "System Admin: must turn on two-factor login before using the console (FR-70)" ;;
+  code-required) pass "System Admin: two-factor login is on, the password alone is refused (FR-70)" ;;
+  *) fail "System Admin: two-factor login is not enforced (${admin_2fa:-$(tail -n 3 <<<"$m7_out")})" ;;
+esac
+ingestor_age="$(awk '$1 == "BEAT" && $2 == "ingestor" {print $3}' <<<"$m7_out")"
+worker_age="$(awk '$1 == "BEAT" && $2 == "worker" {print $3}' <<<"$m7_out")"
+if [ -n "$ingestor_age" ] && [ "$ingestor_age" -le 60 ] && [ -n "$worker_age" ] && [ "$worker_age" -le 180 ]; then
+  pass "Health page: ingestor (${ingestor_age} s ago) and worker (${worker_age} s ago) report they are alive"
+else
+  fail "Health page: heartbeats missing or old (ingestor: ${ingestor_age:-none}, worker: ${worker_age:-none}; try: make logs)"
 fi
 read -r _ audit_ok audit_n audit_s <<<"$(grep '^AUDIT' <<<"$m7_out")"
 if [ "${audit_ok:-}" = "True" ]; then

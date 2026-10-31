@@ -41,7 +41,10 @@
     "ownerBills": "Bills",
     "tariffs": "Tariffs",
     "alertRules": "Alert rules",
-    "settings": "Building settings"
+    "settings": "Building settings",
+    "health": "System health",
+    "owners": "Owners and buildings",
+    "audit": "Audit log"
   },
   "roles": {
     "sysadmin": "System Admin",
@@ -259,7 +262,8 @@
     "recoveryDone": "I saved them",
     "turnOff": "Turn off two-factor login",
     "newCodes": "New recovery codes",
-    "disabled": "Two-factor login is off."
+    "disabled": "Two-factor login is off.",
+    "adminKeepsIt": "System Admins must keep two-factor login on. You can still make new recovery codes."
   },
   "notifications": {
     "title": "Notifications",
@@ -290,11 +294,6 @@
     "command_failed": "Valve command failed",
     "sensor_stuck": "Sensor stuck",
     "audit_chain": "Audit log changed"
-  },
-  "staff": {
-    "title": "Welcome, {{name}}",
-    "comingAdmin": "The System Admin console (system health, owners, audit log) is being built in a later part of this milestone. Until then, use Alerts and Profile here, and Swagger for the rest:",
-    "swagger": "Open the API (Swagger)"
   },
   "owner": {
     "building": "Building",
@@ -564,5 +563,107 @@
     "emailTo": "Email the {{who}} about {{severity}} alerts",
     "save": "Save rules",
     "saved": "Rules saved."
+  },
+  "admin": {
+    "setup": {
+      "title": "Turn on two-factor login",
+      "why": "System Admins must use two-factor login (FR-70). The console opens as soon as it is on.",
+      "step1": "Install a free authenticator app on your phone (Aegis, 2FAS, Google Authenticator or Microsoft Authenticator).",
+      "step2": "Type your password below, then scan the QR code with the app.",
+      "step3": "Type the 6-digit code the app shows, then save your 10 recovery codes somewhere safe."
+    },
+    "health": {
+      "title": "System health",
+      "allOk": "Everything is running.",
+      "notOk": "Something is down. See the red lines below.",
+      "services": "Services",
+      "service": {
+        "database": "Database (TimescaleDB)",
+        "broker": "MQTT broker (Mosquitto)",
+        "ingestor": "Ingestor (device messages in)",
+        "worker": "Worker (bills, alerts, emails)"
+      },
+      "up": "Up",
+      "down": "Down",
+      "devices": "Devices online",
+      "devicesSub": "Online / registered (not revoked)",
+      "readings": "Readings per minute",
+      "readingsSub": "Meter and tank readings stored in the last 60 s",
+      "rejected": "Refused messages",
+      "ofReceived": "of {{count}} received since the ingestor started",
+      "noIngestor": "The ingestor has not reported yet",
+      "emails": "Failed emails",
+      "emailsSub": "Not delivered after 3 retries, last 7 days",
+      "rejectedWhy": "Why messages were refused",
+      "noneRejected": "None refused since the ingestor started.",
+      "audit": "Audit log check",
+      "noCheck": "No check yet. The worker checks every day.",
+      "openAudit": "Open the audit log",
+      "backup": "Last backup",
+      "noBackup": "Automatic backups are not set up yet, so there is no backup to show.",
+      "failedEmails": "Emails that failed",
+      "noFailed": "No failed emails.",
+      "tries_one": "{{count}} try",
+      "tries_other": "{{count}} tries"
+    },
+    "owners": {
+      "title": "Owners and buildings",
+      "owners": "Owners",
+      "name": "Full name",
+      "email": "Email",
+      "buildings": "Buildings",
+      "status": "Status",
+      "actions": "Actions",
+      "active": "Active",
+      "disabled": "Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "disableWho": "Disable {{name}}",
+      "confirmDisable": "Yes, disable",
+      "disableHelp": "A disabled owner is logged out everywhere at once and cannot log in. Their buildings and data stay.",
+      "buildingsTitle": "Buildings",
+      "building": "Building",
+      "where": "Time zone",
+      "owner": "Owner",
+      "ownerOf": "Owner of {{name}}",
+      "newOwner": "Add an owner",
+      "firstPassword": "First password",
+      "passwordHelp": "Give it to the owner privately. They can change it in their profile.",
+      "made": "Owner {{email}} added.",
+      "create": "Add owner",
+      "newBuilding": "Add a building",
+      "createBuilding": "Add building",
+      "buildingMade": "Building {{name}} added."
+    },
+    "audit": {
+      "title": "Audit log",
+      "chain": "Is the log untouched?",
+      "chainHelp": "Each entry carries a hash of the one before it. Checking re-calculates every hash: one changed or removed entry breaks the chain.",
+      "verify": "Check the chain now",
+      "checking": "Checking…",
+      "chainOk": "Untouched: all {{count}} entries checked ({{when}}).",
+      "chainBroken": "Broken at entry #{{id}} ({{when}}): an entry was changed or removed.",
+      "took": "took {{seconds}} s",
+      "history": "Earlier checks",
+      "entries_one": "{{count}} entry",
+      "entries_other": "{{count}} entries",
+      "byAdmin": "by a System Admin",
+      "daily": "daily check",
+      "filters": "Filter the log",
+      "action": "Action (exact, e.g. auth.login)",
+      "since": "From",
+      "until": "To",
+      "search": "Show",
+      "none": "No entries match.",
+      "when": "When",
+      "who": "Who",
+      "target": "What",
+      "details": "Details",
+      "show": "Show",
+      "system": "System",
+      "newer": "Newer",
+      "older": "Older",
+      "page": "Entries {{from}} to {{to}}"
+    }
   }
 }

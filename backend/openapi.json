@@ -686,6 +686,33 @@
         ]
       }
     },
+    "/api/v1/admin/health": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Health",
+        "description": "Red or green for the database, the MQTT broker, the ingestor and the\nworker, plus devices online, readings per minute, refused messages, failed\nemails and the last audit check (FR-55, FR-31).",
+        "operationId": "health_api_v1_admin_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/owners": {
       "get": {
         "tags": [
@@ -7152,6 +7179,98 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "Every service is up"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceOut"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "devices_active": {
+            "type": "integer",
+            "title": "Devices Active",
+            "description": "Registered devices that are not revoked"
+          },
+          "devices_online": {
+            "type": "integer",
+            "title": "Devices Online"
+          },
+          "readings_last_minute": {
+            "type": "integer",
+            "title": "Readings Last Minute",
+            "description": "Meter and tank readings stored in 60 s"
+          },
+          "received_since_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received Since Start",
+            "description": "Messages the ingestor received"
+          },
+          "rejected_since_start": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Rejected Since Start",
+            "description": "Messages the ingestor refused, by reason (since it started)"
+          },
+          "notifications_failed_7d": {
+            "type": "integer",
+            "title": "Notifications Failed 7D",
+            "description": "Emails not delivered in the last 7 days"
+          },
+          "last_audit_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditVerifyOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_backup_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Backup At",
+            "description": "null: automatic backups are not set up yet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "services",
+          "devices_active",
+          "devices_online",
+          "readings_last_minute",
+          "received_since_start",
+          "rejected_since_start",
+          "notifications_failed_7d",
+          "last_audit_check"
+        ],
+        "title": "HealthOut",
+        "description": "GET /admin/health (FR-55, FR-31): what a System Admin checks first."
+      },
       "HomeIn": {
         "properties": {
           "unit_no": {
@@ -8833,6 +8952,44 @@
             "reason": "Recorded on the wrong bill"
           }
         ]
+      },
+      "ServiceOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "database, broker, ingestor or worker"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "In words, for the health page"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At",
+            "description": "Last heartbeat (ingestor, worker)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "ok",
+          "detail"
+        ],
+        "title": "ServiceOut"
       },
       "SlabIn": {
         "properties": {

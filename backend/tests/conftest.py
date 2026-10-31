@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -137,8 +137,13 @@ class Factory:
             session.add_all(objects)
         return objects[0] if len(objects) == 1 else objects
 
-    async def user(self, role: str = "owner", active: bool = True) -> User:
+    async def user(
+        self, role: str = "owner", active: bool = True, two_factor: bool | None = None
+    ) -> User:
+        """A user. System Admins have two-factor login on unless two_factor=False
+        (FR-70: they must); everyone else has it off unless two_factor=True."""
         email = f"{role}-{uuid.uuid4().hex[:10]}@example.com"
+        on = role == "sysadmin" if two_factor is None else two_factor
         return await self._add(
             User(
                 email=email,
@@ -146,6 +151,7 @@ class Factory:
                 role=role,
                 password_hash=_PASSWORD_HASH,
                 is_active=active,
+                totp_enabled_at=datetime.now(UTC) if on else None,
             )
         )
 
@@ -202,6 +208,13 @@ class Factory:
         return await self._add(Tank(building_id=building.id, capacity_l=5000, **values))
 
     async def tokens(self, user: User) -> dict:
+        if user.totp_enabled_at is not None:
+            # Two-factor users (every System Admin): the login itself, with its
+            # code, is tested in test_two_factor_authentication_totp.py. Here we
+            # only need a logged-in session, made the same way login makes one.
+            async with db.sessions()() as session, session.begin():
+                tokens = await auth.issue_tokens(session, get_settings(), user)
+            return tokens.model_dump()
         r = await self.client.post(
             "/api/v1/auth/login", json={"email": user.email, "password": PASSWORD}
         )

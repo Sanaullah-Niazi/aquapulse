@@ -1,35 +1,108 @@
-"""System Admin: owner accounts, the full audit log and its check (FR-20, FR-28,
-FR-55, FR-73), and emails that could not be delivered (FR-60)."""
+"""System Admin: system health, owner accounts, the full audit log and its
+check (FR-20, FR-28, FR-55, FR-73), and emails that could not be delivered (FR-60)."""
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit
 from ..alerts.store import audit_signal_saved
 from ..db import get_session
 from ..deps import Caller, require
-from ..models import AuditCheck, AuditEntry, Notification, User
+from ..models import AuditCheck, AuditEntry, Device, Notification, ServiceHeartbeat, User
 from ..schemas import (
     AuditOut,
     AuditVerifyOut,
+    HealthOut,
     NotificationOut,
     OwnerIn,
     OwnerPatch,
+    ServiceOut,
     UserOut,
 )
 from ..security.passwords import hash_password, password_problem
 from .auth import revoke_all_sessions
+from .health import broker_ok, database_ok
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Session = Annotated[AsyncSession, Depends(get_session)]
 Admin = Annotated[Caller, Depends(require("sysadmin"))]
+
+
+# A background service is "down" when its heartbeat is older than this.
+# The ingestor beats every 15 s, the worker after each 1-minute round.
+STALE = {"ingestor": timedelta(seconds=60), "worker": timedelta(minutes=3)}
+
+
+def _service(name: str, beat: ServiceHeartbeat | None, now: datetime) -> ServiceOut:
+    if beat is None:
+        return ServiceOut(name=name, ok=False, detail="Never reported. Is it running?")
+    age = (now - beat.seen_at).total_seconds()
+    if age > STALE[name].total_seconds():
+        return ServiceOut(name=name, ok=False, seen_at=beat.seen_at,
+                          detail=f"No sign of life for {age / 60:.0f} min")  # fmt: skip
+    return ServiceOut(name=name, ok=True, seen_at=beat.seen_at, detail=f"Alive ({age:.0f} s ago)")
+
+
+@router.get("/health", response_model=HealthOut)
+async def health(session: Session, caller: Admin):
+    """Red or green for the database, the MQTT broker, the ingestor and the
+    worker, plus devices online, readings per minute, refused messages, failed
+    emails and the last audit check (FR-55, FR-31)."""
+    now = datetime.now(UTC)
+    db_up, broker_up = await asyncio.gather(database_ok(), broker_ok())
+    beats = {b.service: b for b in await session.scalars(select(ServiceHeartbeat))}
+    ingestor = beats.get("ingestor")
+    services = [
+        ServiceOut(name="database", ok=db_up, detail="Answers" if db_up else "Not reachable"),
+        ServiceOut(
+            name="broker",
+            ok=broker_up,
+            detail="TLS connection works" if broker_up else "Not reachable",
+        ),
+        _service("ingestor", ingestor, now),
+        _service("worker", beats.get("worker"), now),
+    ]
+    active, online = (
+        await session.execute(
+            select(func.count(), func.count().filter(Device.online)).where(
+                Device.status == "active"
+            )
+        )
+    ).one()
+    minute_ago = now - timedelta(seconds=60)
+    readings = await session.scalar(
+        text(
+            "SELECT (SELECT count(*) FROM telemetry WHERE time >= :t)"
+            " + (SELECT count(*) FROM tank_readings WHERE time >= :t)"
+        ),
+        {"t": minute_ago},
+    )
+    failed = await session.scalar(
+        select(func.count()).where(
+            Notification.status == "failed", Notification.created_at >= now - timedelta(days=7)
+        )
+    )
+    check = await session.scalar(select(AuditCheck).order_by(AuditCheck.at.desc()).limit(1))
+    details = ingestor.details if ingestor else {}
+    return HealthOut(
+        ok=all(s.ok for s in services),
+        services=services,
+        devices_active=active,
+        devices_online=online,
+        readings_last_minute=readings or 0,
+        received_since_start=details.get("received"),
+        rejected_since_start=details.get("rejected", {}),
+        notifications_failed_7d=failed or 0,
+        last_audit_check=AuditVerifyOut.model_validate(check) if check else None,
+    )
 
 
 @router.get("/owners", response_model=list[UserOut])

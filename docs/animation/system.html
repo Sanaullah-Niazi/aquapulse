@@ -1,9 +1,14 @@
 <!doctype html>
 <!--
-  AquaPulse, the whole system in one moving picture (an illustration).
-  The roof tank and the pump follow the real Wokwi run of the tank node
-  firmware (docs/screenshots/hardware/tank-node-serial.txt): pump on at 15 %,
-  off at 96 %, stays off in between (hysteresis), on again when low.
+  AquaPulse in one moving picture (an illustration, about 34 seconds).
+  Four scenes, each a real feature of AquaPulse:
+    1. Tank and pump: the roof tank and pump follow the real Wokwi run of the
+       tank node firmware (docs/screenshots/hardware/tank-node-serial.txt):
+       pump on below 25 %, off at 96 %, nothing switches in between.
+    2. Leak at night: the AI leak detector (app/ai/leak.py) and the automatic
+       shut-off (app/ai/shutoff.py, FR-61) close the valve and tell the owner.
+    3. Water quality: the "pH unsafe" alert rule (pH outside 6.5 to 8.5).
+    4. Monthly bill: a slab bill (the demo's real September bill) is paid.
   render(t) draws the picture at t seconds; `make animation` turns it into
   docs/screenshots/animation/aquapulse-system.gif.
 -->
@@ -12,157 +17,150 @@
 <meta charset="utf-8">
 <title>AquaPulse system</title>
 <style>
-  html, body { margin: 0; background: #ffffff; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  html, body { margin: 0; background: #fff; font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   svg { display: block; }
   .h { fill: #0b2540; font-weight: 800; }
   .t { fill: #1f2d3d; font-weight: 700; font-size: 13px; }
   .s { fill: #5b6b7c; font-size: 11px; }
-  .w { fill: #ffffff; }
+  .w { fill: #fff; }
 </style>
 </head>
 <body>
 <svg id="pic" width="1200" height="675" viewBox="0 0 1200 675" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#dff1fb"/><stop offset="1" stop-color="#f7fbfe"/>
+      <stop offset="0" stop-color="#d7eefb"/><stop offset="1" stop-color="#f6fbfe"/>
+    </linearGradient>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1f3a"/><stop offset="1" stop-color="#27466e"/>
     </linearGradient>
     <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#6cc4f0"/><stop offset="1" stop-color="#1f8fd1"/>
     </linearGradient>
-    <linearGradient id="cloud" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1479b8"/><stop offset="1" stop-color="#0b4f7c"/>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1689c9"/><stop offset="1" stop-color="#0b4f7c"/>
     </linearGradient>
     <linearGradient id="soil" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d9cdb4"/><stop offset="1" stop-color="#c4b490"/>
+      <stop offset="0" stop-color="#dccfb5"/><stop offset="1" stop-color="#c2b08b"/>
     </linearGradient>
     <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0b2540" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0b2540" flood-opacity="0.18"/>
     </filter>
-    <clipPath id="roofClip"><rect x="232" y="96" width="156" height="62" rx="10"/></clipPath>
-    <clipPath id="sumpClip"><rect x="40" y="560" width="150" height="62" rx="10"/></clipPath>
-    <clipPath id="ownerScreen"><rect x="0" y="0" width="150" height="250" rx="10"/></clipPath>
+    <clipPath id="roofClip"><rect x="232" y="104" width="156" height="58" rx="10"/></clipPath>
+    <clipPath id="sumpClip"><rect x="40" y="566" width="150" height="58" rx="10"/></clipPath>
   </defs>
 
   <rect width="1200" height="675" fill="url(#sky)"/>
-  <circle cx="560" cy="120" r="34" fill="#ffe08a" opacity="0.9"/>
-  <!-- title -->
-  <text x="32" y="46" class="h" font-size="26">AquaPulse</text>
-  <text x="186" y="46" fill="#1479b8" font-size="20" font-weight="700">smart water for a whole building</text>
-  <text x="32" y="68" class="s" font-size="12">Illustration. The roof tank and pump follow the real ESP32 firmware running in the Wokwi simulator.</text>
+  <rect id="nightSky" width="1200" height="675" fill="url(#night)" opacity="0"/>
+  <g id="stars"></g>
+  <circle id="sun" cx="575" cy="128" r="30" fill="#ffd96a"/>
+  <circle id="moon" cx="575" cy="128" r="24" fill="#f4f1de" opacity="0"/>
+
+  <!-- top bar: title and the four scenes -->
+  <g id="topbar">
+    <rect x="0" y="0" width="1200" height="64" fill="#ffffff" opacity="0.92"/>
+    <g transform="translate(28,16)">
+      <path d="M16,0 C16,0 2,16 2,24 a14,14 0 0 0 28,0 C30,16 16,0 16,0Z" fill="url(#brand)"/>
+      <path d="M10,24 a6,6 0 0 0 6,6" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </g>
+    <text x="68" y="40" class="h" font-size="24">AquaPulse</text>
+    <text x="210" y="40" fill="#1479b8" font-size="14" font-weight="600">smart water for a whole building</text>
+    <g id="steps"></g>
+  </g>
 
   <!-- ground -->
-  <rect x="0" y="540" width="640" height="135" fill="url(#soil)"/>
-  <rect x="0" y="536" width="640" height="6" fill="#8fbf6a"/>
+  <rect x="0" y="546" width="640" height="129" fill="url(#soil)"/>
+  <rect x="0" y="542" width="640" height="6" fill="#8fbf6a"/>
 
-  <!-- sump -->
-  <rect x="40" y="560" width="150" height="62" rx="10" fill="#fff" stroke="#7b8794" stroke-width="2"/>
-  <g clip-path="url(#sumpClip)"><rect x="40" y="574" width="150" height="48" fill="url(#water)"/></g>
-  <text x="44" y="642" class="t">Underground sump</text>
-  <text x="44" y="658" class="s">float switch: water there</text>
-
-  <!-- pump -->
-  <line x1="115" y1="560" x2="115" y2="530" stroke="#7b8794" stroke-width="7"/>
-  <g transform="translate(115,505)" filter="url(#sh)">
-    <circle r="26" fill="#fff" stroke="#7b8794" stroke-width="2"/>
+  <!-- sump and pump -->
+  <rect x="40" y="566" width="150" height="58" rx="10" fill="#fff" stroke="#7b8794" stroke-width="2"/>
+  <g clip-path="url(#sumpClip)"><rect x="40" y="580" width="150" height="44" fill="url(#water)"/></g>
+  <text x="44" y="644" class="t" font-size="12">Underground sump</text>
+  <text x="44" y="659" class="s" font-size="10">float switch: water there</text>
+  <line x1="115" y1="566" x2="115" y2="536" stroke="#7b8794" stroke-width="7"/>
+  <g transform="translate(115,511)" filter="url(#sh)">
+    <circle r="25" fill="#fff" stroke="#7b8794" stroke-width="2"/>
     <g id="impeller">
-      <path d="M0,-17 C6,-8 6,8 0,17 C-6,8 -6,-8 0,-17Z" fill="#1479b8"/>
-      <path d="M-17,0 C-8,6 8,6 17,0 C8,-6 -8,-6 -17,0Z" fill="#1479b8"/>
+      <path d="M0,-16 C6,-8 6,8 0,16 C-6,8 -6,-8 0,-16Z" fill="#1479b8"/>
+      <path d="M-16,0 C-8,6 8,6 16,0 C8,-6 -8,-6 -16,0Z" fill="#1479b8"/>
     </g>
   </g>
-  <g transform="translate(205,550)">
-    <rect id="pumpTag" width="78" height="26" rx="13" fill="#e5e9ee"/>
+  <g transform="translate(205,556)">
+    <rect id="pumpTag" width="80" height="26" rx="13" fill="#e5e9ee"/>
     <circle id="pumpLed" cx="14" cy="13" r="5" fill="#9aa5b1"/>
     <text id="pumpWord" x="25" y="17" class="t" font-size="12">Pump off</text>
   </g>
-
-  <!-- rising pipe -->
-  <path id="upPipe" d="M115,479 L115,128 L232,128" fill="none" stroke="#9aa5b1" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
+  <path id="upPipe" d="M115,486 L115,134 L232,134" fill="none" stroke="#9aa5b1" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
   <g id="upDots"></g>
 
   <!-- building -->
-  <rect x="220" y="168" width="330" height="372" rx="6" fill="#fdfdfd" stroke="#c9d1d9" stroke-width="2" filter="url(#sh)"/>
-  <rect x="220" y="168" width="330" height="10" fill="#c9d1d9"/>
-  <!-- roof tank -->
-  <rect x="226" y="158" width="168" height="10" fill="#7b8794"/>
-  <rect x="232" y="96" width="156" height="62" rx="10" fill="#fff" stroke="#7b8794" stroke-width="2" filter="url(#sh)"/>
-  <g clip-path="url(#roofClip)"><rect id="roofWater" x="232" y="140" width="156" height="18" fill="url(#water)"/></g>
-  <text id="roofPct" x="310" y="134" text-anchor="middle" class="h" font-size="22">16%</text>
-  <rect x="299" y="86" width="22" height="10" rx="2" fill="#1f2d3d"/>
+  <rect x="220" y="174" width="330" height="372" rx="6" fill="#fdfdfd" stroke="#c9d1d9" stroke-width="2" filter="url(#sh)"/>
+  <rect x="226" y="164" width="168" height="10" fill="#7b8794"/>
+  <rect x="232" y="104" width="156" height="58" rx="10" fill="#fff" stroke="#7b8794" stroke-width="2" filter="url(#sh)"/>
+  <g clip-path="url(#roofClip)"><rect id="roofWater" x="232" y="150" width="156" height="12" fill="url(#water)"/></g>
+  <text id="roofPct" x="310" y="141" text-anchor="middle" class="h" font-size="22">16%</text>
+  <rect x="299" y="95" width="22" height="9" rx="2" fill="#1f2d3d"/>
   <g id="ping"></g>
-  <text x="400" y="112" class="t">Roof tank</text>
-  <text x="400" y="128" class="s">level sensor + ESP32</text>
-
-  <!-- down pipe -->
-  <path d="M262,168 L262,520" stroke="#9aa5b1" stroke-width="7" fill="none"/>
+  <text id="roofLabel" x="400" y="120" class="t">Roof tank</text>
+  <text id="roofLabel2" x="400" y="136" class="s">level sensor + ESP32</text>
+  <path d="M262,174 L262,526" stroke="#9aa5b1" stroke-width="7" fill="none"/>
   <g id="homes"></g>
 
   <!-- cloud -->
-  <g transform="translate(690,250)" filter="url(#sh)">
-    <path d="M30,90 C0,90 0,52 28,48 C30,20 66,10 84,30 C100,6 146,14 146,46 C176,46 182,90 150,90 Z" fill="url(#cloud)"/>
-    <text x="90" y="62" text-anchor="middle" class="w" font-size="16" font-weight="800">AquaPulse</text>
-    <text x="90" y="80" text-anchor="middle" fill="#cfe8f7" font-size="10">secure MQTT · AI · bills</text>
+  <g transform="translate(680,258)" filter="url(#sh)">
+    <path d="M30,92 C0,92 0,54 28,50 C30,22 66,12 84,32 C100,8 148,16 148,48 C178,48 184,92 152,92 Z" fill="url(#brand)"/>
+    <text x="92" y="62" text-anchor="middle" class="w" font-size="16" font-weight="800">AquaPulse</text>
+    <text x="92" y="79" text-anchor="middle" fill="#cfe8f7" font-size="10">MQTT over TLS · AI · bills</text>
   </g>
-  <text x="604" y="236" class="s">every reading, encrypted</text>
+  <text id="cloudNote" x="660" y="250" class="s">every reading, encrypted</text>
   <g id="packets"></g>
+  <g id="aiBadge"></g>
 
   <!-- resident -->
-  <g transform="translate(690,352)">
+  <g transform="translate(676,356)">
     <circle cx="40" cy="22" r="18" fill="#f2c7a5"/>
     <path d="M16,10 C18,-6 62,-6 64,12 C56,4 30,2 16,10Z" fill="#3b2a20"/>
     <path d="M6,110 C6,62 74,62 74,110 Z" fill="#2da44e"/>
-    <g transform="translate(78,26)" filter="url(#sh)">
-      <rect width="116" height="190" rx="14" fill="#1f2d3d"/>
-      <rect x="6" y="12" width="104" height="166" rx="8" fill="#fff"/>
-      <text x="13" y="30" class="t" font-size="10">My home</text>
-      <text x="13" y="48" class="s" font-size="9">Used today</text>
-      <text id="resToday" x="13" y="64" class="h" font-size="15">452 L</text>
-      <text x="13" y="82" class="s" font-size="9">Water quality</text>
-      <text x="13" y="97" fill="#1a7f37" font-size="12" font-weight="700">pH 7.1 · safe</text>
-      <text x="13" y="115" class="s" font-size="9">Bill so far</text>
-      <text id="resBill" x="13" y="130" class="h" font-size="13">Rs 1,114</text>
-      <rect id="resTapBox" x="13" y="148" width="90" height="18" rx="9" fill="#e8f4fb"/>
-      <text id="resTap" x="58" y="160" text-anchor="middle" fill="#1479b8" font-size="9" font-weight="700">tap closed</text>
+    <text id="resLabel" x="0" y="132" class="t">Resident</text>
+    <text id="resLabel2" x="0" y="148" class="s">own water,</text>
+    <text id="resLabel3" x="0" y="162" class="s">quality, bills</text>
+    <g transform="translate(82,22)" filter="url(#sh)">
+      <rect width="124" height="204" rx="16" fill="#1f2d3d"/>
+      <rect x="6" y="12" width="112" height="180" rx="9" fill="#fff"/>
+      <g id="resScreen"></g>
     </g>
-    <text x="0" y="132" class="t">Resident</text>
-    <text x="0" y="148" class="s">own water,</text>
-    <text x="0" y="162" class="s">quality, bills</text>
   </g>
 
   <!-- owner -->
-  <g transform="translate(960,200)">
+  <g transform="translate(944,92)">
     <circle cx="40" cy="22" r="18" fill="#d9a17e"/>
     <path d="M18,14 C20,-4 60,-4 62,14 C52,8 28,8 18,14Z" fill="#1f2d3d"/>
     <path d="M6,110 C6,62 74,62 74,110 Z" fill="#1479b8"/>
-    <g transform="translate(0,124)" filter="url(#sh)">
-      <rect width="190" height="196" rx="12" fill="#1f2d3d"/>
-      <rect x="7" y="10" width="176" height="176" rx="8" fill="#fff"/>
-      <text x="16" y="28" class="t" font-size="11">Owner · Demo Tower</text>
-      <text x="16" y="46" class="s" font-size="9">Roof tank</text>
-      <rect x="16" y="52" width="110" height="12" rx="6" fill="#e5e9ee"/>
-      <rect id="ownBar" x="16" y="52" width="18" height="12" rx="6" fill="#1f8fd1"/>
-      <text id="ownPct" x="134" y="62" class="t" font-size="11">16%</text>
-      <text x="16" y="82" class="s" font-size="9">Pump (auto)</text>
-      <text id="ownPump" x="16" y="97" class="t" font-size="12">off</text>
-      <text x="104" y="82" class="s" font-size="9">Homes using</text>
-      <text id="ownUsing" x="104" y="97" class="t" font-size="12">0 of 10</text>
-      <text x="16" y="116" class="s" font-size="9">Building, litres per minute</text>
-      <polyline id="chart" fill="none" stroke="#1479b8" stroke-width="2" stroke-linejoin="round" points=""/>
+    <text id="ownLabel" x="88" y="38" class="t">Building owner</text>
+    <text id="ownLabel2" x="88" y="54" class="s">whole building, tank,</text>
+    <text id="ownLabel3" x="88" y="68" class="s">tariffs, bills, alerts</text>
+    <g transform="translate(-6,124)" filter="url(#sh)">
+      <rect width="226" height="216" rx="14" fill="#1f2d3d"/>
+      <rect x="8" y="10" width="210" height="196" rx="9" fill="#fff"/>
+      <g id="ownScreen"></g>
     </g>
-    <text x="86" y="40" class="t">Building owner</text>
-    <text x="86" y="56" class="s">whole building,</text>
-    <text x="86" y="70" class="s">tank, tariffs, bills</text>
   </g>
 
   <!-- caption -->
-  <g transform="translate(660,600)">
-    <rect width="512" height="54" rx="12" fill="#0b2540" opacity="0.92"/>
-    <circle id="capDot" cx="22" cy="27" r="7" fill="#2da44e"/>
-    <text id="caption" x="40" y="24" class="w" font-size="15" font-weight="700"></text>
-    <text id="caption2" x="40" y="42" fill="#cfe8f7" font-size="11"></text>
+  <g transform="translate(652,602)">
+    <rect width="524" height="56" rx="14" fill="#0b2540" opacity="0.94"/>
+    <circle id="capDot" cx="24" cy="28" r="7" fill="#2da44e"/>
+    <text id="caption" x="42" y="25" class="w" font-size="15" font-weight="700"></text>
+    <text id="caption2" x="42" y="44" fill="#cfe8f7" font-size="11"></text>
   </g>
+
+  <!-- notifications slide over everything -->
+  <g id="toasts"></g>
+  <!-- end card -->
+  <g id="endCard"></g>
 </svg>
 <script>
-const LOOP = 16; // seconds, then it repeats
+const LOOP = 34;
 const NS = "http://www.w3.org/2000/svg";
 const el = (id) => document.getElementById(id);
 function mk(tag, attrs, parent, text) {
@@ -172,49 +170,121 @@ function mk(tag, attrs, parent, text) {
   parent.appendChild(e);
   return e;
 }
-const lerp = (a, b, f) => a + (b - a) * Math.min(1, Math.max(0, f));
-const ease = (f) => 0.5 - Math.cos(Math.PI * Math.min(1, Math.max(0, f))) / 2;
+const clamp = (f) => Math.min(1, Math.max(0, f));
+const lerp = (a, b, f) => a + (b - a) * clamp(f);
+const ease = (f) => 0.5 - Math.cos(Math.PI * clamp(f)) / 2;
+const fmt = (n, d = 0) => n.toLocaleString("en", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-// The Wokwi run, step by step: level %, pump, caption.
-function state(t) {
-  if (t < 2) return { level: 15, pump: false, c: "Roof tank low: 15 %", c2: "The tank's ESP32 measures the water level every second." };
-  if (t < 7.5) return { level: lerp(15, 96, ease((t - 2) / 5.5)), pump: true, c: "Pump ON by itself", c2: "Below 25 % and the sump has water: the ESP32 decides, even offline." };
-  if (t < 9.5) return { level: 96, pump: false, c: "Pump OFF at 96 %", c2: "Full: it stops before the tank can overflow." };
-  if (t < 13.5) return { level: lerp(96, 40, ease((t - 9.5) / 4)), pump: false, c: "Families use water, the pump waits", c2: "Between 25 % and 95 % nothing switches: no rapid on/off." };
-  if (t < 14.5) return { level: lerp(40, 15, ease(t - 13.5)), pump: false, c: "Families use water, the pump waits", c2: "Between 25 % and 95 % nothing switches: no rapid on/off." };
-  return { level: 15, pump: false, c: "Everyone sees it live", c2: "Residents see their own water and bill; the owner sees the building." };
+const SCENES = [
+  { from: 0, to: 9, name: "Tank and pump" },
+  { from: 9, to: 17.5, name: "Leak at night" },
+  { from: 17.5, to: 23.5, name: "Water quality" },
+  { from: 23.5, to: 30, name: "Monthly bill" },
+];
+const sceneOf = (t) => SCENES.findIndex((s) => t >= s.from && t < s.to);
+
+// Scene 1, the Wokwi run of the tank node, step by step.
+function tank(t) {
+  if (t < 1.2) return { level: 15, pump: false };
+  if (t < 6) return { level: lerp(15, 96, ease((t - 1.2) / 4.8)), pump: true };
+  if (t < 7.2) return { level: 96, pump: false };
+  if (t < 9) return { level: lerp(96, 70, ease((t - 7.2) / 1.8)), pump: false };
+  return { level: lerp(70, 62, (t - 9) / 21), pump: false };
 }
 
 const homes = [
-  { y: 222, name: "Unit 01", open: [[2.5, 6], [10, 14]], hair: "#3b2a20", shirt: "#2da44e" },
-  { y: 300, name: "Unit 02", open: [[9.5, 15]], hair: "#a0522d", shirt: "#d4556b" },
-  { y: 378, name: "Unit 03", open: [[0.5, 3.5], [11, 14.5]], hair: "#1f2d3d", shirt: "#8250df" },
-  { y: 456, name: "Unit 04", open: [[5, 8], [12, 15]], hair: "#c9a227", shirt: "#bf8700" },
+  { y: 228, name: "Unit 01", hair: "#3b2a20", shirt: "#2da44e", open: [[1, 4], [7.5, 9]] },
+  { y: 306, name: "Unit 02", hair: "#a0522d", shirt: "#d4556b", open: [[3, 6.5], [24, 27]] },
+  { y: 384, name: "Unit 03", hair: "#1f2d3d", shirt: "#8250df", open: [[0.4, 2.5], [5, 8]] },
+  { y: 462, name: "Unit 04", hair: "#c9a227", shirt: "#bf8700", open: [[2, 5.5], [18, 20.5]] },
 ];
-const isOpen = (h, t) => h.open.some(([a, b]) => t >= a && t < b);
-const usedBy = (h, t) => h.open.reduce((s, [a, b]) => s + Math.max(0, Math.min(t, b) - a), 0);
+const night = (t) => (t < 9 ? 0 : t < 10 ? t - 9 : t < 16.8 ? 1 : t < 17.6 ? 1 - (t - 16.8) / 0.8 : 0);
+// Scene 2: Unit 03 has a leak (water runs all night) until the valve closes.
+const LEAK = { start: 9.6, ai: 12.0, close: 14.2 };
+const leaking = (t) => t >= LEAK.start && t < LEAK.close;
+const valveClosed = (i, t) => i === 2 && t >= LEAK.close && t < 17.5;
+const isOpen = (h, i, t) => (i === 2 && leaking(t)) || (!valveClosed(i, t) && night(t) < 0.5 && h.open.some(([a, b]) => t >= a && t < b));
+// Scene 3: pH in Unit 02 drifts up.
+const phOf = (i, t) => (i === 1 ? (t < 18.2 ? 7.2 : t < 23.5 ? lerp(7.2, 9.2, (t - 18.2) / 1.6) : 7.2) : [7.1, 7.2, 7.0, 7.3][i]);
+const phBad = (i, t) => phOf(i, t) > 8.5;
 
-function person(g, x, y, hair, shirt, s = 1) {
-  mk("path", { d: `M${x - 13 * s},${y + 30 * s} C${x - 13 * s},${y + 10 * s} ${x + 13 * s},${y + 10 * s} ${x + 13 * s},${y + 30 * s} Z`, fill: shirt }, g);
-  mk("circle", { cx: x, cy: y, r: 8 * s, fill: "#f2c7a5" }, g);
-  mk("path", { d: `M${x - 8 * s},${y - 2 * s} C${x - 7 * s},${y - 12 * s} ${x + 7 * s},${y - 12 * s} ${x + 8 * s},${y - 2 * s} C${x + 3 * s},${y - 6 * s} ${x - 3 * s},${y - 6 * s} ${x - 8 * s},${y - 2 * s}Z`, fill: hair }, g);
+function person(g, x, y, hair, shirt) {
+  mk("path", { d: `M${x - 13},${y + 30} C${x - 13},${y + 10} ${x + 13},${y + 10} ${x + 13},${y + 30} Z`, fill: shirt }, g);
+  mk("circle", { cx: x, cy: y, r: 8, fill: "#f2c7a5" }, g);
+  mk("path", { d: `M${x - 8},${y - 2} C${x - 7},${y - 12} ${x + 7},${y - 12} ${x + 8},${y - 2} C${x + 3},${y - 6} ${x - 3},${y - 6} ${x - 8},${y - 2}Z`, fill: hair }, g);
+}
+
+function toast(parent, x, y, w, appear, t, icon, color, title, body) {
+  if (t < appear) return;
+  const k = ease((t - appear) / 0.45);
+  const g = mk("g", { transform: `translate(${x},${y - 18 * (1 - k)})`, opacity: k }, parent);
+  mk("rect", { width: w, height: 50, rx: 12, fill: "#ffffff", stroke: color, "stroke-width": 2, filter: "url(#sh)" }, g);
+  mk("circle", { cx: 22, cy: 25, r: 12, fill: color }, g);
+  mk("text", { x: 22, y: 30, "text-anchor": "middle", fill: "#fff", "font-size": 13, "font-weight": 800 }, g, icon);
+  mk("text", { x: 42, y: 21, class: "t", "font-size": 11.5 }, g, title);
+  mk("text", { x: 42, y: 37, class: "s", "font-size": 10 }, g, body);
+}
+
+function captionOf(t) {
+  const s = tank(t);
+  if (t < 1.2) return ["Roof tank low: 15 %", "The tank's ESP32 measures the level every second.", "#f0b429"];
+  if (t < 6) return ["Pump ON by itself", "Below 25 % with water in the sump: the ESP32 decides, even offline.", "#2da44e"];
+  if (t < 7.2) return ["Pump OFF at 96 %", "Full: it stops before the tank can overflow.", "#1f8fd1"];
+  if (t < 9) return ["Families use water, the pump waits", "Between 25 % and 95 % nothing switches: no rapid on/off.", "#f0b429"];
+  if (t < LEAK.ai) return ["2 a.m.: water keeps running in Unit 03", "Every home's meter reports its flow, day and night.", "#f0b429"];
+  if (t < LEAK.close) return ["The AI spots a leak", "Water ran all night with no break: a leak, 92 % sure.", "#cf222e"];
+  if (t < 17.5) return ["Valve closed automatically", "Auto shut-off is on for this home: the owner gets a push alert.", "#2da44e"];
+  if (t < 19.8) return ["Water quality is checked all the time", "pH and temperature in every home.", "#1f8fd1"];
+  if (t < 23.5) return ["pH 9.2 in Unit 02: unsafe", "Outside 6.5 to 8.5 for 5 readings in a row: a critical alert.", "#cf222e"];
+  if (t < 26.5) return ["Monthly bills, by slabs", "The owner sets the slab prices; bills come as PDF, in 11 currencies.", "#1f8fd1"];
+  if (t < 30) return ["Paid", "Card (Stripe, test mode) or cash at the office.", "#2da44e"];
+  return ["", "", "#2da44e"];
 }
 
 function render(t) {
   t = ((t % LOOP) + LOOP) % LOOP;
-  const s = state(t);
-  const h = (62 * s.level) / 100;
-  el("roofWater").setAttribute("y", 158 - h - Math.sin(t * 6) * 0.8);
+  const sc = sceneOf(t);
+  const n = night(t);
+  const s = tank(t);
+
+  // sky
+  el("nightSky").setAttribute("opacity", n);
+  el("sun").setAttribute("opacity", 1 - n);
+  el("moon").setAttribute("opacity", n);
+  const stars = el("stars");
+  stars.innerHTML = "";
+  if (n > 0) for (const [x, y] of [[40, 90], [120, 160], [470, 92], [620, 200], [820, 110], [900, 70], [1040, 300], [1150, 120], [760, 340], [560, 260]])
+    mk("circle", { cx: x, cy: y, r: 1.6, fill: "#fff", opacity: n * (0.6 + 0.4 * Math.sin(t * 3 + x)) }, stars);
+  const txt = n > 0.5 ? "#e8f1fa" : null;
+  for (const id of ["roofLabel", "cloudNote", "ownLabel"]) el(id).setAttribute("style", txt ? `fill:${txt}` : "");
+  for (const id of ["roofLabel2", "resLabel2", "resLabel3", "ownLabel2", "ownLabel3"]) el(id).setAttribute("style", txt ? "fill:#b9cde2" : "");
+  el("resLabel").setAttribute("style", txt ? `fill:${txt}` : "");
+
+  // scene steps
+  const steps = el("steps");
+  steps.innerHTML = "";
+  SCENES.forEach((scene, i) => {
+    const x = 520 + i * 166;
+    const on = i === sc;
+    const done = sc > i || t >= 30;
+    mk("rect", { x, y: 18, width: 156, height: 30, rx: 15, fill: on ? "#0b4f7c" : done ? "#d7eefb" : "#eef2f6" }, steps);
+    mk("circle", { cx: x + 17, cy: 33, r: 9, fill: on ? "#fff" : done ? "#1479b8" : "#c9d1d9" }, steps);
+    mk("text", { x: x + 17, y: 37, "text-anchor": "middle", "font-size": 10, "font-weight": 800, fill: on ? "#0b4f7c" : "#fff" }, steps, `${i + 1}`);
+    mk("text", { x: x + 32, y: 37, "font-size": 12, "font-weight": 700, fill: on ? "#fff" : "#1f2d3d" }, steps, scene.name);
+    if (on) mk("rect", { x: x + 16, y: 44, width: (156 - 32) * clamp((t - scene.from) / (scene.to - scene.from)), height: 2, fill: "#6cc4f0" }, steps);
+  });
+
+  // roof tank and pump
+  const h = (58 * s.level) / 100;
+  el("roofWater").setAttribute("y", 162 - h - Math.sin(t * 6) * 0.8);
   el("roofWater").setAttribute("height", h + 2);
   el("roofPct").textContent = `${Math.round(s.level)}%`;
-  el("roofPct").setAttribute("fill", s.level > 55 ? "#ffffff" : "#0b2540");
-
+  el("roofPct").setAttribute("fill", s.level > 55 ? "#fff" : "#0b2540");
   el("impeller").setAttribute("transform", `rotate(${s.pump ? t * 540 : 0})`);
   el("pumpLed").setAttribute("fill", s.pump ? "#2da44e" : "#9aa5b1");
   el("pumpTag").setAttribute("fill", s.pump ? "#dafbe1" : "#e5e9ee");
   el("pumpWord").textContent = s.pump ? "Pump ON" : "Pump off";
   el("pumpWord").setAttribute("fill", s.pump ? "#1a7f37" : "#1f2d3d");
-
   const up = el("upDots");
   up.innerHTML = "";
   if (s.pump) {
@@ -225,79 +295,193 @@ function render(t) {
       mk("circle", { cx: p.x, cy: p.y, r: 3.2, fill: "#e8f6fd" }, up);
     }
   }
-
   const ping = el("ping");
   ping.innerHTML = "";
   for (const off of [0, 0.5]) {
     const ph = (t * 1.6 + off) % 1;
-    mk("path", { d: `M${300 - 12 - ph * 16},${100 + ph * 26} Q310,${108 + ph * 30} ${320 + 12 + ph * 16},${100 + ph * 26}`, fill: "none", stroke: "#1479b8", "stroke-width": 1.6, opacity: (1 - ph) * 0.9 }, ping);
+    mk("path", { d: `M${298 - ph * 16},${108 + ph * 24} Q310,${116 + ph * 28} ${322 + ph * 16},${108 + ph * 24}`, fill: "none", stroke: "#1479b8", "stroke-width": 1.6, opacity: (1 - ph) * 0.9 }, ping);
   }
 
+  // homes
   const g = el("homes");
   g.innerHTML = "";
-  for (const home of homes) {
-    const open = isOpen(home, t);
+  homes.forEach((home, i) => {
     const y = home.y;
+    const open = isOpen(home, i, t);
+    const leak = i === 2 && leaking(t);
+    const closed = valveClosed(i, t);
+    const bad = phBad(i, t);
+    const lit = n > 0.5 ? (i === 2 ? 0.9 : 0.25) : 1;
     mk("line", { x1: 262, y1: y + 20, x2: 300, y2: y + 20, stroke: "#9aa5b1", "stroke-width": 5 }, g);
-    mk("rect", { x: 236, y: y - 30, width: 300, height: 66, rx: 8, fill: open ? "#eaf6fd" : "#f6f8fa", stroke: open ? "#9fd3f2" : "#e1e6eb" }, g);
-    // window
-    mk("rect", { x: 470, y: y - 20, width: 52, height: 34, rx: 4, fill: "#cfe8f7", stroke: "#9fb7c9" }, g);
-    mk("line", { x1: 496, y1: y - 20, x2: 496, y2: y + 14, stroke: "#9fb7c9" }, g);
-    // meter + valve
-    mk("circle", { cx: 312, cy: y + 20, r: 10, fill: "#fff", stroke: "#5b6b7c", "stroke-width": 1.6 }, g);
+    const fill = leak ? "#fff1f0" : bad ? "#fff4e5" : open ? "#eaf6fd" : "#f6f8fa";
+    const stroke = leak || (bad && sc === 2) ? "#cf222e" : open ? "#9fd3f2" : "#e1e6eb";
+    mk("rect", { x: 236, y: y - 30, width: 300, height: 66, rx: 8, fill, stroke, "stroke-width": leak || bad ? 2 : 1, opacity: lit }, g);
+    mk("rect", { x: 474, y: y - 20, width: 48, height: 34, rx: 4, fill: n > 0.5 ? (i === 2 ? "#ffe8a3" : "#33507a") : "#cfe8f7", stroke: "#9fb7c9" }, g);
+    mk("line", { x1: 498, y1: y - 20, x2: 498, y2: y + 14, stroke: "#9fb7c9" }, g);
+    // valve
+    mk("rect", { x: 280, y: y + 12, width: 14, height: 16, rx: 3, fill: closed ? "#cf222e" : "#2da44e" }, g);
+    mk("line", { x1: 287, y1: y + 12, x2: 287, y2: y + 4, stroke: "#5b6b7c", "stroke-width": 2 }, g);
+    mk("line", { x1: closed ? 281 : 283, y1: y + 4, x2: closed ? 293 : 291, y2: y + 4, stroke: "#5b6b7c", "stroke-width": 3, transform: closed ? `rotate(90 287 ${y + 4})` : "" }, g);
+    // meter
+    mk("circle", { cx: 316, cy: y + 20, r: 10, fill: "#fff", stroke: "#5b6b7c", "stroke-width": 1.6 }, g);
     const a = open ? t * 10 : 0.6;
-    mk("line", { x1: 312, y1: y + 20, x2: 312 + 7 * Math.cos(a), y2: y + 20 + 7 * Math.sin(a), stroke: "#1479b8", "stroke-width": 2 }, g);
-    // tap and drops
-    mk("path", { d: `M322,${y + 20} L350,${y + 20} L350,${y + 30}`, stroke: "#7b8794", "stroke-width": 4, fill: "none" }, g);
-    if (open) {
-      for (let i = 0; i < 3; i++) {
-        const dy = ((t * 40 + i * 9) % 26);
-        mk("circle", { cx: 350, cy: y + 34 + dy * 0.6, r: 2.2, fill: "#1f8fd1", opacity: 1 - dy / 26 }, g);
-      }
+    mk("line", { x1: 316, y1: y + 20, x2: 316 + 7 * Math.cos(a), y2: y + 20 + 7 * Math.sin(a), stroke: "#1479b8", "stroke-width": 2 }, g);
+    // tap
+    mk("path", { d: `M326,${y + 20} L352,${y + 20} L352,${y + 30}`, stroke: "#7b8794", "stroke-width": 4, fill: "none" }, g);
+    if (open) for (let k = 0; k < 3; k++) {
+      const dy = (t * 40 + k * 9) % 26;
+      mk("circle", { cx: 352, cy: y + 34 + dy * 0.6, r: 2.2, fill: "#1f8fd1", opacity: 1 - dy / 26 }, g);
     }
-    person(g, 380, y - 8, home.hair, home.shirt, 1);
-    mk("text", { x: 402, y: y - 8, class: "t", "font-size": 12 }, g, home.name);
-    mk("text", { x: 402, y: y + 8, class: "s", "font-size": 10 }, g, open ? `${Math.round(18 + 5 * Math.sin(t))} L/min` : "tap closed");
-    mk("text", { x: 402, y: y + 22, class: "s", "font-size": 9 }, g, `${(400 + Math.round(usedBy(home, t) * 9)).toLocaleString("en")} L today`);
-    // reading to the cloud
+    if (leak) for (let k = 0; k < 4; k++) {
+      const dy = (t * 30 + k * 7) % 22;
+      mk("path", { d: `M300,${y + 26 + dy} q2,4 0,6 q-2,-2 0,-6`, fill: "#1f8fd1", opacity: 1 - dy / 22 }, g);
+    }
+    if (n < 0.5 || i === 2) person(g, 382, y - 8, home.hair, home.shirt);
+    mk("text", { x: 404, y: y - 9, class: "t", "font-size": 12 }, g, home.name);
+    let sub = open ? `${leak ? "2.1" : fmt(18 + 4 * Math.sin(t + i), 0)} L/min` : "tap closed";
+    if (closed) sub = "valve closed";
+    mk("text", { x: 404, y: y + 7, class: "s", "font-size": 10, fill: closed ? "#cf222e" : leak ? "#cf222e" : "#5b6b7c" }, g, sub);
+    mk("text", { x: 404, y: y + 22, "font-size": 10, "font-weight": 700, fill: bad ? "#cf222e" : "#1a7f37" }, g, `pH ${fmt(phOf(i, t), 1)} ${bad ? "unsafe" : "safe"}`);
+    // reading on its way to the cloud
     const ph = (t * 0.55 + y / 160) % 1;
     const px = lerp(536, 700, ph);
-    const py = lerp(y, 310, ph) - Math.sin(ph * Math.PI) * 30;
-    mk("rect", { x: px - 6, y: py - 4, width: 12, height: 8, rx: 2, fill: "#2da44e", opacity: ph < 0.92 ? 0.95 : 0 }, g);
-  }
+    const py = lerp(y, 318, ph) - Math.sin(ph * Math.PI) * 30;
+    mk("rect", { x: px - 6, y: py - 4, width: 12, height: 8, rx: 2, fill: leak || bad ? "#cf222e" : "#2da44e", opacity: ph < 0.92 && t < 30 ? 0.95 : 0 }, g);
+  });
 
+  // cloud traffic
   const pk = el("packets");
   pk.innerHTML = "";
-  const tp = (t * 0.6) % 1;
-  mk("rect", { x: lerp(394, 710, tp) - 6, y: lerp(120, 285, tp) - Math.sin(tp * Math.PI) * 30 - 4, width: 12, height: 8, rx: 2, fill: "#2da44e" }, pk);
-  for (const [x2, y2, off] of [[960, 300, 0], [790, 470, 0.5]]) {
-    const ap = (t * 0.7 + off) % 1;
-    mk("circle", { cx: lerp(840, x2, ap), cy: lerp(310, y2, ap), r: 5, fill: "#f0b429", opacity: ap < 0.9 ? 1 : 0 }, pk);
+  if (t < 30) {
+    const tp = (t * 0.6) % 1;
+    mk("rect", { x: lerp(394, 700, tp) - 6, y: lerp(128, 292, tp) - Math.sin(tp * Math.PI) * 30 - 4, width: 12, height: 8, rx: 2, fill: "#2da44e" }, pk);
+    for (const [x2, y2, off] of [[1000, 230, 0], [800, 400, 0.5]]) {
+      const ap = (t * 0.7 + off) % 1;
+      mk("circle", { cx: lerp(830, x2, ap), cy: lerp(320, y2, ap), r: 5, fill: "#f0b429", opacity: ap < 0.9 ? 1 : 0 }, pk);
+    }
+  }
+  el("cloudNote").setAttribute("opacity", t >= LEAK.ai - 0.3 && t < 17.5 ? 0 : 1);
+  // AI badge
+  const ai = el("aiBadge");
+  ai.innerHTML = "";
+  if (t >= LEAK.ai - 0.3 && t < 17.5) {
+    const k = ease((t - LEAK.ai + 0.3) / 0.5);
+    const b = mk("g", { transform: `translate(700,${232 - 10 * (1 - k)})`, opacity: k }, ai);
+    mk("rect", { width: 132, height: 26, rx: 13, fill: "#cf222e" }, b);
+    mk("text", { x: 66, y: 17, "text-anchor": "middle", fill: "#fff", "font-size": 11, "font-weight": 800 }, b, "AI: leak, 92 % sure");
   }
 
-  const using = homes.filter((hm) => isOpen(hm, t)).length;
-  const r = homes[0];
-  el("resToday").textContent = `${(400 + Math.round(usedBy(r, t) * 9)).toLocaleString("en")} L`;
-  el("resBill").textContent = `Rs ${(1114 + usedBy(r, t) * 0.4).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
-  el("resTap").textContent = isOpen(r, t) ? "water running now" : "tap closed";
-  el("resTapBox").setAttribute("fill", isOpen(r, t) ? "#d2ecfa" : "#f0f3f6");
-
-  el("ownBar").setAttribute("width", Math.max(8, (110 * s.level) / 100));
-  el("ownPct").textContent = `${Math.round(s.level)}%`;
-  el("ownPump").textContent = s.pump ? "ON" : "off";
-  el("ownPump").setAttribute("fill", s.pump ? "#1a7f37" : "#1f2d3d");
-  el("ownUsing").textContent = `${using + 3} of 10`;
-  const pts = [];
-  for (let i = 0; i <= 50; i++) {
-    const tt = t - 12 + (i * 12) / 50;
-    const u = tt < 0 ? 3 : homes.filter((hm) => isOpen(hm, tt)).length + 3;
-    pts.push(`${16 + i * 3.1},${180 - u * 7}`);
+  // resident phone
+  const r = el("resScreen");
+  r.innerHTML = "";
+  const R = (x, y, cls, size, text, fill) => mk("text", { x, y, class: cls, "font-size": size, ...(fill ? { fill } : {}) }, r, text);
+  if (sc === 3 || t >= 30) {
+    const paid = t >= 26.5;
+    R(14, 32, "t", 11, "Bill · September");
+    R(14, 50, "s", 9, "11,384 L used");
+    R(14, 66, "s", 9, "Slab 1 (to 5,000 L)");
+    R(110, 80, "t", 9, "300.00").setAttribute("text-anchor", "end");
+    R(14, 94, "s", 9, "Slab 2 (6,384 L)");
+    R(110, 108, "t", 9, "766.10").setAttribute("text-anchor", "end");
+    mk("line", { x1: 14, y1: 114, x2: 110, y2: 114, stroke: "#e1e6eb" }, r);
+    R(14, 132, "h", 15, "Rs 1,066.10");
+    mk("rect", { x: 14, y: 142, width: 94, height: 26, rx: 13, fill: paid ? "#dafbe1" : "#1479b8" }, r);
+    const pb = R(61, 159, "t", 11, paid ? "✓ Paid" : "Pay now", paid ? "#1a7f37" : "#fff");
+    pb.setAttribute("text-anchor", "middle");
+    if (!paid && t > 25.6) mk("circle", { cx: 70, cy: 155, r: 10 + 10 * ((t - 25.6) % 0.9), fill: "#1479b8", opacity: 0.25 }, r);
+    R(14, 184, "s", 8.5, "PDF · due Nov 15");
+  } else {
+    const me = homes[1];
+    const used = 400 + me.open.reduce((a, [x, y]) => a + Math.max(0, Math.min(t, y) - x), 0) * 9;
+    R(14, 32, "t", 11, "My home");
+    R(14, 52, "s", 9, "Used today");
+    R(14, 69, "h", 16, `${fmt(used)} L`);
+    R(14, 90, "s", 9, "Water quality");
+    R(14, 106, "t", 12, `pH ${fmt(phOf(1, t), 1)} · ${phBad(1, t) ? "unsafe" : "safe"}`, phBad(1, t) ? "#cf222e" : "#1a7f37");
+    R(14, 126, "s", 9, "Bill so far");
+    R(14, 142, "h", 13, "Rs 1,114");
+    mk("rect", { x: 14, y: 154, width: 94, height: 22, rx: 11, fill: isOpen(me, 1, t) ? "#d2ecfa" : "#f0f3f6" }, r);
+    R(61, 169, "t", 9, isOpen(me, 1, t) ? "water running" : "tap closed", "#1479b8").setAttribute("text-anchor", "middle");
   }
-  el("chart").setAttribute("points", pts.join(" "));
 
-  el("caption").textContent = s.c;
-  el("caption2").textContent = s.c2;
-  el("capDot").setAttribute("fill", s.pump ? "#2da44e" : s.level > 90 ? "#1f8fd1" : "#f0b429");
+  // owner screen
+  const o = el("ownScreen");
+  o.innerHTML = "";
+  const O = (x, y, cls, size, text, fill) => mk("text", { x, y, class: cls, "font-size": size, ...(fill ? { fill } : {}) }, o, text);
+  O(20, 30, "t", 11.5, "Owner · Demo Tower");
+  if (sc === 3 || t >= 30) {
+    const paid = t >= 26.5 ? 7 : 6;
+    O(20, 54, "s", 9.5, "Bills · September 2026");
+    O(20, 76, "h", 18, `${paid} of 10 paid`);
+    mk("rect", { x: 20, y: 86, width: 186, height: 10, rx: 5, fill: "#e5e9ee" }, o);
+    mk("rect", { x: 20, y: 86, width: 18.6 * paid, height: 10, rx: 5, fill: "#2da44e" }, o);
+    O(20, 118, "s", 9.5, "Unpaid");
+    O(20, 134, "t", 12, paid === 7 ? "Rs 3,927.15" : "Rs 4,993.25");
+    O(110, 118, "s", 9.5, "Rs per 1,000 L");
+    O(110, 134, "t", 11, "60 · 120 · 200");
+    O(20, 160, "s", 9.5, "Currency: PKR (11 to choose from)");
+    O(20, 178, "s", 9.5, "Bills as PDF, emailed");
+  } else {
+    O(20, 52, "s", 9.5, "Roof tank");
+    mk("rect", { x: 20, y: 58, width: 140, height: 12, rx: 6, fill: "#e5e9ee" }, o);
+    mk("rect", { x: 20, y: 58, width: Math.max(10, (140 * s.level) / 100), height: 12, rx: 6, fill: "#1f8fd1" }, o);
+    O(168, 68, "t", 11, `${Math.round(s.level)}%`);
+    O(20, 90, "s", 9.5, "Pump (auto)");
+    O(20, 106, "t", 12, s.pump ? "ON" : "off", s.pump ? "#1a7f37" : "#1f2d3d");
+    O(110, 90, "s", 9.5, "Open alerts");
+    const alerts = (t >= LEAK.ai ? 1 : 0) + (t >= 19.8 && t < 30 ? 1 : 0);
+    O(110, 106, "t", 12, alerts ? `${alerts} critical` : "none", alerts ? "#cf222e" : "#1a7f37");
+    O(20, 128, "s", 9.5, "Building, litres per minute");
+    const pts = [];
+    for (let i = 0; i <= 50; i++) {
+      const tt = t - 12 + (i * 12) / 50;
+      const u = tt < 0 ? 3 : homes.filter((hm, k) => isOpen(hm, k, tt)).length + (night(tt) > 0.5 ? 0 : 3);
+      pts.push(`${20 + i * 3.7},${192 - u * 7}`);
+    }
+    mk("polyline", { points: pts.join(" "), fill: "none", stroke: "#1479b8", "stroke-width": 2, "stroke-linejoin": "round" }, o);
+  }
+
+  // notifications
+  const ts = el("toasts");
+  ts.innerHTML = "";
+  if (t < 17.5) toast(ts, 900, 444, 280, LEAK.close + 0.3, t, "!", "#cf222e", "Leak in Unit 03: water shut off", "Auto shut-off closed the valve. 2:14 a.m.");
+  if (t >= 17.5 && t < 23.5) {
+    toast(ts, 900, 444, 280, 20.0, t, "!", "#cf222e", "Critical: pH 9.2 in Unit 02", "Unsafe for 5 readings in a row.");
+    toast(ts, 662, 540, 250, 20.4, t, "!", "#cf222e", "Your water: pH 9.2, unsafe", "Don't drink it until it is safe.");
+  }
+  if (t >= 26.5 && t < 30) toast(ts, 900, 444, 280, 26.8, t, "✓", "#2da44e", "Unit 01 paid Rs 1,066.10", "Card payment · receipt sent");
+
+  // caption
+  const [c1, c2, col] = captionOf(t);
+  el("caption").textContent = c1;
+  el("caption2").textContent = c2;
+  el("capDot").setAttribute("fill", col);
+
+  // end card
+  const ec = el("endCard");
+  ec.innerHTML = "";
+  if (t >= 30) {
+    const k = ease((t - 30) / 0.6);
+    const g2 = mk("g", { opacity: k }, ec);
+    mk("rect", { width: 1200, height: 675, fill: "#0b2540", opacity: 0.94 }, g2);
+    const c = mk("g", { transform: `translate(600,${250 - 12 * (1 - k)})` }, g2);
+    mk("path", { d: "M-150,-60 C-150,-60 -170,-36 -170,-24 a20,20 0 0 0 40,0 C-130,-36 -150,-60 -150,-60Z", fill: "#6cc4f0" }, c);
+    mk("text", { x: -110, y: -22, class: "w", "font-size": 48, "font-weight": 800 }, c, "AquaPulse");
+    mk("text", { x: 0, y: 22, "text-anchor": "middle", fill: "#cfe8f7", "font-size": 18 }, c, "Every home measured. Every drop accounted for. Every leak stopped.");
+    const chips = ["ESP32 firmware", "MQTT over TLS", "FastAPI", "TimescaleDB", "AI leak detection", "React web app", "Flutter Android app", "Slab billing, 11 currencies"];
+    let x = -520;
+    const rowY = [70, 110];
+    chips.forEach((chip, i) => {
+      const w = chip.length * 7.6 + 28;
+      if (i === 4) x = -440;
+      const y = rowY[i < 4 ? 0 : 1];
+      mk("rect", { x, y, width: w, height: 30, rx: 15, fill: "#16395f", stroke: "#2f6aa1" }, c);
+      mk("text", { x: x + w / 2, y: y + 20, "text-anchor": "middle", fill: "#e8f1fa", "font-size": 13, "font-weight": 600 }, c, chip);
+      x += w + 12;
+    });
+    mk("text", { x: 0, y: 200, "text-anchor": "middle", fill: "#ffffff", "font-size": 18, "font-weight": 700 }, c, "github.com/Sanaullah-Niazi/aquapulse");
+    mk("text", { x: 0, y: 226, "text-anchor": "middle", fill: "#9fb7c9", "font-size": 12 }, c, "Open source (MIT) · runs with one command: make demo");
+  }
 }
 window.render = render;
 window.LOOP = LOOP;

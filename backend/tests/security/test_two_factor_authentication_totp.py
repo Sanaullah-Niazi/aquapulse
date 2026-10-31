@@ -36,7 +36,7 @@ async def _turn_on(client, make, user) -> tuple[str, list[str]]:
     assert r.status_code == 200, r.text
     secret = r.json()["secret"]
     assert r.json()["otpauth_url"].startswith("otpauth://totp/AquaPulse:")
-    assert r.json()["qr_svg"].startswith("<svg")
+    assert r.json()["qr_svg"].startswith("<svg viewBox=")  # scales to fit, never cut off
     r = await client.post("/api/v1/me/2fa/enable", json={"code": pyotp.TOTP(secret).now()},
                           headers=headers)  # fmt: skip
     assert r.status_code == 200, r.text

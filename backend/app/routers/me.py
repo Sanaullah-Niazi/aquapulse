@@ -117,7 +117,10 @@ async def two_factor_setup(body: TwoFactorSetupIn, caller: Me, settings: Config)
     secret = totp.new_secret()
     caller.user.totp_secret = totp.encrypt(settings, secret)
     url = totp.otpauth_url(secret, caller.user.email)
-    svg = segno.make(url, error="m").svg_inline(scale=5, dark="#000", light="#fff")
+    # omitsize: a viewBox instead of a fixed size, so the page can scale the
+    # code to fit. With a fixed size the page cut its edge off, and phones
+    # could not scan it.
+    svg = segno.make(url, error="m").svg_inline(scale=5, dark="#000", light="#fff", omitsize=True)
     return TwoFactorSetupOut(secret=secret, otpauth_url=url, qr_svg=svg)
 
 

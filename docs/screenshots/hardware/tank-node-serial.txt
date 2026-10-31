@@ -11,30 +11,30 @@ load:0x40080400,len:2972
 entry 0x400805dc
 
 AquaPulse tank node home-b01-01, fw 1.0.0
-[  1401][E][Preferences.cpp:503] getBytesLength(): nvs_get_blob len fail: lowPct NOT_FOUND
-[  1410][E][Preferences.cpp:503] getBytesLength(): nvs_get_blob len fail: highPct NOT_FOUND
+[  1402][E][Preferences.cpp:503] getBytesLength(): nvs_get_blob len fail: lowPct NOT_FOUND
+[  1411][E][Preferences.cpp:503] getBytesLength(): nvs_get_blob len fail: highPct NOT_FOUND
 Restored: mode auto, thresholds 25/95%, interval 10 s
 MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
 [  2347][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
-[  2359][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
-MQTT: failed (error -3, return code 0), next try in 1180 ms
+[  2358][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
+MQTT: failed (error -3, return code 0), next try in 1167 ms
 MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
-[  3563][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
-[  3575][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
-MQTT: failed (error -3, return code 0), next try in 2002 ms
-MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
-[  5602][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
-[  5613][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
-MQTT: failed (error -3, return code 0), next try in 4614 ms
+[  3570][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
+[  3582][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
+MQTT: failed (error -3, return code 0), next try in 2194 ms
 Pump on (level 15.1%)
+MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
+[  5800][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
+[  5812][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
+MQTT: failed (error -3, return code 0), next try in 4202 ms
 device home-b01-01, fw 1.0.0, level 15.1%, pump on, mode auto, thresholds 25/95%, sump water
 MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
-[ 10253][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
-[ 10264][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
-MQTT: failed (error -3, return code 0), next try in 8400 ms
+[ 10048][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
+[ 10060][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
+MQTT: failed (error -3, return code 0), next try in 8049 ms
 Pump off (level 95.8%)
 MQTT: connecting to host.wokwi.internal:8883 as home-b01-01 ...
-[ 18686][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
-[ 18698][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
-MQTT: failed (error -3, return code 0), next try in 18266 ms
+[ 18132][E][ssl_client.cpp:129] start_ssl_client(): socket error on fd 48, errno: 104, "Connection reset by peer"
+[ 18143][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -1
+MQTT: failed (error -3, return code 0), next try in 18985 ms
 Pump on

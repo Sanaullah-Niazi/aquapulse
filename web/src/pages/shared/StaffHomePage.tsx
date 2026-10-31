@@ -1,5 +1,5 @@
-// Start page for owners and System Admins in Part 1 of M8. Their own screens
-// come in the next parts; this page says so honestly and links to Swagger.
+// Start page for System Admins until their console arrives in Part 3 of M8.
+// It says so honestly and links to Swagger.
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { useMe } from "../../auth";
@@ -12,7 +12,7 @@ export function StaffHomePage() {
     <>
       <h1>{t("staff.title", { name: me.full_name })}</h1>
       <div className="card" style={{ maxWidth: 640 }}>
-        <p>{t(me.role === "owner" ? "staff.comingOwner" : "staff.comingAdmin")}</p>
+        <p>{t("staff.comingAdmin")}</p>
         <div className="row">
           <Link className="button primary" to="/alerts">{t("nav.alerts")}</Link>
           <Link className="button" to="/profile">{t("nav.profile")}</Link>

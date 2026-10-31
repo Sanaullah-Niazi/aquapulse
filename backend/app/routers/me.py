@@ -39,8 +39,13 @@ async def _me(session: AsyncSession, caller: Caller) -> MeOut:
     out = MeOut.model_validate(caller.user)
     out.two_factor = caller.user.totp_enabled_at is not None
     if caller.role == "owner":
+        # Oldest first, so the start page always opens the same building.
         out.building_ids = list(
-            await session.scalars(select(Building.id).where(Building.owner_id == caller.id))
+            await session.scalars(
+                select(Building.id)
+                .where(Building.owner_id == caller.id)
+                .order_by(Building.created_at, Building.id)
+            )
         )
     elif caller.role == "resident":
         out.home_ids = list(

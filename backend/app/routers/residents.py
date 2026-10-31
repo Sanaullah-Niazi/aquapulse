@@ -16,7 +16,7 @@ from ..config import Settings, get_settings
 from ..db import get_session
 from ..deps import Caller, require, visible_home
 from ..emailer import send_email
-from ..models import Building, Invitation, Occupancy
+from ..models import Building, Invitation, Occupancy, User
 from ..schemas import InvitationIn, InvitationOut, OccupancyOut, OccupancyPatch
 from ..security.tokens import new_opaque_token
 
@@ -103,10 +103,20 @@ async def invite_resident(
 
 @router.get("/homes/{home_id}/occupancies", response_model=list[OccupancyOut], responses={404: {}})
 async def list_occupancies(home_id: uuid.UUID, session: Session, caller: OwnerOnly):
-    """Who lived here and when (newest first)."""
+    """Who lived here and when (newest first), with their name and email."""
     home = await visible_home(session, caller, home_id, manage=True)
-    query = select(Occupancy).where(Occupancy.home_id == home.id).order_by(Occupancy.move_in.desc())
-    return list(await session.scalars(query))
+    rows = await session.execute(
+        select(Occupancy, User.full_name, User.email)
+        .join(User, User.id == Occupancy.user_id)
+        .where(Occupancy.home_id == home.id)
+        .order_by(Occupancy.move_in.desc())
+    )
+    return [
+        OccupancyOut.model_validate(occupancy).model_copy(
+            update={"full_name": name, "email": email}
+        )
+        for occupancy, name, email in rows
+    ]
 
 
 @router.patch(

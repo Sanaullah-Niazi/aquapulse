@@ -101,6 +101,8 @@ export type BillStatus = "draft" | "issued" | "partially_paid" | "paid" | "overd
 
 export interface BillSummary {
   id: string;
+  home_id: string;
+  issued_at?: string | null;
   bill_no: string | null;
   unit_no: string;
   bill_to: string;
@@ -187,4 +189,176 @@ export interface LiveEvent {
   totalL?: number;
   deltaL?: number;
   [key: string]: unknown;
+}
+
+// ----- owner screens (M8 part 2) -----
+
+export interface Building {
+  id: string;
+  name: string;
+  address: string;
+  timezone: string;
+  currency_code: string;
+  nonpayment_shutoff_enabled: boolean;
+  due_days: number;
+  code: string;
+  bills_auto_issue: boolean;
+}
+
+export interface OverviewRow {
+  home_id: string;
+  unit_no: string;
+  floor: number;
+  residents: string[];
+  litres_today: number;
+  litres_month: number;
+  flow_lpm: number;
+  ph: number | null;
+  temp_c: number | null;
+  reading_at: string | null;
+  device_id: string | null;
+  online: boolean;
+  last_seen_at: string | null;
+  valve: string | null;
+  locked: "open" | "closed" | null;
+  lock_reason: string | null;
+  open_alerts: number;
+}
+
+export interface Overview {
+  building_id: string;
+  name: string;
+  timezone: string;
+  currency_code: string;
+  litres_today: number;
+  litres_month: number;
+  litres_last_month_to_date: number;
+  flow_lpm: number;
+  homes: number;
+  homes_online: number;
+  homes_with_device: number;
+  valves_closed: number;
+  valves_locked: number;
+  alerts: Record<Severity, number>;
+  tank: {
+    tank_id: string;
+    level_pct: number | null;
+    level_l: number | null;
+    pump_on: boolean | null;
+    mode: string;
+    online: boolean;
+  } | null;
+  unpaid_bills: number;
+  unpaid_text: string;
+  ph_safe_low: number;
+  ph_safe_high: number;
+  rows: OverviewRow[];
+}
+
+export interface Occupancy {
+  id: string;
+  home_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  move_in: string;
+  move_out: string | null;
+  is_billing_contact: boolean;
+}
+
+export interface Device {
+  id: string;
+  kind: "home" | "tank";
+  home_id: string | null;
+  tank_id: string | null;
+  status: "active" | "revoked";
+  online: boolean;
+  fw_version: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+  credentials_changed_at: string | null;
+  revoked_at: string | null;
+  has_own_password: boolean;
+}
+
+export interface DeviceCredentials {
+  device: Device;
+  username: string;
+  password: string;
+  broker: { host: string; port: number; tls: boolean; ca_sha256: string | null };
+  config: Record<string, unknown>;
+  qr_svg: string;
+}
+
+export interface TankReading {
+  time: string;
+  level_pct: number | null;
+  level_l: number | null;
+  pump_on: boolean;
+  sump_ok: boolean;
+  sensor_ok: boolean;
+  dry_run_protect: boolean;
+  overflow_protect: boolean;
+  mode: string;
+}
+
+export interface Tank {
+  id: string;
+  capacity_l: number;
+  low_pct: number;
+  high_pct: number;
+  mode: string;
+  pump_kw: number;
+  device_id: string | null;
+  online: boolean;
+  last_seen_at: string | null;
+  reading: TankReading | null;
+  open_commands: Command[];
+}
+
+export interface TankHistory {
+  levels: { start: string; level_pct: number | null }[];
+  days: { day: string; pump_hours: number; energy_kwh: number }[];
+}
+
+export interface Slab {
+  from_l: number;
+  to_l: number | null;
+  rate_per_kl: string;
+}
+
+export interface Charge {
+  name: string;
+  kind: "tax_percent" | "extra_percent" | "extra_fixed";
+  value: string;
+}
+
+export interface Tariff {
+  id: string;
+  name: string;
+  version: number;
+  effective_from: string;
+  currency_code: string;
+  created_at: string;
+  slabs: Slab[];
+  charges: Charge[];
+}
+
+export interface Preview {
+  lines: BillLine[];
+  subtotal: string;
+  tax_total: string;
+  total: string;
+  total_text: string;
+}
+
+export interface AlertRule {
+  rule: string;
+  title: string;
+  severity: Severity;
+  about: string;
+  description: string;
+  enabled: boolean;
+  values: Record<string, number>;
+  limits: Record<string, Record<string, number | string>>;
 }

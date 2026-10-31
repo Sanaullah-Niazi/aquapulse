@@ -38,6 +38,9 @@ async def test_several_residents_share_a_home_but_only_one_pays(client, make, ou
     ).json()
     assert len(occupancies) == 2
     assert sum(o["is_billing_contact"] for o in occupancies) == 1
+    # M8: the owner's screen shows who each one is.
+    assert {o["email"] for o in occupancies} >= {world.resident.email}
+    assert all(o["full_name"] for o in occupancies)
 
 
 async def test_the_database_itself_refuses_a_second_billing_contact(client, make):

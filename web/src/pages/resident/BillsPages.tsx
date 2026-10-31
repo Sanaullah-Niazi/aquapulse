@@ -1,14 +1,17 @@
 // R-04 / R-05 / R-06: my bills, one bill with its lines and payments, the PDF,
-// and "Pay online" in Stripe TEST mode (FR-50, FR-39). Paid amounts update
+// and "Pay online" in Stripe TEST mode (FR-50, FR-39). Owners see the same
+// bill page with their own actions below it (FR-45). Paid amounts update
 // live when the owner records a payment or Stripe confirms one.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, download } from "../../api";
+import { useMe } from "../../auth";
 import { BillStatusBadge, ErrorBox, Loading } from "../../components/ui";
 import * as fmt from "../../format";
 import { useLiveEvents } from "../../live";
 import type { Bill, BillSummary } from "../../types";
+import { OwnerBillActions } from "../owner/BillsPage";
 
 function useBillEvents() {
   const queries = useQueryClient();
@@ -78,6 +81,7 @@ export function BillPage() {
   const { t } = useTranslation();
   const { billId } = useParams();
   const [params] = useSearchParams();
+  const me = useMe();
   useBillEvents();
   const bill = useQuery({ queryKey: ["bills", billId], queryFn: () => api<Bill>(`/bills/${billId}`) });
   const pay = useMutation({
@@ -187,6 +191,10 @@ export function BillPage() {
             </ul>
           )}
         </section>
+
+        {/* Owners: issue, void, record or reverse payments. A new key after each
+            change starts the form again with the new amount still to pay. */}
+        {me.role === "owner" && <OwnerBillActions key={`${b.status}-${b.outstanding}`} bill={b} />}
       </div>
     </>
   );

@@ -1,0 +1,150 @@
+# Portfolio screenshots: start the whole demo (make demo: 90 days of history,
+# bills), then a real browser saves a picture of every web screen and of the
+# two ESP32 circuits (make screenshots). A second job runs the real firmware
+# in the Wokwi simulator and keeps what it prints. Download everything from
+# the run's "Artifacts". In a pull request, the pictures and the simulator
+# output are also committed to the pull request's branch (docs/screenshots).
+# Runs by hand (Actions > Screenshots > Run workflow) and when the
+# screenshot code changes in a pull request.
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "web/e2e-shots/**"
+      - "web/playwright.shots.config.ts"
+      - "firmware/wokwi/**"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: read
+
+# The two jobs both commit to the branch: one run at a time per branch.
+concurrency:
+  group: screenshots-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web app screenshots (phone and desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # to commit the pictures to the pull request's branch
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.4"
+      - name: Create .env (random secrets) and certificates
+        run: |
+          make env
+          make certs
+      - name: The whole demo (stack, accounts, 90 days of history, bills)
+        run: make demo
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install the browser
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Take the screenshots
+        run: make screenshots
+      - name: Keep the screenshots (download them from this run's Artifacts)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: docs/screenshots
+          retention-days: 14
+      - name: Commit the pictures to this pull request's branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs/screenshots
+          git diff --cached --quiet && exit 0
+          git commit -m "Screenshots: the pictures (made by the Screenshots workflow)"
+          for try in 1 2 3; do
+            git pull --rebase origin "$BRANCH" && git push origin "HEAD:$BRANCH" && exit 0
+            sleep 5
+          done
+          exit 1
+      - name: Stop and clean up
+        if: always()
+        run: docker compose down -v
+
+  wokwi:
+    name: ESP32 firmware running in the Wokwi simulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # to commit the simulator output to the pull request's branch
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.4"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Build for the ESP32 (real board and Wokwi)
+        run: make firmware-build
+      - name: Install the Wokwi command-line tool
+        if: env.WOKWI_CLI_TOKEN != ''
+        run: curl -fsSL https://wokwi.com/ci/install.sh | sh
+      - name: Run both nodes through their demo scenarios and keep what they print
+        if: env.WOKWI_CLI_TOKEN != ''
+        run: |
+          mkdir -p docs/screenshots/hardware
+          for node in tank-node home-node; do
+            echo "== $node"
+            ~/.wokwi/bin/wokwi-cli --timeout 120000 \
+              --scenario demo.scenario.yaml \
+              --serial-log-file "$PWD/docs/screenshots/hardware/$node-serial.txt" \
+              "firmware/wokwi/$node" || status=1
+            log="docs/screenshots/hardware/$node-serial.txt"
+            # Plain text for the repo's file checks: no CR, no trailing spaces, one final newline.
+            if [ -f "$log" ]; then
+              sed -i 's/\r$//; s/[[:space:]]*$//' "$log"
+              printf '%s\n' "$(cat "$log")" > "$log.tmp" && mv "$log.tmp" "$log"
+              cat "$log"
+            fi
+          done
+          exit "${status:-0}"
+      - name: Keep the simulator output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wokwi-serial
+          path: docs/screenshots/hardware/*-serial.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Commit the simulator output to this pull request's branch
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs/screenshots
+          git diff --cached --quiet && exit 0
+          git commit -m "Screenshots: the simulator output (made by the Screenshots workflow)"
+          for try in 1 2 3; do
+            git pull --rebase origin "$BRANCH" && git push origin "HEAD:$BRANCH" && exit 0
+            sleep 5
+          done
+          exit 1

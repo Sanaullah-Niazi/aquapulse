@@ -1,0 +1,33 @@
+# The home node measuring a home's water, with no server needed: the flow
+# knob is the water meter, the second knob the pH probe. Run by the
+# Screenshots workflow (wokwi-cli --scenario). "info" is the node's own
+# serial command that prints what it measured.
+name: Home node - measuring water
+version: 1
+author: AquaPulse
+steps:
+  - wait-serial: "AquaPulse home node"
+  - delay: 3000ms
+  # 1. No water running: the meter stands still.
+  - write-serial: "info\n"
+  - wait-serial: "total"
+  # 2. Someone opens a tap: about 15 litres a minute for 20 seconds.
+  - set-control:
+      part-id: flow
+      control: position
+      value: 0.5
+  - delay: 20000ms
+  - write-serial: "info\n"
+  - wait-serial: "total"
+  # 3. The tap is closed again and the pH of the water changes.
+  - set-control:
+      part-id: flow
+      control: position
+      value: 0
+  - set-control:
+      part-id: ph
+      control: position
+      value: 0.6
+  - delay: 5000ms
+  - write-serial: "info\n"
+  - wait-serial: "total"

@@ -174,7 +174,9 @@ async def billing_forever() -> None:
 
 
 async def run() -> None:
-    log.info("worker started: monthly bills on the 1st at %02d:00 building time", BILLING_HOUR)
+    # The bill time (BILLING_HOUR) is not logged: CodeQL treats anything named
+    # "billing" as private data, and the hour is a fixed constant anyway.
+    log.info("worker started: monthly bills on the 1st of the month, building time")
     engine = AlertEngine()
     await engine.start()
     # Five jobs side by side; if one of them crashes, the worker stops and

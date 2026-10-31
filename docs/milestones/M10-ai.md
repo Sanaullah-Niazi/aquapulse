@@ -1,7 +1,7 @@
 # M10: AI (leaks, unusual use, forecasts)
 
 > **Goal:** AquaPulse notices a leak by itself, says **why** in plain words, and can turn the water off. Later parts add unusual-use flags and a 7-day forecast with a month-end bill estimate.
-> **Built in 3 parts:** part 1 is leak and burst detection plus automatic shut-off. Part 2 adds forecasts, unusual use and the model registry. Part 3 adds the screens in the web app and the Android app.
+> **Built in 3 parts:** part 1 is leak and burst detection plus automatic shut-off. Part 2 adds forecasts, unusual use and the model registry. Part 3 adds the screens in the web app and the Android app. **M10 is complete.**
 
 ---
 
@@ -47,7 +47,7 @@ CI runs it on every push. It fails if a target is missed, or if the committed re
 Off by default. The owner switches it on per home:
 
 ```bash
-# (the owner's screen comes in part 3; until then, with the API)
+# (or on the screen from part 3: Homes → a home → Automatic shut-off)
 curl -k -X PATCH https://localhost:8443/api/v1/homes/<HOME_ID> \
   -H "Authorization: Bearer <OWNER_TOKEN>" -H "Content-Type: application/json" \
   -d '{"auto_shutoff_enabled": true}'
@@ -216,3 +216,51 @@ simulator/...                   the 'abnormal' (guests) scenario and the 90-day 
 | The forecast says "same weekday last week" | Less than 3 weeks of history for that home. Load history with `make demo-data` |
 | The bill estimate is empty | The owner has not set water rates that cover this month (Tariffs page) |
 | `ai/models` is empty | Training runs after 01:00 building time and needs about 2 weeks of data. Check `docker compose logs worker` for "AI models trained" |
+
+---
+
+# M10 part 3: the AI screens (web and Android)
+
+> **Requirements covered:** the screens for FR-61 and FR-63 to FR-67.
+> **Time:** about 10 minutes.
+
+## What you see
+
+| Who | Where | What |
+|---|---|---|
+| Resident | Web: menu → **AI insights**. Android: menu ☰ → **AI insights** | The forecast for the next 7 days (dashed line, with the shaded 80% range), this month's litres and the **bill estimate** in your currency, and the **insights**: leaks, bursts and unusual days, each with its reason, its confidence and a small chart of the readings |
+| Owner | Web: **AI insights** in the menu | The whole building's forecast and bill estimate (every home's estimate added up), and the **AI models** table: every trained version, its scores, and which one is live (or why it was kept out) |
+| Owner | Web and Android: **Homes** → a home | The home's forecast and insights, and the **Automatic shut-off** switch (FR-61) |
+| Owner | Android: menu ☰ → **AI insights** | The building forecast and the model list |
+
+"How is this worked out?" under each forecast says which method was used (Holt-Winters or "same weekday last week") and why, in plain words.
+
+## Get it
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+git switch main && git pull
+make up                       # rebuilds the web app
+make apk && make apk-install  # the Android app (needs the tools from M9)
+```
+
+## Try it
+
+1. **Resident (web):** https://localhost:8443/app/ → log in as `resident01@example.com` → **AI insights**. You see the forecast chart and the bill estimate. Run `make problem TYPE=burst DEVICE=home-b01-01 MINUTES=15`: after about 5 minutes "Burst pipe suspected" appears there with its chart.
+2. **Owner (web):** log in as `owner@example.com` → **AI insights**: the building forecast and the model list (empty until the first nightly training; see part 2's "Try it").
+3. **Automatic shut-off:** owner → **Homes** → unit 03 → tick **Turn the water off by itself when a leak is certain**. Run a burst on unit 03: the valve closes by itself.
+4. **Android:** the same screens, from the menu ☰.
+
+## Run the tests
+
+```bash
+make web-test      # includes the forecast chart rows and the model scores
+make app-test      # 31 widget tests; 4 new: resident forecast and insights, the no-rates message, the shut-off switch, the model list
+```
+
+## Done criteria (part 3)
+
+- [ ] The resident's AI insights page shows a forecast with a shaded range and a bill estimate.
+- [ ] A burst shows up there with its reason and a chart.
+- [ ] The owner switched automatic shut-off on from the home page.
+- [ ] The Android app shows the same.

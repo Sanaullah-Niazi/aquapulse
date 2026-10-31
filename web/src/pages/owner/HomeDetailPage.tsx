@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 import { api, download } from "../../api";
+import { ForecastCard, InsightsCard } from "../../components/Ai";
 import { AlertList } from "../../components/AlertList";
 import { BarsChart } from "../../components/Charts";
 import { BillStatusBadge, ErrorBox, Field, Loading, QualityBadge, Segmented, Stat } from "../../components/ui";
@@ -61,8 +62,42 @@ export function HomeDetailPage() {
         <ResidentsCard homeId={homeId} />
         <HomeBillsCard home={home.data} />
         <HomeAlertsCard homeId={homeId} />
+        <ForecastCard path={`/homes/${homeId}/forecast`} title={t("ai.forecastHome")} />
+        <InsightsCard homeId={homeId} />
+        <AutoShutoffCard home={home.data} />
       </div>
     </>
+  );
+}
+
+/** FR-61: let AquaPulse close the valve by itself when it is sure of a leak or burst. */
+function AutoShutoffCard({ home }: { home: Home }) {
+  const { t } = useTranslation();
+  const queries = useQueryClient();
+  const on = home.auto_shutoff_enabled ?? false;
+  const change = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api<Home>(`/homes/${home.id}`, { method: "PATCH", body: { auto_shutoff_enabled: enabled } }),
+    onSuccess: (saved) => queries.setQueryData(["home", home.id], saved),
+  });
+  return (
+    <section className="card" aria-labelledby="shutoff-title">
+      <h2 id="shutoff-title">{t("ai.shutoff.title")}</h2>
+      <p className="small">{t("ai.shutoff.explain")}</p>
+      <label className="row" style={{ gap: "0.5rem" }}>
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={change.isPending}
+          onChange={(e) => change.mutate(e.target.checked)}
+        />
+        {t("ai.shutoff.label")}
+      </label>
+      <p className="small muted" role="status">
+        {change.isPending ? t("ai.shutoff.saving") : on ? t("ai.shutoff.on") : t("ai.shutoff.off")}
+      </p>
+      {change.error && <ErrorBox error={change.error} />}
+    </section>
   );
 }
 

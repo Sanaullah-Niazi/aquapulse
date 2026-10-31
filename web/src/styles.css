@@ -183,6 +183,7 @@ td.num, th.num { text-align: right; }
 .list > li { padding: .75rem 0; border-bottom: 1px solid var(--border); }
 .list > li:last-child { border-bottom: 0; }
 .chart { width: 100%; height: 260px; }
+.chart.chart-small { height: 140px; }
 .qr svg { width: 220px; height: 220px; max-width: 100%; background: #fff; padding: 8px; border-radius: 8px; }
 .codes { font-family: ui-monospace, monospace; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem 1rem; }
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }

@@ -21,6 +21,7 @@ export interface Home {
   unit_no: string;
   floor: number;
   occupants: number;
+  auto_shutoff_enabled?: boolean;
 }
 
 export interface Reading {
@@ -422,4 +423,68 @@ export interface UserRow {
   phone: string | null;
   role: Role;
   is_active: boolean;
+}
+
+// ----- M10: AI (FR-61, FR-63 to FR-67) -----
+
+export interface Insight {
+  alert_id: string;
+  kind: string; // leak, burst, unusual_use
+  title: string;
+  severity: Severity;
+  state: string;
+  explanation: string;
+  confidence: number | null;
+  high_confidence: boolean;
+  opened_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+  evidence: {
+    points?: [string, number][];
+    lowest_lpm?: number;
+    burst_lpm?: number;
+    litres?: number;
+    usual_7d?: number;
+    model_version?: number;
+    top_features?: { feature: string; value: number; normal: number; distance: number }[];
+    [key: string]: unknown;
+  };
+}
+
+export interface ForecastDay {
+  day: string;
+  litres: number;
+  low: number;
+  high: number;
+}
+
+export interface Forecast {
+  method: "holt_winters" | "seasonal_naive";
+  history_days: number;
+  explanation: string;
+  recent: { day: string; litres: number }[];
+  days: ForecastDay[];
+  month_end: { last_day: string; litres: number; low: number; high: number };
+  bill: {
+    currency_code: string;
+    total: string | null;
+    total_text: string | null;
+    low_text: string | null;
+    high_text: string | null;
+    message: string;
+  };
+}
+
+export interface AiModel {
+  id: string;
+  kind: "forecast" | "unusual_use";
+  version: number;
+  trained_at: string;
+  data_from: string;
+  data_to: string;
+  rows: number;
+  metrics: Record<string, number | null>;
+  params: Record<string, unknown>;
+  live: boolean;
+  note: string;
 }

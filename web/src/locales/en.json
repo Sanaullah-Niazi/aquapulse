@@ -44,7 +44,8 @@
     "settings": "Building settings",
     "health": "System health",
     "owners": "Owners and buildings",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "ai": "AI insights"
   },
   "roles": {
     "sysadmin": "System Admin",
@@ -667,6 +668,68 @@
       "newer": "Newer",
       "older": "Older",
       "page": "Entries {{from}} to {{to}}"
+    }
+  },
+  "ai": {
+    "title": "AI insights",
+    "intro": "What AquaPulse expects you to use, and anything unusual it noticed, each with its reason.",
+    "ownerIntro": "The building's forecast and bill estimate, and the AI models behind them. Models retrain every night; a new version goes live only if it is not worse.",
+    "forecastHome": "Forecast for this home",
+    "forecastBuilding": "Forecast for the whole building",
+    "next7": "Next 7 days",
+    "monthEnd": "This month (to {{day}})",
+    "bill": "Bill estimate this month",
+    "between": "likely {{low}} to {{high}}",
+    "legend": "Solid line: real litres per day. Dashed line: forecast. Shaded: where the real litres should fall on 8 days out of 10.",
+    "how": "How is this worked out?",
+    "method": {
+      "holt_winters": "Holt-Winters (learns the weekly pattern)",
+      "seasonal_naive": "Same weekday last week"
+    },
+    "series": {
+      "actual": "Real",
+      "forecast": "Forecast",
+      "range": "Likely range"
+    },
+    "noHistory": "No water use recorded yet, so there is nothing to forecast.",
+    "insights": "Insights",
+    "noInsights": "Nothing unusual found. AquaPulse watches for leaks, burst pipes and unusual days.",
+    "confidence": "confidence {{value}}%",
+    "sure": "sure",
+    "over": "over",
+    "modelVersion": "model v{{version}}",
+    "flow": "Flow",
+    "normal": "normal",
+    "feature": {
+      "litres": "Litres in the day",
+      "ratio_7d": "Times the usual day",
+      "z_7d": "Distance from the usual day",
+      "night_min_lpm": "Lowest night flow (L/min)",
+      "peak_hour_share": "Share in the busiest hour",
+      "active_hours": "Hours with water use"
+    },
+    "models": "AI models",
+    "modelsIntro": "Every trained version and its scores on recent real days.",
+    "noModels": "No models yet. They are trained after 01:00 building time once there are about 2 weeks of readings.",
+    "model": "Model",
+    "version": "Version",
+    "trained": "Trained",
+    "data": "Data (rows)",
+    "scores": "Scores",
+    "status": "Status",
+    "kind": {
+      "forecast": "Forecast",
+      "unusual_use": "Unusual use"
+    },
+    "live": "Live",
+    "keptOut": "Not live",
+    "shutoff": {
+      "title": "Automatic shut-off",
+      "explain": "When AquaPulse is sure of a burst pipe or a leak, it closes this home's valve by itself and tells you and the resident. At most once an hour, and never on a locked valve. The resident can open it again.",
+      "label": "Turn the water off by itself when a leak is certain",
+      "on": "On: the valve closes by itself on a sure leak or burst.",
+      "off": "Off: you get the alert, and you decide.",
+      "saving": "Saving…"
     }
   }
 }

@@ -9,6 +9,7 @@ import 'owner/owner_shell.dart';
 import 'resident/my_home.dart';
 import 'resident/quality.dart';
 import 'resident/usage.dart';
+import 'shared/ai.dart';
 import 'shared/alerts.dart';
 import 'shared/bills.dart';
 import 'shared/profile.dart';
@@ -46,7 +47,7 @@ class _ResidentShellState extends State<ResidentShell> {
   int _tab = 0;
   String? _homeId;
 
-  static const _titles = ['My home', 'My usage', 'Water quality', 'My bills', 'Alerts', 'Profile'];
+  static const _titles = ['My home', 'My usage', 'Water quality', 'My bills', 'Alerts', 'Profile', 'AI insights'];
 
   @override
   Widget build(BuildContext context) {
@@ -64,9 +65,10 @@ class _ResidentShellState extends State<ResidentShell> {
       2 => homeId == null ? noHome : QualityScreen(homeId: homeId),
       3 => const MyBillsScreen(),
       4 => const AlertsScreen(),
+      6 => homeId == null ? noHome : AiScreen(homeId: homeId),
       _ => const ProfileScreen(),
     };
-    // Six places do not fit in a bottom bar: four there, all six in the menu.
+    // Seven places do not fit in a bottom bar: four there, all seven in the menu.
     return Scaffold(
       appBar: AppBar(title: Text(_titles[_tab]), actions: const [LiveDot()]),
       drawer: NavigationDrawer(
@@ -83,6 +85,7 @@ class _ResidentShellState extends State<ResidentShell> {
           NavigationDrawerDestination(icon: Icon(Icons.receipt_long_outlined), label: Text('My bills')),
           NavigationDrawerDestination(icon: Icon(Icons.notifications_outlined), label: Text('Alerts')),
           NavigationDrawerDestination(icon: Icon(Icons.person_outline), label: Text('Profile')),
+          NavigationDrawerDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('AI insights')),
         ],
       ),
       body: KeyedSubtree(key: ValueKey('$_tab/$homeId'), child: body),

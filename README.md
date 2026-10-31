@@ -4,6 +4,7 @@
 Per-home metering, remote valve control, water-quality monitoring, slab billing in 11 currencies, AI leak detection and a real-time dashboard, built on ESP32, MQTT over TLS, FastAPI, TimescaleDB, React and Flutter.
 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
+[![Security](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > 🚧 **Status: under active development (M8 of 12 milestones done).**
@@ -47,8 +48,8 @@ flowchart LR
 | M8 Web app | ✅ done |
 | M9 Android app | ✅ done |
 | M10 AI: leak detection and forecasting | ✅ |
-| M11 ESP32 firmware and hardware | ⏳ (part 1 done) |
-| M12 Demo data, polish and v1.0 release | ⏳ |
+| M11 ESP32 firmware and hardware | ✅ |
+| M12 Demo data, polish and v1.0 release | ⏳ (part 1 done) |
 
 ## Getting started (developers)
 
@@ -169,7 +170,9 @@ Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
 
 Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 
-**ESP32 firmware (M11, in progress).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Part 2: the tank node, which runs the pump by itself with dry-run and overflow protection even when the server is down, plus parts lists and wiring diagrams in [docs/hardware](docs/hardware). Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
+**ESP32 firmware (M11).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Part 2: the tank node, which runs the pump by itself with dry-run and overflow protection even when the server is down, plus parts lists and wiring diagrams in [docs/hardware](docs/hardware). Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
+
+**Privacy and security scans (M12, part 1).** Every user can download their own data as one JSON file, and residents can delete their account (name, email and phone removed; bills kept without a name for accounting). Raw readings older than 13 months are deleted automatically, and failed-login logs no longer store the email. A Security workflow runs pip-audit, pnpm audit, Bandit, CodeQL and Trivy on every push and every week, and Dependabot watches every part of the project. Guide: [docs/milestones/M12-polish-and-release.md](docs/milestones/M12-polish-and-release.md).
 
 ## Repository layout
 

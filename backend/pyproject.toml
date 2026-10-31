@@ -37,7 +37,7 @@ dev = [
     "httpx2==2.16.0",
     "ruff==0.17.3",
     "hypothesis==6.170.12",         # property tests for the bill engine (FR-34)
-    "pypdf==6.21.3",               # reads the text back out of PDF bills (FR-36)
+    "pypdf==6.21.4",               # reads the text back out of PDF bills (FR-36)
 ]
 
 [tool.uv]

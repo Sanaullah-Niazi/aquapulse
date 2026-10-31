@@ -193,6 +193,31 @@ void main() {
     });
   });
 
+  testWidgets('a resident can delete their account, and is then logged out (FR-75)', (tester) async {
+    final api = FakeApi();
+    residentData(api);
+    api.on('POST /me/delete', (r) => {'message': 'Your account was deleted'});
+    api.json('POST /auth/logout', {'message': 'ok'});
+    await startApp(tester, api, role: 'resident');
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    expect(find.text('Download my data'), findsOneWidget);
+    await tester.tap(find.text('Delete my account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('delete-password')), 'correct horse battery');
+    // The button stays off until DELETE is typed.
+    final button = find.widgetWithText(FilledButton, 'Delete my account for good');
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+    await tester.enterText(find.byKey(const Key('delete-confirm')), 'DELETE');
+    await tester.pump();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    final sent = jsonDecode(api.calls.firstWhere((r) => r.url.path.endsWith('/me/delete')).body);
+    expect(sent, {'password': 'correct horse battery', 'confirm': 'DELETE'});
+    expect(api.called, contains('POST /auth/logout'));
+    expect(find.text('Log in'), findsWidgets);
+  });
+
   testWidgets('the phone layout fits a small screen (360 px) without overflow', (tester) async {
     final api = FakeApi();
     residentData(api);

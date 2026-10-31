@@ -1,0 +1,107 @@
+# M12 (FR-74): security scans. The secret scan (gitleaks, full history) is in ci.yml.
+#
+# In simple words: robots check our code and the packages we use for known
+# security problems. A job goes red when it finds a High or Critical problem.
+#   dependencies  pip-audit (Python) and pnpm audit (web) against public lists
+#                 of known vulnerabilities
+#   bandit        looks for risky Python code (Ruff's "S" rules also run in ci.yml)
+#   codeql        GitHub's code analysis for Python, TypeScript and our workflows
+#   containers    Trivy checks the Docker images we build (the OS packages inside them too)
+# It also runs every Monday, because new problems are found in old packages.
+# Exceptions (a problem we accept for a written reason) are listed in
+# docs/security/scan-exceptions.md; each one also goes in the matching file below.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    name: Dependency audit (pip-audit, pnpm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Python packages of the backend and the simulator (exact locked versions)
+        run: |
+          for project in backend simulator; do
+            echo "== $project"
+            (cd "$project" && uv export --frozen --no-hashes --no-emit-project --format requirements-txt -q) > "/tmp/$project.txt"
+            # pip-audit has no severity filter, so it fails on any known problem.
+            uvx pip-audit==2.9.0 --requirement "/tmp/$project.txt" --disable-pip --no-deps --progress-spinner off
+          done
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Web packages (fails on High or Critical)
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm audit --audit-level high
+
+  bandit:
+    name: Python code check (Bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Fails on High severity findings (the full list is printed)
+        run: uvx bandit==1.8.6 -r backend/app simulator/src --severity-level high
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # to show results in the repository's Security tab
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  containers:
+    name: Container scan (Trivy, ${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, simulator, web]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image (same Dockerfile as docker-compose.yml)
+        run: docker build -t "aquapulse/${{ matrix.image }}:scan" -f "${{ matrix.image }}/Dockerfile" .
+      - name: Scan it (fails on High or Critical problems that have a fix)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/.trivyignore:/.trivyignore:ro" \
+            aquasec/trivy:0.67.2 image \
+            --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /.trivyignore \
+            --exit-code 1 --no-progress \
+            "aquapulse/${{ matrix.image }}:scan"

@@ -2,7 +2,7 @@
 # ingestor (M4), broker-auth (M5) and the worker (M6). One image, different
 # start commands.
 # Built by `make up` (docker compose build). Build context is the repo root.
-FROM python:3.12.15-slim-trixie
+FROM python:3.12.16-slim-trixie
 
 # Pango (text layout) and a font for WeasyPrint, which prints the PDF bills (M6).
 RUN apt-get update \

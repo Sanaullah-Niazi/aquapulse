@@ -10,7 +10,7 @@
 	ingest-logs demo-data live \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
 	worker-logs bills problem alerts \
-	web-setup web-dev web-build web-test web-e2e web-site web-site-check admin admin-reset-2fa
+	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -223,4 +223,26 @@ web-site: ## Build the app for your website: make web-site BASE=/water/ API=http
 web-site-check: ## Try the website build on your Mac at http://localhost:8099/water/ (make up first)
 	./scripts/web-site-check.sh
 
-test: sim-test api-test web-test ## Run all tests (grows with each milestone)
+# ---------------------------------------------------------------
+# M9: Android app (Flutter in mobile/). Needs Flutter and Android Studio
+# (brew install --cask flutter android-studio). See docs/milestones/M9.
+# ---------------------------------------------------------------
+
+app-test: ## Lint and widget tests for the Android app (no phone or Docker needed)
+	cd mobile && flutter pub get && flutter analyze && flutter test
+
+apk: certs ## Build the Android app (APK) that also trusts your Mac's AquaPulse certificate
+	@# The app trusts Android's normal certificates plus this CA (only this
+	@# project's own, never "trust everything"). The copy is git-ignored.
+	cp infra/certs/public/ca.crt mobile/assets/certs/local-ca.crt
+	cd mobile && flutter pub get && flutter build apk --release
+	@echo "APK: mobile/build/app/outputs/flutter-apk/app-release.apk"
+
+apk-install: ## Install the APK on the running emulator or USB phone and connect it to your Mac
+	@# adb reverse: on the phone, https://localhost:8443 now reaches your Mac's port 8443.
+	adb reverse tcp:8443 tcp:8443
+	adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk
+	adb shell monkey -p io.github.sanaullahniazi.aquapulse -c android.intent.category.LAUNCHER 1 >/dev/null
+	@echo "AquaPulse is open on the phone. Server: https://localhost:8443"
+
+test: sim-test api-test web-test app-test ## Run all tests (grows with each milestone)

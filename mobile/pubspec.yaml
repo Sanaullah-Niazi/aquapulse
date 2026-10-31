@@ -1,0 +1,31 @@
+# AquaPulse Android app (M9, FR-41). One app for owners and residents.
+name: aquapulse
+description: "AquaPulse: smart water for buildings. Owner and resident app."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  fl_chart: ^1.3.0
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  http: ^1.6.0
+  intl: ^0.20.3
+  open_filex: ^5.0.0
+  path_provider: ^2.1.6
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # make apk copies your local AquaPulse CA here (git-ignored), so the app
+    # trusts https://localhost:8443 on your Mac. Empty in the GitHub build.
+    - assets/certs/

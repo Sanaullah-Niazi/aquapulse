@@ -169,7 +169,7 @@ Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
 
 Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 
-**ESP32 firmware (M11, in progress).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
+**ESP32 firmware (M11, in progress).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Part 2: the tank node, which runs the pump by itself with dry-run and overflow protection even when the server is down, plus parts lists and wiring diagrams in [docs/hardware](docs/hardware). Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
 
 ## Repository layout
 

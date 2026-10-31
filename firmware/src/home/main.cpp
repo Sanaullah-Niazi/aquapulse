@@ -6,41 +6,20 @@
 // them to the real hardware: Wi-Fi, the TLS MQTT connection, the sensors,
 // the valve and the flash memory.
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <DallasTemperature.h>
-#include <MQTT.h>
 #include <OneWire.h>
-#include <Preferences.h>
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <esp_random.h>
-#include <time.h>
 
 #include "aquapulse_core.h"
 #include "config.h"
-
-#if __has_include("secrets.h")
-#include "secrets.h"
-#else
-#pragma message "include/secrets.h not found: building with the example values (fine for CI, not for a real device)"
-#include "secrets.example.h"
-#endif
+#include "../common/node.h"
 
 using namespace aquapulse;
+using node::flash;
 
 namespace {
 
-WiFiClientSecure net;
-MQTTClient mqtt(MAX_PAYLOAD + 256);
-Preferences flash;
 OneWire oneWire(ONEWIRE_PIN);
 DallasTemperature thermometer(&oneWire);
-
-char bootId[37];
-char topicTelemetry[64], topicStatus[64], topicState[64], topicCmd[64], topicAck[64];
-uint32_t seq = 0;
-bool firstTelemetry = true;
-int intervalS = DEFAULT_INTERVAL_S;
 
 // ----- the litre counter (FR-01, FR-17) -----
 volatile uint32_t pulses = 0;  // counted by the interrupt
@@ -65,11 +44,6 @@ bool valveTarget = true;  // true = open
 uint32_t valveStartedMs = 0;
 char pendingCmdId[37] = "";
 
-SeenCommands seen;
-Backoff backoff;
-uint32_t nextConnectMs = 0;
-uint32_t lastTelemetryMs = 0;
-
 const char* valveName(Valve v) {
   switch (v) {
     case Valve::Open: return "open";
@@ -79,27 +53,13 @@ const char* valveName(Valve v) {
   }
 }
 
-int64_t nowMs() {
-  struct timeval tv;
-  gettimeofday(&tv, nullptr);
-  if (tv.tv_sec < 1700000000) return 0;  // NTP has not set the clock yet
-  return static_cast<int64_t>(tv.tv_sec) * 1000 + tv.tv_usec / 1000;
-}
-
-double random01() { return esp_random() / 4294967296.0; }
-
-void publish(const char* topic, const char* payload, bool retained, int qos) {
-  if (mqtt.connected()) mqtt.publish(topic, payload, static_cast<int>(strlen(payload)), retained, qos);
-}
-
 void sendState() {
   char buf[256];
-  if (homeStateJson(nowMs(), valveName(valve), intervalS, buf, sizeof buf)) publish(topicState, buf, true, 1);
+  if (homeStateJson(node::nowMs(), valveName(valve), node::intervalS, buf, sizeof buf)) node::publishState(buf);
 }
 
 void sendAck(const char* cmdId, const char* result, const char* reason, const char* state) {
-  char buf[256];
-  if (ackJson(cmdId, result, reason, state, nowMs(), buf, sizeof buf)) publish(topicAck, buf, false, 1);
+  node::sendAck(cmdId, result, reason, state);
 }
 
 // ----- valve -----
@@ -144,48 +104,10 @@ void updateValve() {
   sendState();
 }
 
-// ----- commands (contract cmd.v1) -----
+// ----- commands (contract cmd.v1; already checked by node) -----
 
-void onCommand(String& /*topic*/, String& payload) {
-  JsonDocument doc;
-  Command cmd;
-  const bool parsed = payload.length() <= MAX_PAYLOAD && !deserializeJson(doc, payload) && doc.is<JsonObject>();
-  cmd.parsed = parsed;
-  if (parsed) {
-    static const char* const known[] = {"v", "cmdId", "type", "action", "lowPct", "highPct", "seconds",
-                                        "issuedAt", "expiresAt", "by"};
-    for (JsonPair kv : doc.as<JsonObject>()) {
-      bool ok = false;
-      for (const char* k : known) ok = ok || strcmp(kv.key().c_str(), k) == 0;
-      cmd.unknownField = cmd.unknownField || !ok;
-    }
-    cmd.v = doc["v"].is<int>() ? doc["v"].as<int>() : 0;
-    cmd.cmdId = doc["cmdId"] | "";
-    cmd.type = doc["type"] | "";
-    cmd.action = doc["action"] | "";
-    cmd.issuedAt = doc["issuedAt"] | "";
-    cmd.expiresAt = doc["expiresAt"] | "";
-    cmd.by = doc["by"] | "";
-    if ((cmd.hasLowPct = doc["lowPct"].is<double>())) cmd.lowPct = doc["lowPct"];
-    if ((cmd.hasHighPct = doc["highPct"].is<double>())) cmd.highPct = doc["highPct"];
-    if ((cmd.hasSeconds = doc["seconds"].is<long>())) cmd.seconds = doc["seconds"];
-  }
-  const Verdict verdict = checkCommand(cmd, DeviceKind::Home, nowMs(), seen);
-  const char* id = parsed ? cmd.cmdId : nullptr;
-  if (!verdict.accept) {
-    sendAck(id, "rejected", verdict.reason, valveName(valve));
-    return;
-  }
-  seen.add(cmd.cmdId);
-
-  if (strcmp(cmd.type, "interval") == 0) {
-    intervalS = static_cast<int>(cmd.seconds);
-    flash.putInt("intervalS", intervalS);
-    sendAck(cmd.cmdId, "ok", nullptr, nullptr);
-    sendState();
-    return;
-  }
-  // type == "valve"
+void onCommand(const Command& cmd) {
+  // type == "valve" (anything else for a home node was refused as UNSUPPORTED)
   if (valve == Valve::Moving) {
     sendAck(cmd.cmdId, "rejected", "BUSY", "moving");
     return;
@@ -197,30 +119,6 @@ void onCommand(String& /*topic*/, String& payload) {
   }
   strncpy(pendingCmdId, cmd.cmdId, sizeof pendingCmdId - 1);
   driveValve(open);  // the ack comes when it gets there (or VALVE_STUCK after 8 s)
-  sendState();
-}
-
-// ----- connection (FR-12, FR-17) -----
-
-void connectMqtt() {
-  if (WiFi.status() != WL_CONNECTED || millis() < nextConnectMs) return;
-  char lastWill[64];
-  statusJson(false, lastWill, sizeof lastWill);
-  mqtt.setWill(topicStatus, lastWill, true, 1);  // the broker says "offline" for us if we vanish
-  Serial.printf("MQTT: connecting to %s:%d as %s ...\n", MQTT_HOST, MQTT_PORT, DEVICE_ID);
-  if (!mqtt.connect(DEVICE_ID, DEVICE_ID, DEVICE_PASSWORD)) {
-    const uint32_t wait = backoff.next(random01());
-    Serial.printf("MQTT: failed (error %d, return code %d), next try in %lu ms\n", mqtt.lastError(),
-                  mqtt.returnCode(), static_cast<unsigned long>(wait));
-    nextConnectMs = millis() + wait;
-    return;
-  }
-  backoff.reset();
-  Serial.println("MQTT: connected");
-  mqtt.subscribe(topicCmd, 1);
-  char buf[64];
-  statusJson(true, buf, sizeof buf);
-  publish(topicStatus, buf, true, 1);
   sendState();
 }
 
@@ -259,15 +157,12 @@ void sendTelemetry() {
   windowPulses = 0;
   windowStartMs = now;
   if (valve == Valve::Closed) flowLpm = 0;  // contract: exactly 0 with the valve closed
-  const int64_t ts = nowMs();
+  const int64_t ts = node::nowMs();
   if (ts == 0) return;  // no valid time yet: wait for NTP
-  HomeTelemetry t{ts, bootId, seq, totalL, flowLpm, readPh(), tempC, valveName(valve), WiFi.RSSI(), firstTelemetry};
+  HomeTelemetry t{ts,     node::bootId(),    node::seq(), totalL, flowLpm, readPh(), tempC, valveName(valve),
+                  node::rssi(), node::isFirstTelemetry()};
   char buf[MAX_PAYLOAD];
-  if (homeTelemetryJson(t, buf, sizeof buf) && mqtt.connected()) {
-    publish(topicTelemetry, buf, false, 0);
-    seq++;
-    firstTelemetry = false;
-  }
+  if (homeTelemetryJson(t, buf, sizeof buf)) node::publishTelemetry(buf);
 }
 
 // ----- calibration from the serial monitor (FR-15: two-point pH) -----
@@ -288,8 +183,8 @@ void serialCommands() {
     flash.putDouble("ph_mv7", mv);
     Serial.printf("pH 7.00 buffer saved: %.0f mV\n", mv);
   } else if (line == "info") {
-    Serial.printf("device %s, fw %s, total %.2f L, valve %s, pH %.2f (%.0f mV), %.1f C, interval %d s\n", DEVICE_ID,
-                  FW_VERSION, totalL, valveName(valve), phCal.ph(mv), mv, tempC, intervalS);
+    Serial.printf("device %s, fw %s, total %.2f L, valve %s, pH %.2f (%.0f mV), %.1f C, interval %d s\n", node::deviceId(),
+                  FW_VERSION, totalL, valveName(valve), phCal.ph(mv), mv, tempC, node::intervalS);
   } else if (line.length()) {
     Serial.println("Commands: cal4 (probe in pH 4.00 buffer), cal7 (probe in pH 7.00 buffer), info");
   }
@@ -316,29 +211,16 @@ void wokwiFlow() {
 }  // namespace
 
 void setup() {
-  Serial.begin(115200);
-  Serial.printf("\nAquaPulse home node %s, fw %s\n", DEVICE_ID, FW_VERSION);
-
-  uint8_t raw[16];
-  esp_fill_random(raw, sizeof raw);
-  uuidFromBytes(raw, bootId, sizeof bootId);  // a new bootId tells the server we restarted
-  topic(DEVICE_ID, "telemetry", topicTelemetry, sizeof topicTelemetry);
-  topic(DEVICE_ID, "status", topicStatus, sizeof topicStatus);
-  topic(DEVICE_ID, "state", topicState, sizeof topicState);
-  topic(DEVICE_ID, "cmd", topicCmd, sizeof topicCmd);
-  topic(DEVICE_ID, "ack", topicAck, sizeof topicAck);
+  node::begin(DeviceKind::Home, "home node");
 
   // Restore what was saved before the reboot (FR-17).
-  flash.begin("aquapulse", false);
   totalL = flash.getDouble("totalL", 0.0);
   saver.restored(totalL, millis());
   phCal.mv4 = flash.getDouble("ph_mv4", phCal.mv4);
   phCal.mv7 = flash.getDouble("ph_mv7", phCal.mv7);
-  intervalS = flash.getInt("intervalS", DEFAULT_INTERVAL_S);
   const bool wasOpen = flash.getBool("valveOpen", true);
-  Serial.printf("Restored: %.2f L, valve %s, interval %d s\n", totalL, wasOpen ? "open" : "closed", intervalS);
+  Serial.printf("Restored: %.2f L, valve %s, interval %d s\n", totalL, wasOpen ? "open" : "closed", node::intervalS);
 
-  pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(VALVE_OPEN_PIN, OUTPUT);
   pinMode(VALVE_CLOSE_PIN, OUTPUT);
   pinMode(VALVE_OPENED_PIN, INPUT_PULLUP);
@@ -361,31 +243,13 @@ void setup() {
   thermometer.setWaitForConversion(false);
   thermometer.requestTemperatures();
   tempRequestedMs = millis();
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  configTime(0, 0, "pool.ntp.org", "time.google.com");  // UTC, for timestamps and command expiry
-  net.setCACert(CA_CERT);  // only our own CA is trusted (FR-12)
-  mqtt.begin(MQTT_HOST, MQTT_PORT, net);
-  mqtt.setKeepAlive(30);
-  mqtt.setCleanSession(true);
-  mqtt.onMessage(onCommand);
   windowStartMs = millis();
+
+  node::connect(onCommand, sendState);
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    static uint32_t lastTry = 0;
-    if (millis() - lastTry > 10000) {  // the ESP32 also reconnects by itself
-      lastTry = millis();
-      WiFi.reconnect();
-    }
-  } else if (!mqtt.connected()) {
-    connectMqtt();
-  }
-  mqtt.loop();
-  digitalWrite(STATUS_LED_PIN, mqtt.connected() ? HIGH : LOW);
-
+  node::loop();
   countWater();
   updateValve();
   readTemperature();
@@ -393,9 +257,6 @@ void loop() {
 #ifdef AQUAPULSE_WOKWI
   wokwiFlow();
 #endif
-  if (millis() - lastTelemetryMs >= static_cast<uint32_t>(intervalS) * 1000) {
-    lastTelemetryMs = millis();
-    sendTelemetry();
-  }
+  if (node::telemetryDue()) sendTelemetry();
   delay(10);
 }

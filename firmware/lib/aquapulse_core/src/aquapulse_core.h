@@ -115,17 +115,49 @@ double levelPercent(double distanceCm, double emptyCm, double fullCm);
 /// The same pump rules as the server (FR-07), run on the tank node itself so
 /// the tank is safe without internet. Auto mode: pump on below lowPct, off at
 /// highPct (hysteresis). Never on with an empty sump (dry run) or a full tank.
-struct PumpRules {
-  double lowPct = 25;
-  double highPct = 95;
-  double overflowPct = 97;
-  bool manual = false;
-};
-
 struct PumpInputs {
   double levelPct;
   bool sensorOk;
   bool sumpOk;
+};
+
+constexpr double OVERFLOW_PCT = 98;       // pump always off at or above this (same as the simulator)
+constexpr double MIN_THRESHOLD_GAP = 10;  // highPct - lowPct must be at least this
+constexpr int SENSOR_FAILURES_BEFORE_STOP = 5;
+
+struct PumpRules {
+  double lowPct = 25;
+  double highPct = 95;
+  double overflowPct = OVERFLOW_PCT;
+  bool manual = false;
+};
+
+/// New thresholds from a command: in the contract's range and at least 10 points apart.
+bool thresholdsOk(double lowPct, double highPct);
+
+/// A manual "pump on/off" command (FR-07 AC4). nullptr: do it. Otherwise the
+/// ack reason: NOT_MANUAL_MODE, UNSAFE_DRY_RUN or UNSAFE_OVERFLOW.
+const char* checkPumpCommand(const PumpRules& rules, const PumpInputs& in, bool turnOn);
+
+/// The tank's level sensor (FR-16): one reading per second, the median of
+/// the last 5, and "failed" only after 5 bad readings in a row, so one lost
+/// echo neither moves the level nor stops the pump.
+class LevelSensor {
+ public:
+  LevelSensor(double emptyCm, double fullCm) : emptyCm_(emptyCm), fullCm_(fullCm) {}
+  /// valid = false when the sensor gave no echo (or an impossible distance).
+  void add(bool valid, double distanceCm);
+  /// The last reading was good (what telemetry reports as sensorOk).
+  bool readingOk() const { return lastOk_; }
+  /// Good enough to control the pump: 5 readings seen and fewer than 5 failures in a row.
+  bool ok() const { return median_.ready() && failures_ < SENSOR_FAILURES_BEFORE_STOP; }
+  double percent() const { return levelPercent(median_.value(), emptyCm_, fullCm_); }
+
+ private:
+  double emptyCm_, fullCm_;
+  Median5 median_;
+  int failures_ = 0;
+  bool lastOk_ = false;
 };
 
 struct PumpDecision {

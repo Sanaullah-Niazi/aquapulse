@@ -8,8 +8,12 @@ version: 1
 author: AquaPulse
 steps:
   - wait-serial: "AquaPulse tank node"
-  # 1. Start: water is 130 cm down = 16 %. Low tank, water in the sump: pump on.
-  - wait-serial: "Pump on"
+  # 1. Start: water is 130 cm down = 16 %. Low tank, water in the sump: after
+  #    the first 5 level readings the pump is on. The node's own status line
+  #    ("info") shows it.
+  - delay: 8000ms
+  - write-serial: "info\n"
+  - wait-serial: "pump on"
   - expect-pin:
       part-id: esp
       pin: D23

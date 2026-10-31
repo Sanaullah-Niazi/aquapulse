@@ -7,7 +7,7 @@ Every table uses UUID keys, so IDs in URLs cannot be guessed by counting.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -26,6 +26,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
     text,
@@ -64,7 +65,32 @@ class User(Base):
     alert_email_min: Mapped[str] = mapped_column(
         String(8), nullable=False, server_default="warning"
     )
+    # M8 (FR-52): alert types never sent by email, and quiet hours (building
+    # time) during which non-critical emails wait.
+    email_muted_rules: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    quiet_from: Mapped[time | None] = mapped_column(Time)
+    quiet_until: Mapped[time | None] = mapped_column(Time)
+    # M8 (FR-70): two-factor login. The secret is stored encrypted; the last
+    # used time step stops the same code from working twice.
+    totp_secret: Mapped[str | None] = mapped_column(Text)
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = _now()
+
+
+class RecoveryCode(Base):
+    """One-time codes for when the phone with the authenticator app is lost (FR-70)."""
+
+    __tablename__ = "recovery_codes"
+
+    id: Mapped[uuid.UUID] = _id()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Currency(Base):

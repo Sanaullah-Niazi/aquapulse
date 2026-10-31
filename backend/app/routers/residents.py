@@ -79,8 +79,7 @@ async def invite_resident(
         f"Your building uses AquaPulse to show your water use and bills.\n"
         f"Use this code within {settings.invitation_hours} hours to create your account:\n\n"
         f"    {token}\n\n"
-        f"Link (the page arrives with the web app in M8): "
-        f"{settings.public_url}/accept-invite?token={token}\n",
+        f"Or open this link: {settings.web_app_url}/accept-invite?token={token}\n",
     )
     await audit.record(
         session,

@@ -9,7 +9,8 @@
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
-	worker-logs bills
+	worker-logs bills problem alerts \
+	web-setup web-dev web-build web-test web-e2e
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -187,4 +188,25 @@ problem: ## Cause a real problem for the alert engine: make problem (or TYPE=ph_
 alerts: ## List the newest alerts (open ones first) straight from the database
 	@docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT severity, state, rule, COALESCE(device_id, '"'"'-'"'"') AS device, opened_at::timestamp(0) AS opened, seen_count AS seen, left(message, 60) AS message FROM alerts ORDER BY state IN ('"'"'open'"'"', '"'"'acknowledged'"'"') DESC, opened_at DESC LIMIT 20"'
 
-test: sim-test api-test ## Run all tests (grows with each milestone)
+# ---------------------------------------------------------------
+# M8: Web app (React PWA in web/). make up already serves it at
+# https://localhost:8443/app/ ; these are for working on it.
+# ---------------------------------------------------------------
+
+web-setup: ## Install the web app's tools once (packages and the test browser)
+	cd web && pnpm install --frozen-lockfile && pnpm exec playwright install chromium
+
+web-dev: ## Run the web app with instant reload at http://localhost:5173/app/ (make up first)
+	cd web && pnpm dev
+
+web-build: ## Build the web app into web/dist (what make up serves)
+	cd web && pnpm build
+
+web-test: ## Type check and unit tests for the web app (no Docker needed)
+	cd web && pnpm typecheck && pnpm test
+
+web-e2e: ## Click through the app in a real browser, phone and desktop size (make up first)
+	@# The tests log in as the demo accounts, so they need the demo password from .env.
+	cd web && DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' ../.env | cut -d= -f2-)" pnpm e2e
+
+test: sim-test api-test web-test ## Run all tests (grows with each milestone)

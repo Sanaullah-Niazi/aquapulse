@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------
-# smoke-test.sh: proves the stack really works, end to end (M1 to M7).
+# smoke-test.sh: proves the stack really works, end to end (M1 to M8).
 # A "smoke test" is a quick check that the main things switch on
 # and do their basic job (named after "turn it on, see if it smokes").
 #
@@ -24,6 +24,8 @@
 #   - Alerts:      a real hot-water problem opens one alert, an email reaches
 #                  Mailpit, the owner acknowledges and resolves it; the audit
 #                  chain is checked on demand (M7)
+#   - Web app:     served at /app/ with its manifest and service worker (M8;
+#                  the screens themselves are tested with make web-e2e)
 #
 # Usage: ./scripts/smoke-test.sh   (or: make smoke)
 # Needs: docker, curl. Everything else runs inside the containers.
@@ -40,7 +42,7 @@ pass() { printf "  ✅ %s\n" "$1"; }
 fail() { printf "  ❌ %s\n" "$1"; failures=$((failures + 1)); }
 
 echo ""
-echo "AquaPulse smoke test (M1 to M7)"
+echo "AquaPulse smoke test (M1 to M8)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
@@ -128,6 +130,17 @@ for h in strict-transport-security content-security-policy x-content-type-option
   grep -qi "^$h:" <<<"$headers" || missing="$missing $h"
 done
 if [ -z "$missing" ]; then pass "Caddy: security headers (HSTS, CSP, nosniff, referrer, frame) are sent"; else fail "Caddy: missing headers:$missing"; fi
+
+# M8: the web app. Any page address gives the app (it picks the screen itself),
+# and the manifest makes it installable (PWA).
+app_page="$(curl -fsS --cacert "$ca" "$web/app/bills" 2>/dev/null)"
+manifest="$(curl -fsS --cacert "$ca" "$web/app/manifest.webmanifest" 2>/dev/null)"
+if grep -q '<div id="root">' <<<"$app_page" && grep -q '"name":"AquaPulse"' <<<"$manifest" \
+  && curl -fsS --cacert "$ca" -o /dev/null "$web/app/sw.js" 2>/dev/null; then
+  pass "Web app: served at $web/app/ (page, manifest and offline service worker)"
+else
+  fail "Web app: $web/app/ is missing or incomplete (rebuild: make up)"
+fi
 
 # 6. Simulator (M2): every virtual device online and sending telemetry ---------
 expected=11 # 10 homes + 1 tank (default SIM_HOMES=10)

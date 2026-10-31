@@ -43,8 +43,15 @@ class Settings(BaseSettings):
     smtp_host: str = "mailpit"
     smtp_port: int = 1025
     mail_from: str = "AquaPulse <no-reply@aquapulse.example.com>"
-    # Where links in emails point. The web pages for them arrive in M8.
+    # The server's address (the live WebSocket, Stripe's return pages).
     public_url: str = Field("https://localhost:8443", alias="PUBLIC_URL")
+    # The web app (M8), where links in emails point. Empty = PUBLIC_URL + "/app".
+    # When the app is on Sana's website: e.g. https://example.com/water
+    web_app_url_setting: str = Field("", alias="WEB_APP_URL")
+
+    @property
+    def web_app_url(self) -> str:
+        return (self.web_app_url_setting or f"{self.public_url}/app").rstrip("/")
 
     # Web pages allowed to call the API from a browser (CORS, FR-71), comma separated.
     cors_origins: str = Field("https://localhost:8443", alias="CORS_ORIGINS")

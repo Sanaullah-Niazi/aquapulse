@@ -7,3 +7,4 @@
 **/.ruff_cache
 web/node_modules
 mobile/build
+web/dist

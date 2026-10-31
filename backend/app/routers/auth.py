@@ -17,7 +17,7 @@ from ..config import Settings, get_settings
 from ..db import get_session
 from ..deps import Caller, client_ip, current_caller
 from ..emailer import send_email
-from ..models import Home, Invitation, Occupancy, PasswordReset, RefreshToken, User
+from ..models import Home, Invitation, Occupancy, PasswordReset, RecoveryCode, RefreshToken, User
 from ..schemas import (
     AcceptInviteIn,
     ForgotIn,
@@ -27,6 +27,7 @@ from ..schemas import (
     ResetIn,
     TokensOut,
 )
+from ..security import totp
 from ..security.passwords import hash_password, needs_rehash, password_problem, verify_password
 from ..security.ratelimit import SlidingWindow
 from ..security.tokens import create_access_token, hash_opaque_token, new_opaque_token
@@ -40,6 +41,8 @@ login_failures_by_account = SlidingWindow(limit=5, window_s=15 * 60, max_events=
 login_failures_by_ip = SlidingWindow(limit=5, window_s=15 * 60, max_events=20)
 
 BAD_LOGIN = "Wrong email or password"  # the same text whether or not the email exists
+NEED_CODE = "Two-factor code required"
+BAD_CODE = "Wrong two-factor code"
 Session = Annotated[AsyncSession, Depends(get_session)]
 Config = Annotated[Settings, Depends(get_settings)]
 
@@ -69,8 +72,44 @@ async def issue_tokens(
     )
 
 
+async def _second_factor(
+    session: AsyncSession, settings: Settings, user: User, code: str | None
+) -> str | None:
+    """FR-70: None if the 6-digit code (or a recovery code) is right, else why not."""
+    if user.totp_enabled_at is None:
+        return None
+    if not code:
+        return NEED_CODE
+    code = code.strip()
+    if len(code) == 6 and code.isdigit():
+        step = totp.matching_step(totp.decrypt(settings, user.totp_secret or ""), code,
+                                  user.totp_last_step)  # fmt: skip
+        if step is None:
+            return BAD_CODE
+        user.totp_last_step = step  # the same code never works twice
+        return None
+    hashes = totp.recovery_hashes(settings, code)
+    found = await session.scalar(
+        select(RecoveryCode).where(
+            RecoveryCode.user_id == user.id,
+            RecoveryCode.code_hash.in_(hashes),
+            RecoveryCode.used_at.is_(None),
+        )
+    )
+    if found is None:
+        return BAD_CODE
+    found.used_at = _now()
+    await audit.record(session, "auth.recovery_code_used", actor_id=user.id, actor_role=user.role)
+    return None
+
+
 async def _login(
-    request: Request, session: AsyncSession, settings: Settings, email: str, password: str
+    request: Request,
+    session: AsyncSession,
+    settings: Settings,
+    email: str,
+    password: str,
+    code: str | None = None,
 ) -> TokensOut:
     email = email.lower()
     ip = client_ip(request) or "unknown"
@@ -101,6 +140,21 @@ async def _login(
         await session.commit()  # keep the audit entry even though we answer 401
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, BAD_LOGIN)
 
+    problem = await _second_factor(session, settings, user, code)
+    if problem == NEED_CODE:  # the password was right: now ask for the code
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, NEED_CODE, headers={"X-Two-Factor": "required"}
+        )
+    if problem is not None:
+        login_failures_by_account.hit(email)
+        login_failures_by_ip.hit(ip)
+        await audit.record(session, "auth.login_failed", actor_id=user.id, ip=ip,
+                           details={"email": email, "reason": "two-factor code"})  # fmt: skip
+        await session.commit()
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, problem, headers={"X-Two-Factor": "required"}
+        )
+
     login_failures_by_account.reset(email)
     if needs_rehash(user.password_hash):  # e.g. after we raise the Argon2 cost
         user.password_hash = hash_password(password)
@@ -112,7 +166,7 @@ async def _login(
 @router.post("/login", response_model=TokensOut, responses={401: {}, 429: {}})
 async def login(body: LoginIn, request: Request, session: Session, settings: Config):
     """Email + password → a 15-minute access token and a 7-day refresh token."""
-    return await _login(request, session, settings, body.email, body.password)
+    return await _login(request, session, settings, body.email, body.password, body.code)
 
 
 @router.post("/token", response_model=TokensOut, include_in_schema=True, responses={401: {}})
@@ -123,8 +177,11 @@ async def login_form(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     """Same as /login, as an HTML form. Used by Swagger's **Authorize** button
-    (type your email in the *username* box)."""
-    return await _login(request, session, settings, form.username, form.password)
+    (type your email in the *username* box; with two-factor login on, put the
+    6-digit code in the *client_secret* box)."""
+    return await _login(
+        request, session, settings, form.username, form.password, form.client_secret
+    )
 
 
 @router.post("/refresh", response_model=TokensOut, responses={401: {}})
@@ -220,8 +277,7 @@ async def forgot_password(body: ForgotIn, request: Request, session: Session, se
             f"Use this code to set a new password within "
             f"{settings.reset_token_minutes} minutes:\n\n"
             f"    {token}\n\n"
-            f"Link (the page arrives with the web app in M8): "
-            f"{settings.public_url}/reset-password?token={token}\n\n"
+            f"Or open this link: {settings.web_app_url}/reset-password?token={token}\n\n"
             "If you did not ask for this, ignore this email; your password stays the same.\n",
         )
     return MessageOut(message="If that account exists, we sent an email with a reset code.")

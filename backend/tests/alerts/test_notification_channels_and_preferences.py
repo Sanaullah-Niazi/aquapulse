@@ -56,7 +56,7 @@ async def test_each_person_chooses_from_which_severity(site, engine, client, mak
     [alert] = await alerts_of(site.building)
     assert alert.severity == "warning" and await notifications_of(alert.id) == []
     r = await client.get("/api/v1/me/notifications", headers=await make.headers(site.resident))
-    assert r.json() == {"alert_email_min": "critical"}
+    assert r.json()["alert_email_min"] == "critical"
     bad = await client.patch("/api/v1/me/notifications", json={"alert_email_min": "loud"},
                              headers=await make.headers(site.resident))  # fmt: skip
     assert bad.status_code == 422

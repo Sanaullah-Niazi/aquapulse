@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Annotated, Literal
 from zoneinfo import available_timezones
@@ -53,6 +53,11 @@ class LoginIn(In):
 
     email: EmailStr
     password: Password
+    code: str | None = Field(
+        None,
+        max_length=20,
+        description="Only with two-factor login on (FR-70): the 6-digit code, or a recovery code",
+    )
 
 
 class RefreshIn(In):
@@ -138,6 +143,7 @@ class UserOut(Out):
 class MeOut(UserOut):
     building_ids: list[uuid.UUID] = []
     home_ids: list[uuid.UUID] = []
+    two_factor: bool = Field(False, description="Two-factor login is on (FR-70)")
 
 
 class MePatch(In):
@@ -442,6 +448,10 @@ class HomeLiveOut(BaseModel):
     reading: ReadingOut | None
     lock: ValveLockOut | None
     pending_command: CommandOut | None
+    unit_no: str = ""
+    building_name: str = ""
+    ph_safe_low: float = Field(6.5, description="Below this the water is unsafe (alert rules)")
+    ph_safe_high: float = Field(8.5, description="Above this the water is unsafe")
 
 
 class ConsumptionPoint(BaseModel):
@@ -966,10 +976,91 @@ class AlertRulesOut(BaseModel):
 
 
 class NotificationPrefsIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "alert_email_min": "warning",
+                    "email_muted_rules": ["high_usage"],
+                    "quiet_from": "22:00",
+                    "quiet_until": "07:00",
+                }
+            ]
+        },
+    )
 
-    alert_email_min: Literal["info", "warning", "critical", "off"]
+    alert_email_min: Literal["info", "warning", "critical", "off"] | None = None
+    email_muted_rules: list[str] | None = Field(
+        None, description="Alert types you never want by email (in the app they still show)"
+    )
+    quiet_from: time | None = Field(None, description="Quiet hours start (building time)")
+    quiet_until: time | None = Field(None, description="Quiet hours end")
 
 
 class NotificationPrefsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     alert_email_min: str = Field(description="Alerts of this severity and above also by email")
+    email_muted_rules: list[str] = []
+    quiet_from: time | None = Field(
+        None, description="Non-critical emails wait until quiet hours end (FR-52)"
+    )
+    quiet_until: time | None = None
+
+
+# ----- M8: the resident's screens and two-factor login -----
+
+
+class ComparisonOut(BaseModel):
+    month: date
+    until: date = Field(description="Last day counted (today for this month)")
+    litres: float
+    previous_month_litres: float | None = Field(
+        None, description="None if you did not live here last month"
+    )
+    people_in_home: int
+    litres_per_person: float | None
+    building_litres_per_person: float | None = Field(
+        None, description="Only shown with 3 or more occupied homes (FR-49)"
+    )
+    occupied_homes: int
+
+
+class BillEstimateOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    month: date
+    from_: date = Field(alias="from")
+    to: date
+    currency_code: str
+    litres: float | None = None
+    total: Decimal | None = None
+    total_text: str | None = None
+    message: str = ""
+
+
+class TwoFactorSetupIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(max_length=200)
+
+
+class TwoFactorSetupOut(BaseModel):
+    secret: str = Field(description="Type this into the authenticator app if you cannot scan")
+    otpauth_url: str
+    qr_svg: str = Field(description="The same as a QR code (SVG) to scan")
+
+
+class TwoFactorCodeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: Annotated[str, StringConstraints(pattern=r"^[0-9]{6}$")]
+
+
+class TwoFactorDisableIn(TwoFactorCodeIn):
+    password: str = Field(max_length=200)
+
+
+class RecoveryCodesOut(BaseModel):
+    recovery_codes: list[str] = Field(description="Shown once. Each works one time.")

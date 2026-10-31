@@ -28,6 +28,7 @@ x-backend-env: &backend-env
   JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is missing. Run "make env" to add it.}
   JWT_PREVIOUS_SECRETS: ${JWT_PREVIOUS_SECRETS:-}
   PUBLIC_URL: ${PUBLIC_URL:-https://localhost:8443}
+  WEB_APP_URL: ${WEB_APP_URL:-}
   CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost:8443}
   MQTT_HOST: mqtt
   MQTT_PORT: 8883
@@ -133,10 +134,15 @@ services:
       retries: 5
 
   # --- Caddy: the front door (web server / reverse proxy) ---
-  # Serves the status page and forwards /api to the API. From M5 only over
-  # HTTPS (https://localhost:8443); plain http://localhost:8080 redirects there.
+  # Serves the status page and the web app (/app/, M8) and forwards /api to
+  # the API. Only over HTTPS (https://localhost:8443) since M5; plain
+  # http://localhost:8080 redirects there.
   caddy:
-    image: caddy:2.11.7-alpine
+    # M8: Caddy plus the built web app (web/Dockerfile builds it with Node).
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: aquapulse/caddy:dev
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80" # http://localhost:8080 -> redirects to HTTPS

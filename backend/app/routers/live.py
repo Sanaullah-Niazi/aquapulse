@@ -15,9 +15,10 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..alerts.rules import settings_for
 from ..db import get_session
 from ..deps import Caller, require, resident_since, visible_building, visible_home
 from ..models import Building, Device, DeviceCommand, Home, Telemetry, ValveLock
@@ -114,6 +115,7 @@ def _start_of(day: date | None, tz: str) -> datetime | None:
 async def home_live(home_id: uuid.UUID, session: Session, caller: OwnerOrResident):
     """Latest reading, the valve state the device reported, and any lock."""
     home, building, since = await _home_and_since(session, caller, home_id)
+    rules = settings_for(building.alert_rules, building.alert_recipients)
     visible_from = _start_of(since, building.timezone)
     device = await session.scalar(
         select(Device).where(Device.home_id == home.id, Device.status == "active")
@@ -147,6 +149,11 @@ async def home_live(home_id: uuid.UUID, session: Session, caller: OwnerOrResiden
         reading=reading,
         lock=ValveLockOut.model_validate(lock) if lock else None,
         pending_command=CommandOut.model_validate(pending) if pending else None,
+        unit_no=home.unit_no,
+        building_name=building.name,
+        # The building's own pH limits (FR-62), for the Safe / Unsafe label (FR-48).
+        ph_safe_low=rules.get("ph_unsafe", "low"),
+        ph_safe_high=rules.get("ph_unsafe", "high"),
     )
 
 
@@ -159,8 +166,14 @@ async def home_telemetry(
     caller: OwnerOrResident,
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: Annotated[datetime | None, Query()] = None,
+    every: Annotated[
+        int | None,
+        Query(ge=60, le=86_400, description="Average per this many seconds (for charts)"),
+    ] = None,
 ):
-    """Raw readings, oldest first: at most 7 days per call (default: the last hour)."""
+    """Raw readings, oldest first: at most 7 days per call (default: the last hour).
+    With `every`, one averaged reading per period instead (a 7-day chart needs
+    a few hundred points, not 60,000)."""
     home, building, since = await _home_and_since(session, caller, home_id)
     end = _aware(to) if to else datetime.now(UTC)
     start = _aware(from_) if from_ else end - timedelta(hours=1)
@@ -173,12 +186,40 @@ async def home_telemetry(
     visible_from = _start_of(since, building.timezone)
     if visible_from is not None:
         start = max(start, visible_from)  # a resident sees only their own stay
+    if every is not None:
+        return await _averaged(session, home.id, start, end, every)
     rows = await session.scalars(
         select(Telemetry)
         .where(Telemetry.home_id == home.id, Telemetry.time >= start, Telemetry.time < end)
         .order_by(Telemetry.time)
     )
     return [ReadingOut.model_validate(r, from_attributes=True) for r in rows]
+
+
+async def _averaged(
+    session: AsyncSession, home_id: uuid.UUID, start: datetime, end: datetime, every: int
+) -> list[ReadingOut]:
+    bucket = func.time_bucket(timedelta(seconds=every), Telemetry.time).label("bucket")
+    rows = await session.execute(
+        select(
+            bucket,
+            func.max(Telemetry.total_l),
+            func.sum(Telemetry.delta_l),
+            func.avg(Telemetry.flow_lpm),
+            func.avg(Telemetry.ph),
+            func.avg(Telemetry.temp_c),
+            func.min(Telemetry.valve),  # one value per period is enough for a chart
+            func.avg(Telemetry.rssi),
+        )
+        .where(Telemetry.home_id == home_id, Telemetry.time >= start, Telemetry.time < end)
+        .group_by(bucket)
+        .order_by(bucket)
+    )
+    return [
+        ReadingOut(time=b, total_l=total, delta_l=round(delta, 3), flow_lpm=round(flow, 2),
+                   ph=round(ph, 2), temp_c=round(temp, 1), valve=valve, rssi=round(rssi))
+        for b, total, delta, flow, ph, temp, valve, rssi in rows
+    ]  # fmt: skip
 
 
 def _aware(moment: datetime) -> datetime:

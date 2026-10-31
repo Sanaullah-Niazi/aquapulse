@@ -9,6 +9,8 @@
 #     scan (testssl.sh) and a full-restart test.
 # M6: Pango for PDF bills, 100% branch coverage for the billing engine,
 #     and the billing checks in the stack smoke test.
+# M8: web app type check, unit tests and build; browser tests (Playwright)
+#     against the running stack.
 # ---------------------------------------------------------------
 name: CI
 
@@ -115,8 +117,29 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  web:
+    name: Web app type check + unit tests + build (M8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install exactly the locked versions (pnpm comes with Node's corepack)
+        run: corepack enable && pnpm install --frozen-lockfile
+      - name: Type check
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Build (what Caddy serves at /app/)
+        run: pnpm build
+
   stack:
-    name: Docker stack smoke + live MQTT + TLS tests (M1 to M7)
+    name: Docker stack smoke + browser + live MQTT + TLS tests (M1 to M8)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -132,8 +155,26 @@ jobs:
         run: docker compose config --quiet
       - name: Build our images, start the stack and wait until healthy
         run: docker compose up -d --build --wait --wait-timeout 300
-      - name: Smoke test (database, MQTT over TLS, email, HTTPS, simulator, API, ingestor, devices, billing)
+      - name: Smoke test (database, MQTT over TLS, email, HTTPS, web app, simulator, API, ingestor, devices, billing, alerts)
         run: make smoke
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install the web app's test tools and Chromium
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Browser tests (login, 2FA, valve, every resident screen, accessibility)
+        run: make web-e2e
+      - name: Keep the browser test report if they failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
       - name: TLS check (port 1883 closed, TLS 1.3, testssl.sh finds nothing)
         run: make tls-check
       - name: Demo history (7 days to keep CI fast), loaded twice to prove nothing doubles

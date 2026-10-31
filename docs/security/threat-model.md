@@ -26,12 +26,12 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 | T-02 | Someone sends "close valve" to many homes | **Done**: only the `commander` account may publish commands; the ingestor's reading account cannot; devices cannot. Commands expire after 30 s. | `test_only_the_command_account_can_send_commands`, M4 command tests |
 | T-03 | Sniffing MQTT on the Wi-Fi | **Done**: TLS 1.2+ only (1.3 negotiated), modern ciphers only, port 1883 closed. | `tests/broker/test_broker_tls.py`, `make tls-check` (testssl.sh) |
 | T-04 | Recorded command replayed | **Done**: cmdId dedupe + expiry (M4), and TLS stops recording. | M4 command tests, simulator FR-13 tests |
-| T-05 | Password guessing on login | **Partly**: Argon2id, rate limits, common-password check (M3). 2FA **Later** (M8). | `tests/security/test_password_security.py` |
+| T-05 | Password guessing on login | **Yes**: Argon2id, rate limits, common-password check (M3). Optional 2FA with an authenticator app (M8): the secret is stored encrypted (AES-GCM), each code works once, wrong codes count toward the same rate limit, 10 one-time recovery codes are kept only as keyed hashes. | `tests/security/test_password_security.py`, `tests/security/test_two_factor_authentication_totp.py` |
 | T-06 | Forged or stolen API tokens | **Done** (M3): fixed algorithm, aud/iss, 15 min expiry, refresh rotation with reuse detection. | `tests/security/test_token_security.py` |
 | T-07 | Resident opens another home (IDOR) | **Done**: object checks, 404 for foreign objects, every endpoint x role tested, including the new device endpoints. | `tests/security/test_rbac_matrix.py` |
 | T-08 | Mass assignment (`role: owner`) | **Done**: request models forbid unknown fields. | `tests/security/test_input_validation_and_rate_limiting.py` |
 | T-09 | SQL injection | **Done**: parameterised SQL only. Schemathesis fuzzing **Later** (M12). | code review, ruff/bandit rules |
-| T-10 | XSS in the web app | **Partly**: strict CSP and nosniff on every page from Caddy (M5). The web app itself is **Later** (M8). | smoke "security headers", `infra/caddy/Caddyfile` |
+| T-10 | XSS in the web app | **Yes**: strict CSP (scripts only from our own site, no inline scripts) and nosniff from Caddy (M5). React escapes every text it shows; the only raw HTML is the 2FA QR code, an SVG made by our own API. The access token lives only in memory; the refresh token is in localStorage (so the PWA stays logged in), is single-use, and reusing an old one ends the whole session (M3). | smoke "security headers", `infra/caddy/Caddyfile`, `web/src/api.ts` |
 | T-11 | Bills changed afterwards | **Done** (M6): issued bills are never edited, only voided with a reason (audited) and replaced; the API's database role cannot DELETE bills or payments; tariff changes are new versions and cannot reach back into issued months. | `tests/billing/test_bill_lifecycle.py`, `test_tariff_configuration_with_versioning.py` |
 | T-12 | Fake "payment success" | **Done** (M6): only a Stripe webhook with a valid signature marks a bill paid (the return page changes nothing); bad signatures are refused and logged; each Stripe session is recorded once; only test keys are accepted. | `tests/billing/test_stripe.py` |
 | T-13 | Owner denies cutting off water | **Done**: reason required, audit log with user, IP, time (M3, M4); every entry is hash-chained to the one before, so an entry changed later is found by the daily check (M7). | `tests/api/test_audit_log.py`, valve-lock tests, `tests/security/test_tamper_evident_audit_chain.py` |
@@ -46,7 +46,7 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 | T-22 | Malicious dependency or image | **Partly**: lock files, pinned images, Dependabot, gitleaks. Image scanning **Later** (M12). | `.github/` |
 | T-23 | Stolen ESP32 | **Done** for the server side: a stolen device's password only works for its own topics and can be revoked in one call. Flash encryption **Later** (M11). | revoke tests |
 | T-24 | Simulator control API misused | **Done**: published on 127.0.0.1 only; the simulator has no rights beyond its own devices' topics. | `docker-compose.yml` |
-| T-25 | Compromised System Admin | **Partly**: SA cannot control valves or register devices; all SA actions audited. Mandatory 2FA **Later** (M8). | RBAC matrix |
+| T-25 | Compromised System Admin | **Partly**: SA cannot control valves or register devices; all SA actions audited. 2FA available to every account (M8); making it mandatory for System Admins comes with the admin console (M8 part 3). | RBAC matrix |
 
 ### New in M5, and what was decided
 
@@ -90,6 +90,5 @@ Status: **Done** = in place and tested · **Partly** = some of it in place ·
 |------|--------------------------|------|
 | One server = single point of failure (T-15) | Portfolio project, documented | M12 (backups, monitoring) |
 | A DB superuser could rewrite the **whole** audit log, recomputing every hash | The chain finds any change to old entries, but someone with full control could rebuild it from the start. Fix: copy the latest hash somewhere else each day (backup, email) | M12 (backups) |
-| No 2FA yet | No public deployment yet | M8 |
 
 Next review: **M12**, before the public demo.

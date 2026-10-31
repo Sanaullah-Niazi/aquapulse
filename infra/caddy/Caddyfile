@@ -4,6 +4,7 @@
 # M5: HTTPS only, with our own certificate (make certs), plus security
 #     headers (SRS FR-71). Plain HTTP only redirects to HTTPS.
 # M6: bigger uploads for receipt photos; /pay/ pages after Stripe Checkout.
+# M8: the web app at /app/ (its files are built into the Caddy image).
 #
 # On your Mac:  https://localhost:8443   (http://localhost:8080 redirects)
 # Online (M12): the site name becomes the real domain and Caddy gets a free
@@ -49,6 +50,21 @@
 			max_size 3MB
 		}
 		reverse_proxy api:8000
+	}
+
+	# The web app (M8). Any address inside /app/ that is not a file gets
+	# index.html, so a link like /app/bills/123 also works after a reload.
+	redir /app /app/
+	handle_path /app/* {
+		root * /app-dist
+		try_files {path} /index.html
+		file_server
+		# Built files have a fingerprint in their name: keep them a year.
+		# Everything else (index.html, sw.js, config.js) is checked each time.
+		@fingerprinted path /assets/*
+		header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+		@other not path /assets/*
+		header @other Cache-Control "no-cache"
 	}
 
 	handle {

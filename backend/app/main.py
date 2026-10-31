@@ -34,6 +34,7 @@ from .routers import (
     health,
     live,
     me,
+    myhome,
     residents,
     stream,
     tanks,
@@ -116,15 +117,16 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["X-Two-Factor", "Content-Disposition"],  # read by the web app (M8)
         max_age=600,
     )
 
     app.include_router(health.router, prefix="/api")
     for module in (
         auth, me, admin, buildings, residents, live, valves, tanks, devices, stream,
-        tariffs, bills, alerts,
+        tariffs, bills, alerts, myhome,
     ):  # fmt: skip
         app.include_router(module.router, prefix=API_PREFIX)
 

@@ -2,7 +2,12 @@
 // email, quiet hours, the server, and logging out. Two-factor login is set up
 // in the web app (you scan its QR code with this phone); logging in here asks
 // for the code when it is on.
+// M12 (FR-75): download my data, and (residents) delete my account.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../api/client.dart';
 import '../../api/models.dart';
@@ -76,6 +81,20 @@ class ProfileScreen extends StatelessWidget {
           title: const Text('Server'),
           subtitle: Text(state.api.baseUrl),
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.download_outlined),
+          title: const Text('Download my data'),
+          subtitle: const Text('Your details, homes, daily water use and bills, as one file'),
+          onTap: () => _download(context),
+        ),
+        if (me.isResident)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.delete_forever_outlined),
+            title: const Text('Delete my account'),
+            onTap: () => _push(context, 'Delete my account', const DeleteAccountForm()),
+          ),
         const Divider(),
         FilledButton.tonalIcon(
           onPressed: () => state.logout(),
@@ -92,6 +111,20 @@ class ProfileScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _download(BuildContext context) async {
+    final api = AppScope.read(context).api;
+    try {
+      final (name, bytes) = await api.file('/me/export', 'aquapulse-my-data.json');
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${name.replaceAll(RegExp(r'[^\w.-]'), '_')}');
+      await file.writeAsBytes(bytes);
+      final result = await OpenFilex.open(file.path, type: 'application/json');
+      if (result.type != ResultType.done && context.mounted) toast(context, 'Saved ${file.path}');
+    } on ApiError catch (error) {
+      if (context.mounted) toast(context, error.message);
+    }
   }
 
   void _push(BuildContext context, String title, Widget body) => Navigator.of(context).push(
@@ -191,6 +224,63 @@ class _PasswordFormState extends State<_PasswordForm> {
           }
         },
         child: const Text('Change password'),
+      ),
+    ],
+  );
+}
+
+/// Residents only (FR-75): removes my name, email and phone and logs me out.
+/// Bills stay with the home, without my name, because the owner must keep them.
+class DeleteAccountForm extends StatefulWidget {
+  const DeleteAccountForm({super.key});
+  @override
+  State<DeleteAccountForm> createState() => _DeleteAccountFormState();
+}
+
+class _DeleteAccountFormState extends State<DeleteAccountForm> {
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  Object? _error;
+
+  @override
+  Widget build(BuildContext context) => ScreenList(
+    children: [
+      const Notice(
+        kind: NoticeKind.warn,
+        text:
+            'Your name, email and phone are removed and you are logged out. Bills stay with the home '
+            '(with no name on them) because the building owner must keep them. This cannot be undone.',
+      ),
+      TextField(
+        key: const Key('delete-password'),
+        controller: _password,
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Your password'),
+      ),
+      TextField(
+        key: const Key('delete-confirm'),
+        controller: _confirm,
+        decoration: const InputDecoration(labelText: 'Type DELETE to confirm'),
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 12),
+      if (_error != null) ErrorBox(error: _error),
+      FilledButton(
+        style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+        onPressed: _confirm.text != 'DELETE'
+            ? null
+            : () async {
+                final state = AppScope.read(context);
+                final navigator = Navigator.of(context);
+                try {
+                  await state.api.post('/me/delete', {'password': _password.text, 'confirm': _confirm.text});
+                  navigator.popUntil((route) => route.isFirst);
+                  await state.logout();
+                } on ApiError catch (error) {
+                  setState(() => _error = error);
+                }
+              },
+        child: const Text('Delete my account for good'),
       ),
     ],
   );

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -31,6 +32,14 @@ from ..security import totp
 from ..security.passwords import hash_password, needs_rehash, password_problem, verify_password
 from ..security.ratelimit import SlidingWindow
 from ..security.tokens import create_access_token, hash_opaque_token, new_opaque_token
+
+
+def email_fingerprint(email: str) -> str:
+    """The audit log cannot be changed later (FR-73), so it never keeps an email
+    address (FR-75, NFR-15): only a short fingerprint, enough to see that the
+    same address was tried many times."""
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:16]
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -135,7 +144,7 @@ async def _login(
             "auth.login_failed",
             actor_id=user.id if user else None,
             ip=ip,
-            details={"email": email},
+            details={"email_sha256": email_fingerprint(email)},
         )
         await session.commit()  # keep the audit entry even though we answer 401
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, BAD_LOGIN)
@@ -148,8 +157,8 @@ async def _login(
     if problem is not None:
         login_failures_by_account.hit(email)
         login_failures_by_ip.hit(ip)
-        await audit.record(session, "auth.login_failed", actor_id=user.id, ip=ip,
-                           details={"email": email, "reason": "two-factor code"})  # fmt: skip
+        details = {"email_sha256": email_fingerprint(email), "reason": "two-factor code"}
+        await audit.record(session, "auth.login_failed", actor_id=user.id, ip=ip, details=details)
         await session.commit()
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, problem, headers={"X-Two-Factor": "required"}

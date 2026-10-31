@@ -686,6 +686,77 @@
         ]
       }
     },
+    "/api/v1/me/export": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Export My Data",
+        "description": "Download everything AquaPulse keeps about me: profile, homes, bills,\npayments and daily water use (FR-75).",
+        "operationId": "export_my_data_api_v1_me_export_get",
+        "responses": {
+          "200": {
+            "description": "My data, as a JSON file",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/delete": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Delete My Account",
+        "description": "Delete my account (residents). My name, email and phone are removed for\ngood and I am logged out everywhere. Bills keep their amounts, under\n\"Deleted resident\", because the building's accounts must still add up.\nOwners and admins cannot delete themselves here: their buildings would\nhave no one in charge.",
+        "operationId": "delete_my_account_api_v1_me_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/health": {
       "get": {
         "tags": [
@@ -7351,6 +7422,35 @@
           "litres"
         ],
         "title": "DayLitresOut"
+      },
+      "DeleteAccountIn": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "confirm": {
+            "type": "string",
+            "const": "DELETE",
+            "title": "Confirm",
+            "description": "Type \"DELETE\" to show you mean it"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password",
+          "confirm"
+        ],
+        "title": "DeleteAccountIn",
+        "examples": [
+          {
+            "confirm": "DELETE",
+            "password": "my password"
+          }
+        ]
       },
       "DeviceCredentialsOut": {
         "properties": {

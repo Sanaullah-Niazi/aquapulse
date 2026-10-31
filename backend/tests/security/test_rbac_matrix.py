@@ -31,6 +31,9 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("GET", "/api/v1/me"): ALL,
     ("PATCH", "/api/v1/me"): ALL,
     ("POST", "/api/v1/me/password"): ALL,
+    # M12 (FR-75): download my data (anyone), delete my account (residents)
+    ("GET", "/api/v1/me/export"): ALL,
+    ("POST", "/api/v1/me/delete"): {RE},
     ("GET", "/api/v1/admin/owners"): {SA},
     ("POST", "/api/v1/admin/owners"): {SA},
     ("PATCH", "/api/v1/admin/owners/{owner_id}"): {SA},

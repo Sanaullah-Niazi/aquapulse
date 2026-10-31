@@ -7,16 +7,18 @@ from typing import Annotated
 
 import segno
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import audit
+from .. import audit, privacy
 from ..config import Settings, get_settings
 from ..db import get_session
-from ..deps import Caller, active_occupancy_filter, current_caller
+from ..deps import Caller, active_occupancy_filter, current_caller, require
 from ..models import Building, Occupancy, RecoveryCode
 from ..schemas import (
     ChangePasswordIn,
+    DeleteAccountIn,
     MeOut,
     MePatch,
     MessageOut,
@@ -192,3 +194,42 @@ async def two_factor_disable(
     await audit.record(session, "auth.2fa_disabled", actor_id=caller.id, actor_role=caller.role,
                        ip=caller.ip)  # fmt: skip
     return MessageOut(message="Two-factor login is off.")
+
+
+# ----- privacy (M12, FR-75) -----
+
+
+@router.get("/export", responses={200: {"description": "My data, as a JSON file"}})
+async def export_my_data(session: Session, caller: Me):
+    """Download everything AquaPulse keeps about me: profile, homes, bills,
+    payments and daily water use (FR-75)."""
+    data = await privacy.export_data(session, caller.user)
+    await audit.record(
+        session, "user.data_exported", actor_id=caller.id, actor_role=caller.role, ip=caller.ip,
+        target_type="user", target_id=caller.id,
+    )  # fmt: skip
+    day = date.today().isoformat()
+    return JSONResponse(
+        data,
+        headers={"Content-Disposition": f'attachment; filename="aquapulse-my-data-{day}.json"'},
+    )
+
+
+@router.post("/delete", response_model=MessageOut, responses={400: {}, 403: {}, 422: {}})
+async def delete_my_account(
+    body: DeleteAccountIn,
+    session: Session,
+    caller: Annotated[Caller, Depends(require("resident"))],
+):
+    """Delete my account (residents). My name, email and phone are removed for
+    good and I am logged out everywhere. Bills keep their amounts, under
+    "Deleted resident", because the building's accounts must still add up.
+    Owners and admins cannot delete themselves here: their buildings would
+    have no one in charge."""
+    _check_password(caller, body.password)
+    await privacy.delete_account(session, caller.user)
+    await audit.record(
+        session, "user.deleted", actor_id=caller.id, actor_role=caller.role, ip=caller.ip,
+        target_type="user", target_id=caller.id, details={"by": "self"},
+    )  # fmt: skip
+    return MessageOut(message="Your account is deleted. Goodbye, and thank you.")

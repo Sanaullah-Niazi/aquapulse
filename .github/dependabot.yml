@@ -1,5 +1,5 @@
 # Dependabot opens pull requests when our dependencies have updates or security fixes.
-# More ecosystems (pip, npm, pub) are added as those parts are built.
+# M12: every part of the project is covered (FR-74).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -44,3 +44,23 @@ updates:
     ignore:
       - dependency-name: python
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # M8: the web app's packages (pnpm-lock.yaml) and its build image.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: docker
+    directory: /web
+    schedule:
+      interval: weekly
+
+  # M9: the Android app's Dart packages (pubspec.lock).
+  - package-ecosystem: pub
+    directory: /mobile
+    schedule:
+      interval: weekly

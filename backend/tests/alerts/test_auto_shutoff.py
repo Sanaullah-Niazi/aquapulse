@@ -3,6 +3,7 @@ worker's alert engine, with the simulator's burst and leak scenarios."""
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -39,7 +40,10 @@ async def test_a_burst_raises_a_critical_alert_with_its_reason(site, engine):
     assert len(bursts) == 1
     burst = bursts[0]
     assert burst.severity == "critical" and burst.title == "Burst pipe suspected"
-    assert "35.0 L/min" in burst.message and "broken pipe" in burst.message
+    # The twin's normal use is added on top of the burst, and that depends on
+    # the time of day the test runs, so the peak is at least the burst's 35 L/min.
+    peak = re.search(r"up to ([0-9.]+) L/min", burst.message)
+    assert peak and float(peak.group(1)) >= 35.0 and "broken pipe" in burst.message
     assert burst.details["high"] is True and burst.details["points"]
 
 

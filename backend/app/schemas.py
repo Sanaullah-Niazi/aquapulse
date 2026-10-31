@@ -1260,3 +1260,16 @@ class AiModelOut(Out):
     params: dict[str, Any]
     live: bool
     note: str
+
+
+# ----- privacy (M12, FR-75) -----
+
+
+class DeleteAccountIn(In):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"password": "my password", "confirm": "DELETE"}]},
+    )
+
+    password: Password
+    confirm: Literal["DELETE"] = Field(description='Type "DELETE" to show you mean it')

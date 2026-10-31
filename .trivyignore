@@ -1,0 +1,4 @@
+# Trivy findings we accept for now (FR-74). Each line is one vulnerability ID.
+# Every entry must also be explained in docs/security/scan-exceptions.md
+# (why it does not affect AquaPulse, and when it is checked again).
+# Empty on purpose: there are no exceptions yet.

@@ -22,7 +22,7 @@
     "react": "19.1.10",
     "react-dom": "19.1.10",
     "react-i18next": "15.7.4",
-    "react-router": "7.9.6",
+    "react-router": "7.18.5",
     "recharts": "3.2.1"
   },
   "devDependencies": {
@@ -35,9 +35,9 @@
     "@vitejs/plugin-react": "5.0.4",
     "jsdom": "27.0.1",
     "typescript": "5.9.3",
-    "vite": "7.1.12",
+    "vite": "7.3.7",
     "vite-plugin-pwa": "1.0.3",
-    "vitest": "3.2.7"
+    "vitest": "4.1.12"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

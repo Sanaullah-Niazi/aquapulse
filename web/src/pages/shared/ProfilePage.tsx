@@ -1,8 +1,9 @@
-// S-06: my details, my password, two-factor login (FR-70) and "log out everywhere".
+// S-06: my details, my password, two-factor login (FR-70), "log out everywhere",
+// and my data: download it, or delete my account (FR-75, M12).
 import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api";
+import { api, download } from "../../api";
 import { useAuth, useMe } from "../../auth";
 import { PasswordInput } from "../../components/PasswordInput";
 import { ErrorBox, Field } from "../../components/ui";
@@ -17,6 +18,7 @@ export function ProfilePage() {
         <ChangePassword />
         <TwoFactor />
         <Sessions />
+        <Privacy />
       </div>
     </>
   );
@@ -247,6 +249,54 @@ function Sessions() {
       <h2>{t("profile.sessions")}</h2>
       <p className="muted">{t("profile.logoutAllHelp")}</p>
       <button onClick={() => void logout(true)}>{t("profile.logoutAll")}</button>
+    </section>
+  );
+}
+
+/** FR-75: download my data (everyone) and delete my account (residents only). */
+function Privacy() {
+  const { t } = useTranslation();
+  const me = useMe();
+  const { logout } = useAuth();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const get = useMutation({ mutationFn: () => download("/me/export", "aquapulse-my-data.json") });
+  const remove = useMutation({
+    mutationFn: () => api("/me/delete", { method: "POST", body: { password, confirm } }),
+    onSuccess: () => void logout(),
+  });
+  return (
+    <section className="card" aria-labelledby="privacy-title">
+      <h2 id="privacy-title">{t("profile.privacy")}</h2>
+      <p className="muted">{t("profile.privacyHelp")}</p>
+      {get.error && <ErrorBox error={get.error} />}
+      <button disabled={get.isPending} onClick={() => get.mutate()}>
+        {t("profile.download")}
+      </button>
+      {me.role === "resident" && (
+        <form
+          style={{ marginTop: "1.5rem" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            remove.mutate();
+          }}
+        >
+          <h3>{t("profile.deleteTitle")}</h3>
+          <p className="notice warn">{t("profile.deleteHelp")}</p>
+          <Field id="del-password" label={t("profile.confirmPassword")}>
+            <input id="del-password" type="password" autoComplete="current-password" required
+                   value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          <Field id="del-confirm" label={t("profile.deleteType")}>
+            <input id="del-confirm" required autoComplete="off" value={confirm}
+                   onChange={(e) => setConfirm(e.target.value)} />
+          </Field>
+          {remove.error && <ErrorBox error={remove.error} />}
+          <button className="danger" disabled={remove.isPending || confirm !== "DELETE"}>
+            {t("profile.deleteButton")}
+          </button>
+        </form>
+      )}
     </section>
   );
 }

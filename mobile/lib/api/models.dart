@@ -280,26 +280,32 @@ class Alert {
 }
 
 class NotificationPrefs {
-  NotificationPrefs({
-    required this.emailMin,
-    required this.mutedRules,
-    required this.quietFrom,
-    required this.quietUntil,
-  });
   NotificationPrefs.fromJson(Map<String, dynamic> j)
     : emailMin = j['alert_email_min'] as String,
       mutedRules = _strings(j['email_muted_rules']).toSet(),
       quietFrom = j['quiet_from'] as String?,
-      quietUntil = j['quiet_until'] as String?;
+      quietUntil = j['quiet_until'] as String?,
+      pushMin = j['push_min'] as String? ?? 'warning',
+      pushMutedRules = _strings(j['push_muted_rules']).toSet(),
+      pushAvailable = j['push_available'] as bool? ?? false;
   String emailMin;
   Set<String> mutedRules;
   String? quietFrom;
   String? quietUntil;
+
+  /// M9: push to this phone from this severity up, and types never pushed.
+  String pushMin;
+  Set<String> pushMutedRules;
+
+  /// Is push set up on the server (a Firebase project)?
+  final bool pushAvailable;
 
   Map<String, dynamic> toJson() => {
     'alert_email_min': emailMin,
     'email_muted_rules': mutedRules.toList()..sort(),
     'quiet_from': quietFrom,
     'quiet_until': quietUntil,
+    'push_min': pushMin,
+    'push_muted_rules': pushMutedRules.toList()..sort(),
   };
 }

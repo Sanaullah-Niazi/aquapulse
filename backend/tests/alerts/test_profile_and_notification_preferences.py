@@ -56,7 +56,9 @@ async def test_preferences_are_checked(client, make):
                            headers=headers)  # fmt: skip
     assert r.status_code == 200
     assert r.json() == {"alert_email_min": "warning", "email_muted_rules": ["high_usage"],
-                        "quiet_from": "22:00:00", "quiet_until": "07:00:00"}  # fmt: skip
+                        "quiet_from": "22:00:00", "quiet_until": "07:00:00",
+                        "push_min": "warning", "push_muted_rules": [],
+                        "push_available": False}  # fmt: skip
     # Only what is sent changes; null switches quiet hours off.
     r = await client.patch(URL, json={"quiet_from": None, "quiet_until": None}, headers=headers)
     assert r.json()["quiet_from"] is None and r.json()["email_muted_rules"] == ["high_usage"]

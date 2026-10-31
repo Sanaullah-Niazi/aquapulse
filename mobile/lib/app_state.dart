@@ -1,5 +1,7 @@
 // Who is logged in, for the whole app: server address, login (with the
 // two-factor code, FR-70), logout and "who am I".
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import 'api/client.dart';
@@ -7,11 +9,12 @@ import 'api/models.dart';
 import 'api/server.dart';
 import 'api/token_store.dart';
 import 'live.dart';
+import 'push.dart';
 
 enum LoginResult { ok, needCode }
 
 class AppState extends ChangeNotifier {
-  AppState({required this.api, required this.live});
+  AppState({required this.api, required this.live, this.push});
 
   /// The real app: secure storage, the saved server, and the trusted CA.
   static Future<AppState> create() async {
@@ -29,6 +32,12 @@ class AppState extends ChangeNotifier {
 
   final ApiClient api;
   final Live live;
+
+  /// Push notifications (M9); null or not ready = no push in this build.
+  final PushService? push;
+  bool pushReady = false;
+  String? _pushToken;
+  StreamSubscription<String>? _tokenSub;
   Me? me;
 
   /// True while we check a saved login at start-up.
@@ -40,6 +49,8 @@ class AppState extends ChangeNotifier {
   /// Start-up: if a refresh token is saved, log in with it. A busy or briefly
   /// unreachable server must not log you out, so try again a few times.
   Future<void> init() async {
+    final push = this.push;
+    if (push != null) pushReady = await push.start();
     api.onLoggedOut = () {
       live.stop();
       me = null;
@@ -63,6 +74,25 @@ class AppState extends ChangeNotifier {
     me = Me.fromJson(await api.get('/me') as Map<String, dynamic>);
     live.start();
     notifyListeners();
+    unawaited(_registerPush());
+  }
+
+  /// Tell the server where to send this person's pushes. Never blocks login.
+  Future<void> _registerPush() async {
+    final push = this.push;
+    if (!pushReady || push == null) return;
+    try {
+      final token = await push.token();
+      if (token == null) return; // notifications not allowed on this phone
+      _pushToken = token;
+      await api.post('/me/push-devices', {'token': token, 'platform': 'android'});
+      _tokenSub ??= push.tokenChanges.listen((fresh) async {
+        _pushToken = fresh;
+        if (me != null) await api.post('/me/push-devices', {'token': fresh, 'platform': 'android'});
+      });
+    } catch (_) {
+      // no network or push refused: alerts still come live and by email
+    }
   }
 
   Future<void> setServer(String url) async {
@@ -92,6 +122,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout({bool everywhere = false}) async {
+    final token = _pushToken;
+    if (token != null) {
+      try {
+        await api.post('/me/push-devices/forget', {'token': token});
+        await push?.deleteToken();
+      } catch (_) {
+        // the server forgets a phone by itself once Firebase says it is gone
+      }
+      _pushToken = null;
+    }
     try {
       await api.post(everywhere ? '/auth/logout-all' : '/auth/logout');
     } catch (_) {

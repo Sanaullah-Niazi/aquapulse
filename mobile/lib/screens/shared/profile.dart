@@ -235,6 +235,45 @@ class _PrefsEditorState extends State<_PrefsEditor> {
     setState(() => start ? p.quietFrom = text : p.quietUntil = text);
   }
 
+  /// Push to this phone (M9): only when the server and this app build both have Firebase.
+  List<Widget> _pushSection(List<String> rules) {
+    final state = AppScope.read(context);
+    if (!p.pushAvailable || !state.pushReady) {
+      return [
+        const Heading('Push notifications'),
+        Text(
+          !p.pushAvailable
+              ? 'Push is not set up on this server (it needs a free Firebase project, see the M9 guide).'
+              : 'This app was built without Firebase settings, so it cannot receive pushes.',
+        ),
+      ];
+    }
+    return [
+      const Heading('Push to this phone from'),
+      DropdownButton<String>(
+        key: const Key('push-min'),
+        value: p.pushMin,
+        isExpanded: true,
+        items: const [
+          DropdownMenuItem(value: 'info', child: Text('Info and above (all)')),
+          DropdownMenuItem(value: 'warning', child: Text('Warning and above')),
+          DropdownMenuItem(value: 'critical', child: Text('Critical only')),
+          DropdownMenuItem(value: 'off', child: Text('No pushes')),
+        ],
+        onChanged: (v) => setState(() => p.pushMin = v ?? p.pushMin),
+      ),
+      const Heading('Never push about'),
+      for (final rule in rules)
+        CheckboxListTile(
+          key: Key('push-mute-$rule'),
+          contentPadding: EdgeInsets.zero,
+          title: Text(ruleNames[rule]!),
+          value: p.pushMutedRules.contains(rule),
+          onChanged: (on) => setState(() => on == true ? p.pushMutedRules.add(rule) : p.pushMutedRules.remove(rule)),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final rules = ruleNames.keys.where(
@@ -243,7 +282,7 @@ class _PrefsEditorState extends State<_PrefsEditor> {
     final quiet = p.quietFrom != null;
     return ScreenList(
       children: [
-        const Text('Every alert always shows in the app. Choose which ones also come by email.'),
+        const Text('Every alert always shows in the app. Choose which ones also come by email or push.'),
         const Heading('Email me alerts from'),
         DropdownButton<String>(
           value: p.emailMin,
@@ -264,10 +303,13 @@ class _PrefsEditorState extends State<_PrefsEditor> {
             value: p.mutedRules.contains(rule),
             onChanged: (on) => setState(() => on == true ? p.mutedRules.add(rule) : p.mutedRules.remove(rule)),
           ),
+        ..._pushSection(rules.toList()),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Quiet hours'),
-          subtitle: const Text('Non-critical emails wait until the end. Critical alerts always come at once.'),
+          subtitle: const Text(
+            'Non-critical emails and pushes wait until the end. Critical alerts always come at once.',
+          ),
           value: quiet,
           onChanged: (on) => setState(() {
             p.quietFrom = on ? '22:00' : null;

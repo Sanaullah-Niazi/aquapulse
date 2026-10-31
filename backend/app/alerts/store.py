@@ -22,6 +22,7 @@ from sqlalchemy import or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import events as bus
+from .. import push
 from ..billing.periods import local_midnight
 from ..config import get_settings
 from ..models import (
@@ -33,6 +34,7 @@ from ..models import (
     Home,
     Notification,
     Occupancy,
+    PushDevice,
     Tank,
     User,
 )
@@ -141,6 +143,7 @@ async def _open(session: AsyncSession, signal: Signal, now: datetime) -> Alert |
     await session.flush()
     await bus.notify(session, bus.EVENTS, alert_event(alert))
     await queue_emails(session, alert, now)
+    await queue_push(session, alert, now)
     log.info("alert opened: %s %s", alert.severity, alert.dedupe_key)
     return alert
 
@@ -168,9 +171,8 @@ async def auto_resolve(session: AsyncSession, now: datetime) -> int:
 # ----- who is told -----
 
 
-async def recipients(session: AsyncSession, alert: Alert) -> list[User]:
-    """People who get an email: the building's choice per severity (FR-62),
-    then each person's own minimum severity (FR-60)."""
+async def _people(session: AsyncSession, alert: Alert) -> list[User]:
+    """Who may be told at all: the building's choice per severity (FR-62)."""
     if alert.building_id is None:  # a system alert: the System Admins
         users = list(
             await session.scalars(select(User).where(User.role == "sysadmin", User.is_active))
@@ -196,13 +198,37 @@ async def recipients(session: AsyncSession, alert: Alert) -> list[User]:
                 )
             )
         users = list(await session.scalars(select(User).where(User.id.in_(ids), User.is_active)))
-    wanted = SEVERITY_ORDER[alert.severity]
+    return users
+
+
+def _wants(minimum: str, muted: list[str] | None, alert: Alert) -> bool:
+    """Each person's own choice (FR-52, FR-60): from this severity up, minus muted types."""
+    return (
+        minimum != "off"
+        and SEVERITY_ORDER[minimum] <= SEVERITY_ORDER[alert.severity]
+        and alert.rule not in (muted or [])
+    )
+
+
+async def recipients(session: AsyncSession, alert: Alert) -> list[User]:
+    """People who get an email: the building's choice, then each person's own."""
     return [
         u
-        for u in users
-        if u.alert_email_min != "off"
-        and SEVERITY_ORDER[u.alert_email_min] <= wanted
-        and alert.rule not in (u.email_muted_rules or [])  # FR-52: "never by email"
+        for u in await _people(session, alert)
+        if _wants(u.alert_email_min, u.email_muted_rules, alert)
+    ]
+
+
+async def push_recipients(session: AsyncSession, alert: Alert) -> list[User]:
+    """People who get a push (M9): the same, with their push choice, and only
+    if they have a phone registered and the server has push set up."""
+    if not push.available():
+        return []
+    with_phone = set(await session.scalars(select(PushDevice.user_id).distinct()))
+    return [
+        u
+        for u in await _people(session, alert)
+        if u.id in with_phone and _wants(u.push_min, u.push_muted_rules, alert)
     ]
 
 
@@ -262,6 +288,32 @@ async def queue_emails(session: AsyncSession, alert: Alert, now: datetime) -> in
                 subject=subject,
                 body=body,
                 # Critical alerts ignore quiet hours (FR-52 criterion 1).
+                next_attempt_at=after_quiet_hours(person, timezone, now) if timezone else now,
+            )
+        )
+    return len(people)
+
+
+async def queue_push(session: AsyncSession, alert: Alert, now: datetime) -> int:
+    """A push to each person's phones (M9, FR-60). Like email, non-critical
+    pushes wait until the person's quiet hours end (FR-52)."""
+    people = await push_recipients(session, alert)
+    if not people:
+        return 0
+    where = await _where(session, alert)
+    timezone = None
+    if alert.building_id is not None and alert.severity != "critical":
+        building = await session.get(Building, alert.building_id)
+        timezone = building.timezone if building else None
+    for person in people:
+        session.add(
+            Notification(
+                user_id=person.id,
+                channel="push",
+                kind="alert",
+                alert_id=alert.id,
+                subject=f"{alert.title} ({where})"[:200],
+                body=alert.message,
                 next_attempt_at=after_quiet_hours(person, timezone, now) if timezone else now,
             )
         )

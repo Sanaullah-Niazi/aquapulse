@@ -1025,6 +1025,10 @@ class NotificationPrefsIn(BaseModel):
     )
     quiet_from: time | None = Field(None, description="Quiet hours start (building time)")
     quiet_until: time | None = Field(None, description="Quiet hours end")
+    push_min: Literal["info", "warning", "critical", "off"] | None = Field(
+        None, description="M9: push to the Android app from this severity up"
+    )
+    push_muted_rules: list[str] | None = Field(None, description="M9: alert types never pushed")
 
 
 class NotificationPrefsOut(BaseModel):
@@ -1036,6 +1040,29 @@ class NotificationPrefsOut(BaseModel):
         None, description="Non-critical emails wait until quiet hours end (FR-52)"
     )
     quiet_until: time | None = None
+    push_min: str = Field("warning", description="Push to the Android app from this severity up")
+    push_muted_rules: list[str] = []
+    push_available: bool = Field(
+        False, description="Is push set up on this server (a Firebase project)?"
+    )
+
+
+class PushDeviceIn(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"token": "the phone's Firebase token", "platform": "android"}]
+        },
+    )
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4096)]
+    platform: Literal["android"] = "android"
+
+
+class PushForgetIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4096)]
 
 
 # ----- M8: the resident's screens and two-factor login -----

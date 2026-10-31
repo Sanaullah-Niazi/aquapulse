@@ -207,3 +207,106 @@ mobile/test/owner/                        owner widget tests
 | "You have no building yet" | Log in as `owner@example.com` (the demo owner), not a resident or admin. `make seed` creates the demo building again |
 | "Make draft bills" says the building has no tariff | Set rates in the web app first: Tariffs (M8 part 2) |
 | The pump buttons do nothing | The tank device must be online (`make devices`), and pump buttons only work in manual mode |
+
+---
+
+# M9 part 3: push notifications and the release APK
+
+> **Requirements covered:** FR-60 (alerts as pushes through Firebase Cloud Messaging) and the "built in GitHub Actions and attached to Releases" part of FR-41.
+> **Time:** about 20 minutes (most of it is the one-time Firebase setup).
+
+Parts 2 and 3 are in the same pull request, so "Get it" from part 2 already gave you this code.
+
+Push is **optional**. Without Firebase everything still works: alerts appear in the app live and come by email. With Firebase, an alert also arrives on the phone when the app is closed.
+
+## How it works (in one minute)
+
+1. After login the app asks Android for a **push token** (an address for this phone) and sends it to the server: `POST /me/push-devices`.
+2. When the alert engine opens an alert, it checks each person's push choices (Profile → Notifications) and queues a push, just like an email.
+3. The worker sends it to Google (Firebase Cloud Messaging, HTTP v1). Critical alerts go at high priority and ignore quiet hours. Failed sends are retried after 10, 30 and 90 seconds. If Google says the phone is gone (app removed), the server forgets that token.
+4. On logout the app tells the server to forget the token.
+
+## One-time Firebase setup (free, no card)
+
+1. Open <https://console.firebase.google.com> and sign in with your Google account.
+2. **Create a project**, name it `aquapulse`. Google Analytics is not needed: turn it off.
+3. In the project, click the **Android** icon ("Add app"). Package name: `io.github.sanaullahniazi.aquapulse`. Nickname: AquaPulse. Leave the SHA-1 empty. Click **Register app**.
+4. **Download google-services.json** and put it here: `mobile/android/app/google-services.json`. Skip the rest of Google's steps (the code already has them).
+5. Back in the console: gear icon → **Project settings** → **Service accounts** → **Generate new private key**. Save the file as `infra/firebase/firebase-service-account.json`.
+
+Both files are in `.gitignore`. Never commit them. The service account file is a real secret: it can send pushes in your name.
+
+## Turn it on
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+docker compose up -d --force-recreate api worker   # the server reads the new file
+make apk            # start the emulator first; the APK now includes Firebase
+make apk-install
+```
+
+The emulator must be a "Google Play" or "Google APIs" image (the default Pixel image is), because pushes come through Google Play services.
+
+## Try it
+
+1. Open the app and log in as `owner@example.com`. Android asks "Allow AquaPulse to send you notifications?": tap **Allow**.
+2. Profile → Notifications now has **Push to this phone from** and **Never push about**. Leave "Warning and above".
+3. Close the app (swipe it away).
+4. On the Mac: `make problem TYPE=ph_drift DEVICE=home-b01-02 MINUTES=30`. Within a few minutes a notification about unsafe water in unit 02 appears on the phone.
+5. `make alerts` shows the alert; `docker compose logs worker | grep -i push` shows the send.
+
+If Profile says "Push is not set up on this server", the server file is missing or the api was not recreated. If it says "This app was built without Firebase settings", `google-services.json` was not in place when you ran `make apk`.
+
+## Make a release with the APK attached
+
+Anyone can then download the app from GitHub, no Flutter needed.
+
+```bash
+git switch main && git pull
+git tag v0.9.0
+git push origin v0.9.0
+```
+
+GitHub Actions ("Release APK") runs the tests, builds the APK and attaches `aquapulse-v0.9.0.apk` to the release page: <https://github.com/Sanaullah-Niazi/aquapulse/releases>.
+
+To have push in the released APK too, add a repository secret once: GitHub → the repo → Settings → Secrets and variables → Actions → **New repository secret**, name `GOOGLE_SERVICES_JSON`, value: paste the whole content of `google-services.json`. Without the secret the released APK works, only push is off.
+
+Note: the released APK does not contain your Mac's own CA, so it can only reach servers with a normal certificate (for example through a Cloudflare tunnel, see the hosting guide). For your Mac, use `make apk`.
+
+## Run the tests
+
+```bash
+make app-test      # now 27 widget tests
+make test          # the API tests include 10 new push tests
+```
+
+New tests: the phone registers its token after login, sends the new token when Firebase changes it, forgets it on logout, registers nothing without Firebase, push choices are saved, and the profile explains when the server has no push. On the server: register and move a token, choices saved, a critical alert pushed at once, muting by severity and by type, no phone registered, a removed phone's token deleted and retried, and the exact Firebase HTTP v1 message format (no real Google call in tests).
+
+## What is new in the code
+
+```text
+backend/app/push.py                        Firebase HTTP v1 sender (signed JWT -> access token -> send)
+backend/app/alerts/store.py                queues pushes next to emails (same rules, quiet hours)
+backend/app/alerts/deliver.py              the worker sends them, retries, forgets removed phones
+backend/migrations/versions/0008_*.py      push choices on users, push_devices table
+infra/firebase/                            where the server's service account file goes
+mobile/lib/push.dart                       Firebase on the phone (and a fake one for tests)
+.github/workflows/release.yml              tag v* -> APK on the GitHub release
+```
+
+## Done criteria (part 3)
+
+- [ ] Profile → Notifications shows the push choices.
+- [ ] With the app closed, `make problem` made a notification appear on the phone.
+- [ ] After **Log out**, a new alert no longer reaches the phone.
+- [ ] (Optional) A `v0.9.0` tag made a release with the APK attached.
+- [ ] `make app-test` and `make test` pass.
+
+## Troubleshooting (part 3)
+
+| Problem | Fix |
+|---|---|
+| No notification arrives | Check Android settings → Apps → AquaPulse → Notifications is on. Check the alert severity is at or above your "Push to this phone from" choice, and quiet hours are off for non-critical alerts |
+| Worker log says "Firebase did not accept it" | The service account file is from another project than `google-services.json`. Download both from the same Firebase project |
+| Build fails with "No matching client found for package name" | `google-services.json` was made for another package name. Register the Android app again with `io.github.sanaullahniazi.aquapulse` |
+| "Push is not set up on this server" after adding the file | `docker compose up -d --force-recreate api worker` |

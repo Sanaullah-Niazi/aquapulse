@@ -4654,7 +4654,7 @@
           "alerts"
         ],
         "summary": "Change My Prefs",
-        "description": "Which alerts also come by email (FR-52): this severity and above (or \"off\"),\nalert types never by email, and quiet hours when non-critical emails wait.\nIn-app alerts are always on. Takes effect for the next alert.",
+        "description": "Which alerts also come by email and by push (FR-52): this severity and\nabove (or \"off\"), alert types never sent that way, and quiet hours when\nnon-critical emails and pushes wait. In-app alerts are always on. Takes\neffect for the next alert.",
         "operationId": "change_my_prefs_api_v1_me_notifications_patch",
         "requestBody": {
           "content": {
@@ -4679,6 +4679,79 @@
           },
           "422": {
             "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/push-devices": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Add Push Device",
+        "description": "The Android app sends its Firebase token after login (and when Firebase\ngives it a new one). A token belongs to one person: if someone else logs\nin on the same phone, it moves to them.",
+        "operationId": "add_push_device_api_v1_me_push_devices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/push-devices/forget": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Forget Push Device",
+        "description": "Logging out in the app: no more pushes to this phone.",
+        "operationId": "forget_push_device_api_v1_me_push_devices_forget_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushForgetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7993,6 +8066,39 @@
             ],
             "title": "Quiet Until",
             "description": "Quiet hours end"
+          },
+          "push_min": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "info",
+                  "warning",
+                  "critical",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Min",
+            "description": "M9: push to the Android app from this severity up"
+          },
+          "push_muted_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Muted Rules",
+            "description": "M9: alert types never pushed"
           }
         },
         "additionalProperties": false,
@@ -8048,6 +8154,26 @@
               }
             ],
             "title": "Quiet Until"
+          },
+          "push_min": {
+            "type": "string",
+            "title": "Push Min",
+            "description": "Push to the Android app from this severity up",
+            "default": "warning"
+          },
+          "push_muted_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Push Muted Rules",
+            "default": []
+          },
+          "push_available": {
+            "type": "boolean",
+            "title": "Push Available",
+            "description": "Is push set up on this server (a Firebase project)?",
+            "default": false
           }
         },
         "type": "object",
@@ -8812,6 +8938,50 @@
             "reason": "Fill up"
           }
         ]
+      },
+      "PushDeviceIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 20,
+            "title": "Token"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform",
+            "default": "android"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PushDeviceIn",
+        "examples": [
+          {
+            "platform": "android",
+            "token": "the phone's Firebase token"
+          }
+        ]
+      },
+      "PushForgetIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PushForgetIn"
       },
       "ReadingOut": {
         "properties": {

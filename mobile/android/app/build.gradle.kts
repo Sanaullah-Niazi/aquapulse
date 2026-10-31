@@ -45,3 +45,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Push notifications (M9) are optional: with your Firebase project's
+// google-services.json in this folder (git-ignored), the app can receive
+// pushes. Without it the app builds and works the same, just without push.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

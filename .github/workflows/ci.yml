@@ -172,6 +172,25 @@ jobs:
           name: aquapulse-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
+      - name: Check the push wiring builds (a fake google-services.json, never committed)
+        run: |
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {"project_number": "1", "project_id": "aquapulse-ci", "storage_bucket": "aquapulse-ci.appspot.com"},
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:1:android:0000000000000000",
+                "android_client_info": {"package_name": "io.github.sanaullahniazi.aquapulse"}
+              },
+              "api_key": [{"current_key": "ci-fake-key"}],
+              "oauth_client": [],
+              "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+            }],
+            "configuration_version": "1"
+          }
+          JSON
+          flutter build apk --release
+          rm android/app/google-services.json
 
   stack:
     name: Docker stack smoke + browser + live MQTT + TLS tests (M1 to M8)

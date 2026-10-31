@@ -72,6 +72,12 @@ class User(Base):
     )
     quiet_from: Mapped[time | None] = mapped_column(Time)
     quiet_until: Mapped[time | None] = mapped_column(Time)
+    # M9 (FR-52, FR-60): push notifications to the Android app, chosen like
+    # email: from this severity up ("off" = none), and alert types never pushed.
+    push_min: Mapped[str] = mapped_column(String(8), nullable=False, server_default="warning")
+    push_muted_rules: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
     # M8 (FR-70): two-factor login. The secret is stored encrypted; the last
     # used time step stops the same code from working twice.
     totp_secret: Mapped[str | None] = mapped_column(Text)
@@ -701,7 +707,7 @@ class Notification(Base):
 
     id: Mapped[uuid.UUID] = _id()
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email (push: M9)
+    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email, push (M9)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # alert, bill_reminder
     alert_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("alerts.id"), index=True)
     bill_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"))
@@ -713,6 +719,23 @@ class Notification(Base):
     last_error: Mapped[str | None] = mapped_column(String(200))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _now()
+
+
+class PushDevice(Base):
+    """A phone that may receive push notifications (M9, FR-60): its Firebase
+    Cloud Messaging token. One person can have several phones; a token that
+    Firebase says is gone is deleted."""
+
+    __tablename__ = "push_devices"
+
+    id: Mapped[uuid.UUID] = _id()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(4096), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, default="android")
+    created_at: Mapped[datetime] = _now()
+    last_seen_at: Mapped[datetime] = _now()
 
 
 class BillReminder(Base):

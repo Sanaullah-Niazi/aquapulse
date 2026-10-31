@@ -113,8 +113,8 @@ jobs:
           for node in tank-node home-node; do
             echo "== $node"
             ~/.wokwi/bin/wokwi-cli --timeout 120000 \
-              --scenario "firmware/wokwi/$node/demo.scenario.yaml" \
-              --serial-log-file "docs/screenshots/hardware/$node-serial.txt" \
+              --scenario demo.scenario.yaml \
+              --serial-log-file "$PWD/docs/screenshots/hardware/$node-serial.txt" \
               "firmware/wokwi/$node" || status=1
             log="docs/screenshots/hardware/$node-serial.txt"
             # Plain text for the repo's file checks: no CR, no trailing spaces, one final newline.

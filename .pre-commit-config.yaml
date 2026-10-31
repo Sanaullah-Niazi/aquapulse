@@ -16,6 +16,8 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=1024]
+        # The README's animation (make animation) is about 2 MB on purpose.
+        exclude: ^docs/screenshots/animation/aquapulse-system\.(gif|mp4)$
       - id: detect-private-key
       - id: mixed-line-ending
         args: [--fix=lf]

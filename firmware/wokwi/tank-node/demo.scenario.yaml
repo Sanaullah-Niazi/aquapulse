@@ -1,0 +1,47 @@
+# What the tank node does by itself, with no server and no internet (NFR-20).
+# Run by the Screenshots workflow (wokwi-cli --scenario); each step waits for
+# the firmware's own serial message or checks the pump relay pin (D23).
+# Tank: 150 cm from the sensor = empty, 25 cm = full. Pump on below 25 %,
+# off at 95 % (hysteresis: in between it keeps doing what it was doing).
+name: Tank node - automatic pump control
+version: 1
+author: AquaPulse
+steps:
+  - wait-serial: "AquaPulse tank node"
+  # 1. Start: water is 130 cm down = 16 %. Low tank, water in the sump: pump on.
+  - wait-serial: "Pump on"
+  - expect-pin:
+      part-id: esp
+      pin: D23
+      value: 1
+  # 2. The tank fills up to 30 cm = 96 %: pump off.
+  - set-control:
+      part-id: level
+      control: distance
+      value: 30
+  - wait-serial: "Pump off"
+  - expect-pin:
+      part-id: esp
+      pin: D23
+      value: 0
+  # 3. People use water, down to 100 cm = 40 %: still between 25 % and 95 %,
+  #    so the pump stays off (no switching on and off all the time).
+  - set-control:
+      part-id: level
+      control: distance
+      value: 100
+  - delay: 6000ms
+  - expect-pin:
+      part-id: esp
+      pin: D23
+      value: 0
+  # 4. Down to 140 cm = 8 %: below 25 %, pump on again.
+  - set-control:
+      part-id: level
+      control: distance
+      value: 140
+  - wait-serial: "Pump on"
+  - expect-pin:
+      part-id: esp
+      pin: D23
+      value: 1

@@ -77,18 +77,19 @@ jobs:
       - name: Install the Wokwi command-line tool
         if: env.WOKWI_CLI_TOKEN != ''
         run: curl -fsSL https://wokwi.com/ci/install.sh | sh
-      - name: Run both nodes for 20 seconds and keep what they print
+      - name: Run both nodes through their demo scenarios and keep what they print
         if: env.WOKWI_CLI_TOKEN != ''
         run: |
           mkdir -p docs/screenshots/hardware
-          for node in home-node tank-node; do
+          for node in tank-node home-node; do
             echo "== $node"
-            ~/.wokwi/bin/wokwi-cli --timeout 20000 --timeout-exit-code 0 \
+            ~/.wokwi/bin/wokwi-cli --timeout 120000 \
+              --scenario "firmware/wokwi/$node/demo.scenario.yaml" \
               --serial-log-file "docs/screenshots/hardware/$node-serial.txt" \
-              "firmware/wokwi/$node"
-            # The firmware really started: its banner is in the output.
-            grep -q "AquaPulse" "docs/screenshots/hardware/$node-serial.txt"
+              "firmware/wokwi/$node" || status=1
+            cat "docs/screenshots/hardware/$node-serial.txt" || true
           done
+          exit "${status:-0}"
       - name: Keep the simulator output
         if: always()
         uses: actions/upload-artifact@v7

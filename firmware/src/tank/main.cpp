@@ -118,7 +118,7 @@ void serialCommands() {
   line.trim();
   if (line == "info") {
     Serial.printf("device %s, fw %s, level %s%.1f%%, pump %s, mode %s, thresholds %.0f/%.0f%%, sump %s\n",
-                  DEVICE_ID, FW_VERSION, level.ok() ? "" : "(sensor failed) ", level.ok() ? level.percent() : 0.0,
+                  node::deviceId(), FW_VERSION, level.ok() ? "" : "(sensor failed) ", level.ok() ? level.percent() : 0.0,
                   pumpWord(), rules.manual ? "manual" : "auto", rules.lowPct, rules.highPct,
                   inputs().sumpOk ? "water" : "EMPTY");
   } else if (line.length()) {

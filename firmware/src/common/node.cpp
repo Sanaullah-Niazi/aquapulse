@@ -169,6 +169,7 @@ bool telemetryDue() {
   return true;
 }
 
+const char* deviceId() { return DEVICE_ID; }
 const char* bootId() { return boot; }
 uint32_t seq() { return seqNo; }
 bool isFirstTelemetry() { return firstTelemetry; }

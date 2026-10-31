@@ -183,7 +183,7 @@ void serialCommands() {
     flash.putDouble("ph_mv7", mv);
     Serial.printf("pH 7.00 buffer saved: %.0f mV\n", mv);
   } else if (line == "info") {
-    Serial.printf("device %s, fw %s, total %.2f L, valve %s, pH %.2f (%.0f mV), %.1f C, interval %d s\n", DEVICE_ID,
+    Serial.printf("device %s, fw %s, total %.2f L, valve %s, pH %.2f (%.0f mV), %.1f C, interval %d s\n", node::deviceId(),
                   FW_VERSION, totalL, valveName(valve), phCal.ph(mv), mv, tempC, node::intervalS);
   } else if (line.length()) {
     Serial.println("Commands: cal4 (probe in pH 4.00 buffer), cal7 (probe in pH 7.00 buffer), info");

@@ -33,6 +33,7 @@ int64_t nowMs();
 /// True once per interval: time to send telemetry.
 bool telemetryDue();
 
+const char* deviceId();
 const char* bootId();
 uint32_t seq();
 bool isFirstTelemetry();

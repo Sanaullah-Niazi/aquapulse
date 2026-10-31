@@ -7,7 +7,6 @@ database is very expensive. Settings follow NFR-08 / OWASP: 19 MiB, 2 passes.
 
 from __future__ import annotations
 
-import re
 from functools import cache
 from pathlib import Path
 
@@ -46,6 +45,20 @@ def _common_passwords() -> frozenset[str]:
     return frozenset(line.strip().lower() for line in path.read_text().splitlines() if line)
 
 
+def _letters_core(text: str) -> str:
+    """Cut digits and symbols off both ends: "!!password123" -> "password".
+
+    A plain loop, not a regular expression: a pattern like "[^a-z]+$" can take
+    a very long time on some inputs (CodeQL: polynomial regular expression).
+    """
+    start, end = 0, len(text)
+    while start < end and not text[start].isalpha():
+        start += 1
+    while end > start and not text[end - 1].isalpha():
+        end -= 1
+    return text[start:end]
+
+
 def password_problem(password: str, email: str = "") -> str | None:
     """Return why a new password is not allowed, or None if it is fine."""
     if len(password) < MIN_LENGTH:
@@ -54,7 +67,7 @@ def password_problem(password: str, email: str = "") -> str | None:
         return f"Password must be at most {MAX_LENGTH} characters."
     lowered = password.lower()
     # "Password123!" is just "password" with decoration, so check the core too.
-    core = re.sub(r"[\d\W_]+$", "", re.sub(r"^[\d\W_]+", "", lowered))
+    core = _letters_core(lowered)
     common = _common_passwords()
     if lowered in common or core in common or len(set(lowered)) < 4:
         return "This password is too common or too simple. Try a few unrelated words."

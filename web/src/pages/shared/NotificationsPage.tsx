@@ -24,7 +24,8 @@ export function NotificationsPage() {
     if (prefs.data) setForm(prefs.data);
   }, [prefs.data]);
   const save = useMutation({
-    mutationFn: (body: NotificationPrefs) =>
+    // Only the choices go back: push_available is the server's answer, not a choice.
+    mutationFn: ({ push_available: _, ...body }: NotificationPrefs) =>
       api<NotificationPrefs>("/me/notifications", { method: "PATCH", body }),
     onSuccess: (data) => queries.setQueryData(["prefs"], data),
   });

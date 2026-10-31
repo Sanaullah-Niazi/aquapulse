@@ -38,6 +38,7 @@ say "Downloading the Android SDK (a few GB, please wait)"
 SDK="sdkmanager --sdk_root=$ANDROID_HOME"
 yes | $SDK --licenses >/dev/null || true
 $SDK "cmdline-tools;latest" "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+     "platforms;android-36" "build-tools;36.0.0" "build-tools;28.0.3" \
      "emulator" "system-images;android-35;google_apis;arm64-v8a"
 
 # 5. Tell Flutter where things are, and accept the licences

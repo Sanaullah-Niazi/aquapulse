@@ -12,7 +12,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 
 ![AquaPulse in one moving picture: the pump fills the roof tank by itself, the AI stops a leak at night, an unsafe pH raises an alert, and a monthly bill is paid; residents and the owner see it all on their phones](docs/screenshots/animation/aquapulse-system.gif)
 
-<sub>An illustration in four scenes, each a real AquaPulse feature: the pump fills the roof tank by itself (the same rules as the real ESP32 firmware run in the Wokwi simulator: on below 25 %, off at 96 %), the AI stops a leak at night by closing the valve, an unsafe pH raises an alert, and a slab bill is paid. Made with `make animation` from [docs/animation/system.html](docs/animation/system.html); also as an [MP4 video](docs/screenshots/animation/aquapulse-system.mp4), and [with music and sound effects](docs/screenshots/animation/aquapulse-system-sound.mp4) (`make animation-sound`, all sounds made in code).</sub>
+<sub>Four real AquaPulse features: the pump fills the roof tank by itself, the AI stops a leak at night, an unsafe pH raises an alert, and the monthly bill is paid. ▶ Watch the [video](docs/screenshots/animation/aquapulse-system.mp4) or the [video with sound](docs/screenshots/animation/aquapulse-system-sound.mp4).</sub>
 
 ## What it does
 

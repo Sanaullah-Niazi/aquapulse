@@ -154,6 +154,15 @@ Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
 
 Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
+**Android app (M9, in progress).** One Flutter app for residents and owners; the server role decides which screens appear.
+
+- Choose any AquaPulse server (your Mac, a tunnel or the cloud). HTTPS only; the app trusts Android's normal certificates plus, when built with `make apk`, your own AquaPulse CA.
+- Log in with the optional two-factor code. The refresh token is kept in Android's secure storage (Keystore), never in plain settings.
+- Residents: my home live, water on/off with the device's answer, usage and comparison, water quality charts, bills (PDF, pay online in test mode), alerts, profile and alert emails.
+- Every push builds the APK in GitHub Actions after `flutter analyze` and the widget tests pass.
+
+Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
+
 ## Repository layout
 
 ```text

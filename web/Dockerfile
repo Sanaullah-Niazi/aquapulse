@@ -16,3 +16,6 @@ RUN VITE_BASE=$VITE_BASE pnpm build
 
 FROM caddy:2.11.7-alpine
 COPY --from=build /web/dist /app-dist
+# M12 (FR-74): take the latest Alpine security fixes (for example curl and
+# brotli) even before a new Caddy image is published.
+RUN apk upgrade --no-cache

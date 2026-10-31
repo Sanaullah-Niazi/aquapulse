@@ -1,4 +1,12 @@
 # Trivy findings we accept for now (FR-74). Each line is one vulnerability ID.
 # Every entry must also be explained in docs/security/scan-exceptions.md
 # (why it does not affect AquaPulse, and when it is checked again).
-# Empty on purpose: there are no exceptions yet.
+
+# Caddy 2.11.7 (newest release on 2026-10-31) is built with Go 1.26.8 and these
+# older Go libraries. Accepted until Caddy publishes a newer build; see
+# docs/security/scan-exceptions.md. Check again: 2026-12-01.
+CVE-2026-116587
+CVE-2026-78669
+CVE-2026-111943
+CVE-2026-78667
+CVE-2026-97031

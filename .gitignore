@@ -61,3 +61,4 @@ firmware/**/.pio/
 data/
 backups/
 *.log
+infra/zap/

@@ -2,7 +2,7 @@
 
 > **Goal:** finish the project so it is safe to show: your data belongs to you, the code is scanned for security problems on every push, and v1.0.0 can be released.
 > **Requirements covered in part 1:** FR-75 (privacy: download my data, delete my account, old raw data deleted after 13 months) and FR-74 completed (dependency audit, Bandit, CodeQL, Trivy, Dependabot for every part).
-> **Part 2** (later): `make demo`, the README and docs polish, the test report and requirements matrix, and the v1.0.0 release.
+> **Part 2** ([jump](#part-2-make-demo-scans-and-reports)): `make demo`, the ZAP scan, the test report, the requirements matrix, the ASVS checklist and the README. The v1.0.0 release comes last.
 > **Time:** about 15 minutes.
 
 ## Part 1a: privacy (FR-75)
@@ -50,3 +50,44 @@ The first run already found real problems (old `pypdf`, `react-router`, `vite` a
 ### See it
 
 On GitHub: **Actions** → **Security** shows the latest run. **Security** → **Code scanning** shows CodeQL's results.
+
+## Part 2: `make demo`, scans and reports
+
+### One command for the whole demo
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+git switch main && git pull
+make demo
+```
+
+It runs `make up`, `make seed` and `make demo-data` (90 days), then makes the bills of the last two
+months from the real readings, issues them and records cash payments: the older month is fully paid,
+last month only for every second home. So the unpaid list, the reminders and "Pay online" have
+something to show. It is safe to run again: issued bills never change and nothing is paid twice.
+At the end it prints the logins.
+
+The first run takes longest, because Docker builds the images and the history is loaded.
+
+### New checks
+
+| Command | What it does | In CI |
+|---|---|---|
+| `make zap` | OWASP ZAP looks at the running web app like an attacker's scanner would (passive, nothing is attacked): security headers, cookies, leaked versions. Fails on any High risk finding and lists the rest. Report: `infra/zap/zap-report.html` | yes, in the stack job |
+| `make rtm` | Rewrites [docs/requirements-traceability.md](../requirements-traceability.md): for every requirement, the test files that name it. All 75 have at least one | yes: CI fails if the file is out of date |
+
+### The reports
+
+- [docs/test-report.md](../test-report.md): how many tests each part has, the coverage, and every
+  non-functional requirement marked measured, partly, not yet, or "needs a person". The not-yet ones
+  are listed honestly at the end (load tests and backups).
+- [docs/security/asvs-checklist.md](../security/asvs-checklist.md): the OWASP ASVS Level 2 controls for
+  login, sessions, access control, validation and logging, each with how it is met and the test that
+  shows it. Four are only partly met, and the reason is written next to each.
+
+### Also in part 2
+
+- The Android setup script now also installs the NDK and CMake. Without them, the first `make apk`
+  downloads about 1 GB in the middle of the build without showing progress, and a slow connection
+  can hang it.
+- The app's "change password" help said 12 characters; the rule is 10 (FR-68). Fixed.

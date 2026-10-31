@@ -206,7 +206,7 @@ class _PasswordFormState extends State<_PasswordForm> {
         obscureText: true,
         decoration: const InputDecoration(
           labelText: 'New password',
-          helperText: 'At least 12 characters. Three unrelated words work well.',
+          helperText: 'At least 10 characters. Three unrelated words work well.',
         ),
       ),
       const SizedBox(height: 12),

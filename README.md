@@ -7,31 +7,36 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![Security](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (M8 of 12 milestones done).**
-> This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
+> **Status: all 12 milestones built; v1.0 release in preparation.** Everything below works and is tested in CI.
+> What is measured and what is not yet: [docs/test-report.md](docs/test-report.md).
 
-## What it will do
+## What it does
 
 AquaPulse turns a normal apartment building into a smart-water building:
 
 - **Owners** see every home's consumption, bill residents fairly, turn water on/off remotely, watch water quality and get alerts.
 - **Residents** see their own usage and bill, pay online (test mode), control their own water and check water safety.
-- **Devices** (a realistic digital-twin simulator today, real ESP32 hardware later) report flow, pH and temperature over secure MQTT.
+- **Devices** (a realistic digital-twin simulator, or real ESP32 boards running the firmware in `firmware/`) report flow, pH and temperature over secure MQTT.
 
 The full plan is in the [Software Requirements Specification](docs/SRS.md) (IEEE 29148 style): 75 functional and 30 non-functional requirements, architecture, database, API, STRIDE threat model and test plan.
 
-## Architecture (planned)
+## Architecture
 
 ```mermaid
 flowchart LR
-  D["Simulator / ESP32 nodes"] -- "MQTT over TLS" --> B[("Mosquitto")]
-  B --> I["Ingestor"] --> DB[("TimescaleDB")]
-  API["FastAPI API + WebSocket"] <--> DB
-  API -- "valve commands" --> B
-  W["Worker: billing, alerts, AI"] <--> DB
-  WEB["React web app"] <--> API
-  APP["Flutter Android app"] <--> API
+  D["Digital twin (10 homes + tank)<br/>or ESP32 nodes"] -- "MQTT over TLS 8883<br/>one password per device" --> B[("Mosquitto")]
+  BA["broker-auth<br/>(passwords + ACLs)"] --> B
+  B --> I["Ingestor<br/>checks every message"] --> DB[("TimescaleDB")]
+  API["FastAPI API<br/>+ live WebSocket"] <--> DB
+  API -- "valve / pump commands" --> B
+  W["Worker: bills, alerts,<br/>AI, audit check"] <--> DB
+  C["Caddy (HTTPS 8443)"] --> API
+  C --> WEB["React web app (PWA)"]
+  APP["Flutter Android app"] --> C
+  W -- "email / push" --> N["Mailpit · Firebase (optional)"]
 ```
+
+Everything runs with one command on a laptop (Docker Compose). Design decisions are in [docs/adr](docs/adr), the full design in the [SRS](docs/SRS.md).
 
 ## Roadmap
 
@@ -47,9 +52,9 @@ flowchart LR
 | M7 Alerts and notifications | ✅ done |
 | M8 Web app | ✅ done |
 | M9 Android app | ✅ done |
-| M10 AI: leak detection and forecasting | ✅ |
-| M11 ESP32 firmware and hardware | ✅ |
-| M12 Demo data, polish and v1.0 release | ⏳ (part 1 done) |
+| M10 AI: leak detection and forecasting | ✅ done |
+| M11 ESP32 firmware and hardware | ✅ done |
+| M12 Demo data, polish and v1.0 release | ⏳ (parts 1 and 2 done) |
 
 ## Getting started (developers)
 
@@ -60,11 +65,12 @@ git clone https://github.com/Sanaullah-Niazi/aquapulse.git
 cd aquapulse
 make check-tools   # are all tools installed?
 make setup         # create .env (with random secrets) and install git hooks
-make up            # make the TLS certificates (first time) and start the whole stack
-make seed          # demo accounts: owner@example.com etc., password = DEMO_PASSWORD in .env
-make smoke         # prove every service works end to end
-make mqtt-watch    # watch 10 virtual homes + 1 tank send live readings
+make demo          # start everything, demo accounts, 90 days of history, bills (a few minutes)
 ```
+
+Then open https://localhost:8443/app/ and log in as `owner@example.com` or `resident01@example.com`
+(the password is `DEMO_PASSWORD` in your `.env`). `make smoke` proves every service works;
+`make leak`, `make problem` and `make valve-close DEVICE=home-b01-03` show the system reacting live.
 
 | What | Where |
 |---|---|
@@ -174,6 +180,8 @@ Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 
 **Privacy and security scans (M12, part 1).** Every user can download their own data as one JSON file, and residents can delete their account (name, email and phone removed; bills kept without a name for accounting). Raw readings older than 13 months are deleted automatically, and failed-login logs no longer store the email. A Security workflow runs pip-audit, pnpm audit, Bandit, CodeQL and Trivy on every push and every week, and Dependabot watches every part of the project. Guide: [docs/milestones/M12-polish-and-release.md](docs/milestones/M12-polish-and-release.md).
 
+**Demo, scans and reports (M12, part 2).** `make demo` builds the whole demo in one command: the stack, the accounts, 90 days of history and two months of real bills (some paid, some not). An OWASP ZAP baseline scan of the web app runs in CI. The [test report](docs/test-report.md), the [traceability matrix](docs/requirements-traceability.md) (made from the tests, checked in CI) and the [ASVS checklist](docs/security/asvs-checklist.md) say plainly what is proven and what is not yet.
+
 ## Repository layout
 
 ```text
@@ -186,6 +194,18 @@ firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M
 infra/       Mosquitto, Caddy, certificates, backups                          (M1+)
 docs/        SRS, milestone guides, decisions (ADRs), security                (all)
 ```
+
+## Documentation
+
+| Document | What it is |
+|---|---|
+| [docs/SRS.md](docs/SRS.md) | The requirements: 75 functional, 30 non-functional, architecture, threat model, test plan |
+| [docs/milestones/](docs/milestones) | A step-by-step guide for each milestone, M0 to M12 |
+| [docs/test-report.md](docs/test-report.md) | Test results and every non-functional requirement: measured, partly, or not yet |
+| [docs/requirements-traceability.md](docs/requirements-traceability.md) | Which tests prove each requirement (made from the code by `make rtm`) |
+| [docs/security/](docs/security) | Threat model, OWASP ASVS checklist, scan exceptions |
+| [docs/ai-evaluation.md](docs/ai-evaluation.md) | Real scores of the leak, unusual-use and forecast models |
+| [docs/hardware/](docs/hardware) | Parts lists and wiring for the ESP32 nodes |
 
 ## Contributing and security
 

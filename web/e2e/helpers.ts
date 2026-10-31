@@ -22,7 +22,7 @@ export async function expectNoSideScroll(page: Page): Promise<void> {
   expect(extra, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
-/** No serious or critical accessibility problems (axe-core, WCAG 2.1 AA; NFR-21). */
+/** No serious or critical accessibility problems (axe-core, WCAG 2.1 AA; FR-57, NFR-22). */
 export async function expectAccessible(page: Page): Promise<void> {
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

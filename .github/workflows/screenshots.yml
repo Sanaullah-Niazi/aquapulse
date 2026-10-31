@@ -2,7 +2,8 @@
 # bills), then a real browser saves a picture of every web screen and of the
 # two ESP32 circuits (make screenshots). A second job runs the real firmware
 # in the Wokwi simulator and keeps what it prints. Download everything from
-# the run's "Artifacts".
+# the run's "Artifacts". In a pull request, the pictures and the simulator
+# output are also committed to the pull request's branch (docs/screenshots).
 # Runs by hand (Actions > Screenshots > Run workflow) and when the
 # screenshot code changes in a pull request.
 name: Screenshots
@@ -19,13 +20,22 @@ on:
 permissions:
   contents: read
 
+# The two jobs both commit to the branch: one run at a time per branch.
+concurrency:
+  group: screenshots-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web:
     name: Web app screenshots (phone and desktop)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write # to commit the pictures to the pull request's branch
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.4"
@@ -53,6 +63,21 @@ jobs:
           name: screenshots
           path: docs/screenshots
           retention-days: 14
+      - name: Commit the pictures to this pull request's branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs/screenshots
+          git diff --cached --quiet && exit 0
+          git commit -m "Screenshots: the pictures (made by the Screenshots workflow)"
+          for try in 1 2 3; do
+            git pull --rebase origin "$BRANCH" && git push origin "HEAD:$BRANCH" && exit 0
+            sleep 5
+          done
+          exit 1
       - name: Stop and clean up
         if: always()
         run: docker compose down -v
@@ -61,10 +86,14 @@ jobs:
     name: ESP32 firmware running in the Wokwi simulator
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write # to commit the simulator output to the pull request's branch
     env:
       WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.4"
@@ -87,7 +116,13 @@ jobs:
               --scenario "firmware/wokwi/$node/demo.scenario.yaml" \
               --serial-log-file "docs/screenshots/hardware/$node-serial.txt" \
               "firmware/wokwi/$node" || status=1
-            cat "docs/screenshots/hardware/$node-serial.txt" || true
+            log="docs/screenshots/hardware/$node-serial.txt"
+            # Plain text for the repo's file checks: no CR, no trailing spaces, one final newline.
+            if [ -f "$log" ]; then
+              sed -i 's/\r$//; s/[[:space:]]*$//' "$log"
+              printf '%s\n' "$(cat "$log")" > "$log.tmp" && mv "$log.tmp" "$log"
+              cat "$log"
+            fi
           done
           exit "${status:-0}"
       - name: Keep the simulator output
@@ -98,3 +133,18 @@ jobs:
           path: docs/screenshots/hardware/*-serial.txt
           if-no-files-found: ignore
           retention-days: 14
+      - name: Commit the simulator output to this pull request's branch
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs/screenshots
+          git diff --cached --quiet && exit 0
+          git commit -m "Screenshots: the simulator output (made by the Screenshots workflow)"
+          for try in 1 2 3; do
+            git pull --rebase origin "$BRANCH" && git push origin "HEAD:$BRANCH" && exit 0
+            sleep 5
+          done
+          exit 1

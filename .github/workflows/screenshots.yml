@@ -1,0 +1,55 @@
+# Portfolio screenshots: start the whole demo (make demo: 90 days of history,
+# bills), then a real browser saves a picture of every web screen
+# (make screenshots). Download them from the run's "Artifacts".
+# Runs by hand (Actions > Screenshots > Run workflow) and when the
+# screenshot code changes in a pull request.
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "web/e2e-shots/**"
+      - "web/playwright.shots.config.ts"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web app screenshots (phone and desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.4"
+      - name: Create .env (random secrets) and certificates
+        run: |
+          make env
+          make certs
+      - name: The whole demo (stack, accounts, 90 days of history, bills)
+        run: make demo
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install the browser
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Take the screenshots
+        run: make screenshots
+      - name: Keep the screenshots (download them from this run's Artifacts)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: docs/screenshots
+          retention-days: 14
+      - name: Stop and clean up
+        if: always()
+        run: docker compose down -v

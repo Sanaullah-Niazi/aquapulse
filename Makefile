@@ -10,7 +10,7 @@
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
 	worker-logs bills problem alerts demo rtm zap backup backups restore-check restore perf \
-	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
+	web-setup web-dev web-build web-test web-e2e screenshots web-site web-site-check app-test apk apk-install admin admin-reset-2fa
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -265,6 +265,11 @@ web-test: ## Type check and unit tests for the web app (no Docker needed)
 web-e2e: ## Click through the app in a real browser, phone and desktop size (make up first)
 	@# The tests log in as the demo accounts, so they need the demo password from .env.
 	cd web && DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' ../.env | cut -d= -f2-)" pnpm e2e
+
+screenshots: ## Portfolio pictures of every web screen, phone and desktop, into docs/screenshots (make demo first)
+	@# Real pages with the demo data, taken by a real browser; nothing is drawn by hand.
+	cd web && DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' ../.env | cut -d= -f2-)" pnpm exec playwright test -c playwright.shots.config.ts
+	@echo "Pictures saved in docs/screenshots/phone and docs/screenshots/desktop"
 
 web-site: ## Build the app for your website: make web-site BASE=/water/ API=https://your-server
 	./scripts/web-site.sh "$(BASE)" "$(API)"

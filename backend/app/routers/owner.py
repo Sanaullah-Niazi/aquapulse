@@ -48,7 +48,7 @@ from ..schemas import OverviewHomeOut, OverviewOut, OverviewTankOut
 from .live import MAX_RANGE_DAYS, check_range, default_dates, local_range
 
 router = APIRouter(tags=["owner overview and exports"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 OwnerOrResident = Annotated[Caller, Depends(require("owner", "resident"))]
 

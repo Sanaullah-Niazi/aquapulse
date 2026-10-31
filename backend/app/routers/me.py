@@ -31,7 +31,7 @@ from ..security.passwords import hash_password, password_problem, verify_passwor
 from .auth import revoke_all_sessions
 
 router = APIRouter(prefix="/me", tags=["me"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 Me = Annotated[Caller, Depends(current_caller)]
 
 

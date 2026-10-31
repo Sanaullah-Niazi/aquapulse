@@ -33,7 +33,7 @@ from ..schemas import (
 )
 
 router = APIRouter(tags=["live data and consumption"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOrResident = Annotated[Caller, Depends(require("owner", "resident"))]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 

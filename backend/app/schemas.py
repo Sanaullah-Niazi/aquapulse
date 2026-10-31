@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from zoneinfo import available_timezones
 
 from pydantic import (
@@ -282,6 +282,9 @@ class HomePatch(In):
     floor: Annotated[int, Field(ge=-5, le=200)] | None = None
     occupants: Annotated[int, Field(ge=0, le=50)] | None = None
     notes: Annotated[str, StringConstraints(max_length=500)] | None = None
+    auto_shutoff_enabled: bool | None = Field(
+        None, description="M10 (FR-61): close the valve by itself on a sure leak or a burst"
+    )
 
 
 class HomeOut(Out):
@@ -291,6 +294,7 @@ class HomeOut(Out):
     floor: int
     occupants: int
     notes: str
+    auto_shutoff_enabled: bool = False
     archived_at: datetime | None
     created_at: datetime
 
@@ -1025,6 +1029,10 @@ class NotificationPrefsIn(BaseModel):
     )
     quiet_from: time | None = Field(None, description="Quiet hours start (building time)")
     quiet_until: time | None = Field(None, description="Quiet hours end")
+    push_min: Literal["info", "warning", "critical", "off"] | None = Field(
+        None, description="M9: push to the Android app from this severity up"
+    )
+    push_muted_rules: list[str] | None = Field(None, description="M9: alert types never pushed")
 
 
 class NotificationPrefsOut(BaseModel):
@@ -1036,6 +1044,29 @@ class NotificationPrefsOut(BaseModel):
         None, description="Non-critical emails wait until quiet hours end (FR-52)"
     )
     quiet_until: time | None = None
+    push_min: str = Field("warning", description="Push to the Android app from this severity up")
+    push_muted_rules: list[str] = []
+    push_available: bool = Field(
+        False, description="Is push set up on this server (a Firebase project)?"
+    )
+
+
+class PushDeviceIn(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"token": "the phone's Firebase token", "platform": "android"}]
+        },
+    )
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4096)]
+    platform: Literal["android"] = "android"
+
+
+class PushForgetIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4096)]
 
 
 # ----- M8: the resident's screens and two-factor login -----
@@ -1150,3 +1181,82 @@ class OverviewOut(BaseModel):
     ph_safe_low: float
     ph_safe_high: float
     rows: list[OverviewHomeOut]
+
+
+# ----- M10: AI insights (FR-63, FR-66) -----
+
+
+class InsightOut(BaseModel):
+    """One AI finding about a home, with why (FR-66) and the evidence."""
+
+    alert_id: uuid.UUID
+    kind: str = Field(description="leak or burst")
+    title: str
+    severity: str
+    state: str
+    explanation: str = Field(description="Plain words, made from the data")
+    confidence: float | None = Field(None, description="0 to 1")
+    high_confidence: bool = False
+    opened_at: datetime
+    last_seen_at: datetime
+    resolved_at: datetime | None = None
+    evidence: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The numbers behind the explanation; points = [time, L/min] for a chart",
+    )
+
+
+class ForecastDayOut(BaseModel):
+    day: date
+    litres: float
+    low: float = Field(description="80% range: low end")
+    high: float = Field(description="80% range: high end")
+
+
+class DayLitresOut(BaseModel):
+    day: date
+    litres: float
+
+
+class MonthEndOut(BaseModel):
+    last_day: date
+    litres: float
+    low: float
+    high: float
+
+
+class BillProjectionOut(BaseModel):
+    currency_code: str
+    total: Decimal | None = None
+    total_text: str | None = None
+    low_text: str | None = None
+    high_text: str | None = None
+    message: str = ""
+
+
+class ForecastOut(BaseModel):
+    """The next 7 days and the month's end (FR-65), with why (FR-66)."""
+
+    method: str = Field(description="holt_winters, or seasonal_naive with little history")
+    history_days: int
+    explanation: str
+    recent: list[DayLitresOut] = Field(description="The real litres of the last 14 days")
+    days: list[ForecastDayOut]
+    month_end: MonthEndOut
+    bill: BillProjectionOut
+
+
+class AiModelOut(Out):
+    """One model version in the registry (FR-67). The model itself is not sent."""
+
+    id: uuid.UUID
+    kind: str
+    version: int
+    trained_at: datetime
+    data_from: date
+    data_to: date
+    rows: int
+    metrics: dict[str, Any]
+    params: dict[str, Any]
+    live: bool
+    note: str

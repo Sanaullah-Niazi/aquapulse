@@ -293,6 +293,9 @@
     "high_usage": "Daily usage high",
     "command_failed": "Valve command failed",
     "sensor_stuck": "Sensor stuck",
+    "leak": "Possible leak",
+    "burst": "Burst pipe suspected",
+    "unusual_use": "Unusual water use",
     "audit_chain": "Audit log changed"
   },
   "owner": {

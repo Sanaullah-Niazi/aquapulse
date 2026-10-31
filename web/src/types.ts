@@ -171,6 +171,11 @@ export interface NotificationPrefs {
   email_muted_rules: string[];
   quiet_from: string | null;
   quiet_until: string | null;
+  /** M9: push choices for the Android app (edited there, kept as they are here). */
+  push_min?: "info" | "warning" | "critical" | "off";
+  push_muted_rules?: string[];
+  /** Read-only: is push set up on the server? Never sent back. */
+  push_available?: boolean;
 }
 
 /** A message from the live WebSocket (FR-25). */

@@ -72,6 +72,12 @@ class User(Base):
     )
     quiet_from: Mapped[time | None] = mapped_column(Time)
     quiet_until: Mapped[time | None] = mapped_column(Time)
+    # M9 (FR-52, FR-60): push notifications to the Android app, chosen like
+    # email: from this severity up ("off" = none), and alert types never pushed.
+    push_min: Mapped[str] = mapped_column(String(8), nullable=False, server_default="warning")
+    push_muted_rules: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
     # M8 (FR-70): two-factor login. The secret is stored encrypted; the last
     # used time step stops the same code from working twice.
     totp_secret: Mapped[str | None] = mapped_column(Text)
@@ -676,6 +682,8 @@ class Alert(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     value: Mapped[float | None] = mapped_column(Float)  # the reading that last matched
+    # M10 (FR-66): an AI alert's confidence, explanation numbers and evidence chart.
+    details: Mapped[dict | None] = mapped_column(JSONB)
     seen_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -701,7 +709,7 @@ class Notification(Base):
 
     id: Mapped[uuid.UUID] = _id()
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email (push: M9)
+    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email, push (M9)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # alert, bill_reminder
     alert_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("alerts.id"), index=True)
     bill_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"))
@@ -713,6 +721,23 @@ class Notification(Base):
     last_error: Mapped[str | None] = mapped_column(String(200))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _now()
+
+
+class PushDevice(Base):
+    """A phone that may receive push notifications (M9, FR-60): its Firebase
+    Cloud Messaging token. One person can have several phones; a token that
+    Firebase says is gone is deleted."""
+
+    __tablename__ = "push_devices"
+
+    id: Mapped[uuid.UUID] = _id()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(4096), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, default="android")
+    created_at: Mapped[datetime] = _now()
+    last_seen_at: Mapped[datetime] = _now()
 
 
 class BillReminder(Base):
@@ -754,3 +779,35 @@ class ServiceHeartbeat(Base):
     details: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+
+
+class AiModel(Base):
+    """One trained AI model version for a building (FR-67), and its scores.
+
+    The worker trains a new version every night on the last 60 days. It goes
+    live only if its scores are not worse than the live version's; the old
+    versions stay as history (the owner sees them on the AI page).
+    """
+
+    __tablename__ = "ai_models"
+    __table_args__ = (
+        UniqueConstraint("building_id", "kind", "version", name="ai_model_version_unique"),
+        Index("one_live_model", "building_id", "kind", unique=True,
+              postgresql_where=text("live")),
+    )  # fmt: skip
+
+    id: Mapped[uuid.UUID] = _id()
+    building_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("buildings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)  # unusual_use, forecast
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    trained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    data_from: Mapped[date] = mapped_column(Date, nullable=False)
+    data_to: Mapped[date] = mapped_column(Date, nullable=False)
+    rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    live: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    note: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    blob: Mapped[bytes | None] = mapped_column(LargeBinary)  # the trained model (pickle)

@@ -8,7 +8,7 @@ import { ErrorBox, Field, Loading } from "../../components/ui";
 import type { NotificationPrefs } from "../../types";
 
 const HOME_RULES = ["ph_unsafe", "temp_abnormal", "device_offline", "high_usage", "command_failed",
-                    "sensor_stuck"];
+                    "sensor_stuck", "leak", "burst", "unusual_use"];
 const BUILDING_RULES = ["tank_low", "tank_overflow", "dry_run"];
 
 export function NotificationsPage() {
@@ -24,7 +24,8 @@ export function NotificationsPage() {
     if (prefs.data) setForm(prefs.data);
   }, [prefs.data]);
   const save = useMutation({
-    mutationFn: (body: NotificationPrefs) =>
+    // Only the choices go back: push_available is the server's answer, not a choice.
+    mutationFn: ({ push_available: _, ...body }: NotificationPrefs) =>
       api<NotificationPrefs>("/me/notifications", { method: "PATCH", body }),
     onSuccess: (data) => queries.setQueryData(["prefs"], data),
   });

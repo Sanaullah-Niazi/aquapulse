@@ -53,7 +53,7 @@ from ..schemas import (
 log = logging.getLogger("aquapulse.billing")
 
 router = APIRouter(tags=["billing: bills and payments"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 OwnerOrAdmin = Annotated[Caller, Depends(require("owner", "sysadmin"))]
 ResidentOnly = Annotated[Caller, Depends(require("resident"))]

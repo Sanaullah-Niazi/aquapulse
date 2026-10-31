@@ -31,7 +31,7 @@ from ..models import Bill, Building, DeviceCommand, Home, Occupancy, User, Valve
 from ..schemas import CommandOut, ValveIn, ValveLockIn, ValveLockOut, ValveUnlockIn
 
 router = APIRouter(tags=["valve control"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOrResident = Annotated[Caller, Depends(require("owner", "resident"))]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 

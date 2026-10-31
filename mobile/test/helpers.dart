@@ -6,6 +6,7 @@ import 'package:aquapulse/api/token_store.dart';
 import 'package:aquapulse/app_state.dart';
 import 'package:aquapulse/live.dart';
 import 'package:aquapulse/main.dart';
+import 'package:aquapulse/push.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -60,6 +61,7 @@ Future<(AppState, MemoryTokenStore)> startApp(
   FakeApi api, {
   String? role,
   Size size = const Size(420, 1800),
+  PushService? push,
 }) async {
   // A tall phone, so long screens are built without scrolling in most tests.
   tester.view.physicalSize = size * 2;
@@ -67,7 +69,7 @@ Future<(AppState, MemoryTokenStore)> startApp(
   addTearDown(tester.view.reset);
   final store = MemoryTokenStore();
   final client = ApiClient(client: api.client, store: store, baseUrl: 'https://test.example');
-  final state = AppState(api: client, live: Live(client)); // no httpClient: no real WebSocket
+  final state = AppState(api: client, live: Live(client), push: push); // no httpClient: no real WebSocket
   if (role != null) {
     store.refresh = 'saved-refresh';
     api.json('POST /auth/refresh', tokens);

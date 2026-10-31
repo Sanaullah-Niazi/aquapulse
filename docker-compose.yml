@@ -246,10 +246,13 @@ services:
       # Only used by `make seed` (demo accounts); never by the API itself.
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       DEMO_TIMEZONE: ${DEMO_TIMEZONE:-Asia/Karachi}
+      # Push to the Android app (M9, optional): see infra/firebase/README.md.
+      FCM_SERVICE_ACCOUNT_FILE: /firebase/firebase-service-account.json
     volumes:
       # Only the CA certificate: readyz checks the broker's TLS with it, and new
       # devices get its fingerprint (FR-14). Never the CA's private key.
       - ./infra/certs/public:/certs:ro
+      - ./infra/firebase:/firebase:ro
     healthcheck:
       test:
         - CMD
@@ -295,7 +298,7 @@ services:
 
   # --- Worker: jobs on a schedule (M6) ---
   # Monthly bills on the 1st at 02:00 building time, and overdue bills.
-  # Alerts and the AI jobs join it in later milestones.
+  # Alerts (M7) and push notifications (M9) are sent from here too.
   worker:
     image: aquapulse/backend:dev
     command: ["python", "-m", "app.worker"]
@@ -307,6 +310,10 @@ services:
         condition: service_healthy
     environment:
       <<: *backend-env
+      # The worker sends the pushes (M9, optional): see infra/firebase/README.md.
+      FCM_SERVICE_ACCOUNT_FILE: /firebase/firebase-service-account.json
+    volumes:
+      - ./infra/firebase:/firebase:ro
     healthcheck:
       # Healthy = it finished a round in the last 3 minutes.
       test:

@@ -45,7 +45,7 @@ flowchart LR
 | M6 Billing and payments | ✅ done |
 | M7 Alerts and notifications | ✅ done |
 | M8 Web app | ✅ done |
-| M9 Android app | ⏳ |
+| M9 Android app | ✅ done |
 | M10 AI: leak detection and forecasting | ⏳ |
 | M11 ESP32 firmware and hardware | ⏳ |
 | M12 Demo data, polish and v1.0 release | ⏳ |
@@ -154,21 +154,27 @@ Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
 
 Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
-**Android app (M9, in progress).** One Flutter app for residents and owners; the server role decides which screens appear.
+**Android app (M9).** One Flutter app for residents and owners; the server role decides which screens appear.
 
 - Choose any AquaPulse server (your Mac, a tunnel or the cloud). HTTPS only; the app trusts Android's normal certificates plus, when built with `make apk`, your own AquaPulse CA.
 - Log in with the optional two-factor code. The refresh token is kept in Android's secure storage (Keystore), never in plain settings.
 - Residents: my home live, water on/off with the device's answer, usage and comparison, water quality charts, bills (PDF, pay online in test mode), alerts, profile and alert emails.
+- Owners: live building overview, homes with search and sort, valve control and locks with a reason, tank and pump with manual mode, monthly bills (make, issue, void, record payments).
 - Every push builds the APK in GitHub Actions after `flutter analyze` and the widget tests pass.
+- Push notifications (optional, free Firebase): alerts reach the phone even when the app is closed, with per-severity and per-type choices. Tag `v*` to get the APK attached to a GitHub Release.
 
 Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
+
+**AI (M10, in progress).** Part 1: leak and burst detection on every live reading, each alert with a plain-language reason and its evidence, and optional automatic shut-off (at most once per hour, never on a locked valve). Part 2: a 7-day forecast per home and per building (Holt-Winters with an 80% range) with a month-end bill estimate from the real tariff, unusual-use flags (Isolation Forest) with reasons, and a model registry: models retrain every night and a new version goes live only if it is not worse. The scores in [docs/ai-evaluation.md](docs/ai-evaluation.md) are made by `make ai-eval` on a labelled simulator test set, and CI checks them on every push.
+
+Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
 
 ## Repository layout
 
 ```text
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
-backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
+backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7), AI (M10)
 web/         React web app / PWA: resident, owner and System Admin screens  (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)

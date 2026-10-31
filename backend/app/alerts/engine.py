@@ -21,9 +21,11 @@ from sqlalchemy import select
 
 from .. import db
 from .. import events as bus
+from ..ai.monitor import LeakMonitor
+from ..ai.shutoff import maybe_shut_off
 from ..models import Alert, Building
 from .detect import Detector, Signal
-from .rules import DEFAULTS, RuleSettings
+from .rules import DEFAULTS, LIVE_AI_RULES, RuleSettings
 from .store import (
     apply,
     auto_resolve,
@@ -47,6 +49,7 @@ class AlertEngine:
         self.clock = clock
         self._settings: dict[str, RuleSettings] = {}
         self.detector = Detector(settings=self.settings_of)
+        self.leaks = LeakMonitor(settings=self.settings_of)  # M10: the AI leak detector
         self.queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(QUEUE_SIZE)
         self._usage_at: datetime | None = None
 
@@ -58,6 +61,7 @@ class AlertEngine:
         async with db.sessions()() as session:
             self._settings, self.detector.tank_high = await load_settings(session)
             self.detector.active = await open_keys(session)
+            await self.leaks.start(session, self.clock(), self.detector.active)
 
     # ----- live events -----
 
@@ -67,10 +71,21 @@ class AlertEngine:
         signals: list[Signal] = []
         for event in events:
             signals += self.detector.see(event, now)
+            signals += self.leaks.see(event, now)
         if not signals:
             return []
         async with db.sessions()() as session, session.begin():
-            return await apply(session, signals, now)
+            opened = await apply(session, signals, now)
+            for signal in signals:
+                if signal.rule in LIVE_AI_RULES and signal.active:
+                    alert = await session.scalar(
+                        select(Alert.id).where(
+                            Alert.dedupe_key == signal.key,
+                            Alert.state.in_(("open", "acknowledged")),
+                        )
+                    )
+                    await maybe_shut_off(session, signal, now, alert)
+            return opened
 
     def _on_notify(self, payload: str) -> None:
         event = json.loads(payload)
@@ -109,6 +124,7 @@ class AlertEngine:
         done = {"opened": 0, "resolved": 0}
         async with db.sessions()() as session, session.begin():
             self._settings, self.detector.tank_high = await load_settings(session)
+            await self.leaks.daily(session, now)
             signals = await offline_signals(session, self._settings, now)
             self.detector.active |= {s.key for s in signals}  # a reading clears them again
             if self._usage_at is None or now - self._usage_at >= USAGE_EVERY:

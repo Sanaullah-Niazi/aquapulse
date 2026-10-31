@@ -35,7 +35,7 @@ from ..schemas import (
 from .live import check_range, default_dates, local_range
 
 router = APIRouter(tags=["tank and pump"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 
 MAX_HISTORY_DAYS = 92

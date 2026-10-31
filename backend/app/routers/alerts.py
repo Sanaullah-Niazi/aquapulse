@@ -1,4 +1,5 @@
-"""Alerts, the owner's alert rules, and each person's email choice (FR-58 to FR-62).
+"""Alerts, the owner's alert rules, each person's email and push choice, and
+the phones that get push notifications (FR-58 to FR-62, M9).
 
 Who sees which alert (FR-19):
 * Owner: alerts of their own buildings.
@@ -18,16 +19,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http
-from sqlalchemy import and_, exists, select
+from sqlalchemy import and_, delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import audit
+from .. import audit, push
 from .. import events as bus
 from ..alerts.rules import AUDIT_RULE, RULES, check, describe, settings_for
 from ..alerts.store import alert_event
 from ..db import get_session
 from ..deps import NOT_FOUND, Caller, active_occupancy_filter, require, visible_building
-from ..models import OPEN_ALERT_STATES, Alert, Building, Occupancy
+from ..models import OPEN_ALERT_STATES, Alert, Building, Occupancy, PushDevice
 from ..schemas import (
     AlertOut,
     AlertResolveIn,
@@ -35,10 +36,12 @@ from ..schemas import (
     AlertRulesOut,
     NotificationPrefsIn,
     NotificationPrefsOut,
+    PushDeviceIn,
+    PushForgetIn,
 )
 
 router = APIRouter(tags=["alerts"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 AnyRole = Annotated[Caller, Depends(require("owner", "sysadmin", "resident"))]
 OwnerOnly = Annotated[Caller, Depends(require("owner"))]
 OwnerOrAdmin = Annotated[Caller, Depends(require("owner", "sysadmin"))]
@@ -222,18 +225,26 @@ async def change_rules(
 # ----- my email choice (FR-60) -----
 
 
+def _prefs_out(user) -> NotificationPrefsOut:
+    out = NotificationPrefsOut.model_validate(user)
+    out.push_available = push.available()
+    return out
+
+
 @router.get("/me/notifications", response_model=NotificationPrefsOut)
 async def my_prefs(caller: AnyRole):
-    return NotificationPrefsOut.model_validate(caller.user)
+    return _prefs_out(caller.user)
 
 
 @router.patch("/me/notifications", response_model=NotificationPrefsOut, responses={422: {}})
 async def change_my_prefs(body: NotificationPrefsIn, caller: AnyRole):
-    """Which alerts also come by email (FR-52): this severity and above (or "off"),
-    alert types never by email, and quiet hours when non-critical emails wait.
-    In-app alerts are always on. Takes effect for the next alert."""
+    """Which alerts also come by email and by push (FR-52): this severity and
+    above (or "off"), alert types never sent that way, and quiet hours when
+    non-critical emails and pushes wait. In-app alerts are always on. Takes
+    effect for the next alert."""
     sent = body.model_dump(exclude_unset=True)
-    unknown = set(sent.get("email_muted_rules") or []) - set(RULES) - {AUDIT_RULE.id}
+    named = set(sent.get("email_muted_rules") or []) | set(sent.get("push_muted_rules") or [])
+    unknown = named - set(RULES) - {AUDIT_RULE.id}
     if unknown:
         raise HTTPException(
             http.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown alert type: {', '.join(sorted(unknown))}"
@@ -250,7 +261,29 @@ async def change_my_prefs(body: NotificationPrefsIn, caller: AnyRole):
         raise HTTPException(http.HTTP_422_UNPROCESSABLE_CONTENT, "Quiet hours need a length")
     for field, value in sent.items():
         if value is not None or field.startswith("quiet_"):
-            setattr(
-                caller.user, field, sorted(set(value)) if field == "email_muted_rules" else value
-            )
-    return NotificationPrefsOut.model_validate(caller.user)
+            setattr(caller.user, field, sorted(set(value)) if field.endswith("_rules") else value)
+    return _prefs_out(caller.user)
+
+
+# ----- my phones for push notifications (M9, FR-60) -----
+
+
+@router.post("/me/push-devices", status_code=204, responses={422: {}})
+async def add_push_device(body: PushDeviceIn, session: Session, caller: AnyRole):
+    """The Android app sends its Firebase token after login (and when Firebase
+    gives it a new one). A token belongs to one person: if someone else logs
+    in on the same phone, it moves to them."""
+    phone = await session.scalar(select(PushDevice).where(PushDevice.token == body.token))
+    if phone is None:
+        session.add(PushDevice(user_id=caller.id, token=body.token, platform=body.platform))
+    else:
+        phone.user_id = caller.id
+        phone.last_seen_at = datetime.now(UTC)
+
+
+@router.post("/me/push-devices/forget", status_code=204)
+async def forget_push_device(body: PushForgetIn, session: Session, caller: AnyRole):
+    """Logging out in the app: no more pushes to this phone."""
+    await session.execute(
+        delete(PushDevice).where(PushDevice.token == body.token, PushDevice.user_id == caller.id)
+    )

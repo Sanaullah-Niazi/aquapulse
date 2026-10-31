@@ -60,7 +60,7 @@ def _unauthorized(detail: str = "Not logged in or session expired") -> HTTPExcep
 async def current_caller(
     request: Request,
     token: Annotated[str | None, Depends(oauth2)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[AsyncSession, Depends(get_session, scope="function")],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Caller:
     if not token:

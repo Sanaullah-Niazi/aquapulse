@@ -24,6 +24,9 @@ PH_DRIFT_MINUTES = 20.0  # ph_drift reaches its full +/- 2.0 after 20 minutes
 NORMAL_PH = (6.8, 7.8)  # FR-03: pH stays in this range unless a fault is active
 
 
+DAY_S = 86_400
+
+
 class HomeNode(Device):
     kind = "home"
 
@@ -75,6 +78,12 @@ class HomeNode(Device):
             if s.type in ("leak", "burst")
         )
 
+    def guests(self, now: float) -> int:
+        """Extra households' worth of water from 'abnormal' scenarios (M10, FR-64)."""
+        return sum(
+            int(s.params.get("extra", 1)) for s in self.scenarios.active(self.id, now, "abnormal")
+        )
+
     def step(self, t0: float, t1: float, supply_ok: bool) -> float:
         """Advance from t0 to t1. Returns the litres taken from the tank."""
         if self._pending and t1 >= self._pending["done_at"]:
@@ -83,8 +92,14 @@ class HomeNode(Device):
         flowing = self.valve_pos == "open" and supply_ok
         if flowing:
             extra = self.extra_lpm(t1)
+            # Guests (an 'abnormal' day): the water of 1 or 2 more households, taken
+            # from the same home's earlier days at the same clock time. More taps,
+            # showers and flushes, not stronger ones.
+            guests = [k * DAY_S for k in range(1, self.guests(t1) + 1)]
             litres = self.profile.litres_between(t0, t1) + extra * (t1 - t0) / 60.0
+            litres += sum(self.profile.litres_between(t0 - g, t1 - g) for g in guests)
             self.flow_lpm = self.profile.flow_at(t1) + extra
+            self.flow_lpm += sum(self.profile.flow_at(t1 - g) for g in guests)
         else:
             # Valve closed (or no water in the tank): flow is exactly 0, counter stops.
             litres = 0.0

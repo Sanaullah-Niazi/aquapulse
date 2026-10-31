@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -98,6 +99,27 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_eval_set(args: argparse.Namespace) -> None:
+    """Print a labelled leak test set as JSON lines (FR-63). Fixed seed and end time."""
+    import time
+    from datetime import datetime
+
+    from .evalset import EVAL_SEED, write
+
+    cfg = dataclasses.replace(Config.from_env(), seed=EVAL_SEED, homes=args.homes)
+    end = datetime(2026, 6, 1, tzinfo=cfg.tz).timestamp()  # fixed: same set every time
+    started = time.monotonic()
+    count = write(
+        cfg, end, days=args.days, leaks=args.leaks, bursts=args.bursts, abnormal=args.abnormal
+    )
+    print(
+        f"eval-set: {count} readings, {args.leaks} leaks, {args.bursts} bursts and "
+        f"{args.abnormal} unusual days over "
+        f"{args.days} days in {time.monotonic() - started:.0f} s",
+        file=sys.stderr,
+    )
+
+
 def cmd_devices(_: argparse.Namespace) -> None:
     for d in _api("GET", "/devices"):
         print(json.dumps(d))
@@ -127,13 +149,20 @@ def main() -> None:
     p = sub.add_parser("backfill", help="print N days of history as JSON lines (no MQTT)")
     p.add_argument("--days", type=int, default=90, choices=range(1, 366), metavar="1..365")
     p.set_defaults(func=cmd_backfill)
+    p = sub.add_parser("eval-set", help="print a labelled leak test set (FR-63, no MQTT)")
+    p.add_argument("--homes", type=int, default=10)
+    p.add_argument("--days", type=int, default=90)
+    p.add_argument("--leaks", type=int, default=50)
+    p.add_argument("--bursts", type=int, default=12)
+    p.add_argument("--abnormal", type=int, default=30)
+    p.set_defaults(func=cmd_eval_set)
     sub.add_parser("devices", help="list devices of the running simulator").set_defaults(
         func=cmd_devices
     )
     p = sub.add_parser("scenario", help="inject a scenario into the running simulator")
     p.add_argument(
         "type",
-        help="leak, burst, ph_drift, temp_spike, sensor_stuck, valve_stuck, "
+        help="leak, burst, abnormal, ph_drift, temp_spike, sensor_stuck, valve_stuck, "
         "offline, reboot, tank_sensor_fail, sump_empty",
     )
     p.add_argument("device", help="e.g. home-b01-03 or tank-b01-01")

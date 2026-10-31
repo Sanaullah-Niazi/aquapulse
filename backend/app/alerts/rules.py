@@ -67,7 +67,24 @@ RULES: dict[str, Rule] = {r.id: r for r in [
     Rule("sensor_stuck", "Sensor stuck", "warning", "home",
          "pH and temperature exactly the same for 'minutes' minutes", {
              "minutes": Limit(60, 15, 1440, "minutes without any change", whole=True)}),
+    # M10 (FR-63): the AI leak detector, see app/ai/leak.py.
+    Rule("leak", "Possible leak", "warning", "home",
+         "water keeps flowing: 'night_minutes' minutes without stopping between 02:00 and "
+         "05:00, or 'continuous_hours' hours without stopping at any time", {
+             "night_minutes": Limit(60, 30, 180, "minutes of night flow", whole=True),
+             "continuous_hours": Limit(2, 1, 12, "hours of flow without a stop")}),
+    Rule("burst", "Burst pipe suspected", "critical", "home",
+         "flow above the home's normal maximum (99.9th percentile, at least 24 L/min) for "
+         "'minutes' minutes", {
+             "minutes": Limit(5, 2, 30, "minutes of very high flow", whole=True)}),
+    # M10 (FR-64): the nightly unusual-use model, see app/ai/unusual.py.
+    Rule("unusual_use", "Unusual water use", "info", "home",
+         "yesterday's water was unlike this home's normal days (Isolation Forest, retrained "
+         "nightly)"),
 ]}  # fmt: skip
+
+AI_RULES = ("leak", "burst", "unusual_use")
+LIVE_AI_RULES = ("leak", "burst")  # found from live readings (app/ai/monitor.py)
 
 # Not configurable: raised by the worker's daily audit check, for System Admins.
 AUDIT_RULE = Rule("audit_chain", "Audit log changed", "critical", "system",

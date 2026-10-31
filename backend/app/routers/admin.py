@@ -32,7 +32,7 @@ from .auth import revoke_all_sessions
 from .health import broker_ok, database_ok
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 Admin = Annotated[Caller, Depends(require("sysadmin"))]
 
 

@@ -188,6 +188,8 @@ void main() {
       'email_muted_rules': ['high_usage'],
       'quiet_from': '22:00',
       'quiet_until': '07:00',
+      'push_min': 'warning',
+      'push_muted_rules': [],
     });
   });
 

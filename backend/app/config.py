@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     def web_app_url(self) -> str:
         return (self.web_app_url_setting or f"{self.public_url}/app").rstrip("/")
 
+    # Push notifications to the Android app (M9, FR-60), optional: a Firebase
+    # service account key file (free Firebase project). Missing = push off.
+    fcm_service_account_file: str = Field("", alias="FCM_SERVICE_ACCOUNT_FILE")
+
     # Web pages allowed to call the API from a browser (CORS, FR-71), comma separated.
     cors_origins: str = Field("https://localhost:8443", alias="CORS_ORIGINS")
 

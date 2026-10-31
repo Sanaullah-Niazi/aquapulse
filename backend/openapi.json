@@ -4654,7 +4654,7 @@
           "alerts"
         ],
         "summary": "Change My Prefs",
-        "description": "Which alerts also come by email (FR-52): this severity and above (or \"off\"),\nalert types never by email, and quiet hours when non-critical emails wait.\nIn-app alerts are always on. Takes effect for the next alert.",
+        "description": "Which alerts also come by email and by push (FR-52): this severity and\nabove (or \"off\"), alert types never sent that way, and quiet hours when\nnon-critical emails and pushes wait. In-app alerts are always on. Takes\neffect for the next alert.",
         "operationId": "change_my_prefs_api_v1_me_notifications_patch",
         "requestBody": {
           "content": {
@@ -4679,6 +4679,79 @@
           },
           "422": {
             "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/push-devices": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Add Push Device",
+        "description": "The Android app sends its Firebase token after login (and when Firebase\ngives it a new one). A token belongs to one person: if someone else logs\nin on the same phone, it moves to them.",
+        "operationId": "add_push_device_api_v1_me_push_devices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/push-devices/forget": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Forget Push Device",
+        "description": "Logging out in the app: no more pushes to this phone.",
+        "operationId": "forget_push_device_api_v1_me_push_devices_forget_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushForgetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5053,6 +5126,234 @@
           }
         }
       }
+    },
+    "/api/v1/homes/{home_id}/insights": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Home Insights",
+        "description": "Leak and burst findings of the last `days` days, newest first, each with\na plain-language reason and the readings behind it.",
+        "operationId": "home_insights_api_v1_homes__home_id__insights_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InsightOut"
+                  },
+                  "title": "Response Home Insights Api V1 Homes  Home Id  Insights Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/forecast": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Home Forecast",
+        "description": "The next 7 days of litres with an 80% range, and the month-end total and\nbill estimate, made with the building's real tariff (FR-65). Residents:\nfrom their move-in day only.",
+        "operationId": "home_forecast_api_v1_homes__home_id__forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/forecast": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Building Forecast",
+        "description": "The whole building: total litres forecast, and the sum of every home's\nmonth-end bill estimate.",
+        "operationId": "building_forecast_api_v1_buildings__building_id__forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/ai/models": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Ai Models",
+        "description": "Every trained version, newest first, with its scores and whether it is live.",
+        "operationId": "ai_models_api_v1_buildings__building_id__ai_models_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiModelOut"
+                  },
+                  "title": "Response Ai Models Api V1 Buildings  Building Id  Ai Models Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5085,6 +5386,76 @@
             "token": "the code from the email"
           }
         ]
+      },
+      "AiModelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "trained_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Trained At"
+          },
+          "data_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Data From"
+          },
+          "data_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Data To"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "version",
+          "trained_at",
+          "data_from",
+          "data_to",
+          "rows",
+          "metrics",
+          "params",
+          "live",
+          "note"
+        ],
+        "title": "AiModelOut",
+        "description": "One model version in the registry (FR-67). The model itself is not sent."
       },
       "AlertOut": {
         "properties": {
@@ -5991,6 +6362,68 @@
           "can_pay_online"
         ],
         "title": "BillOut"
+      },
+      "BillProjectionOut": {
+        "properties": {
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "total_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Text"
+          },
+          "low_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Text"
+          },
+          "high_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Text"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency_code"
+        ],
+        "title": "BillProjectionOut"
       },
       "BillSummaryOut": {
         "properties": {
@@ -6900,6 +7333,25 @@
         ],
         "title": "ConsumptionPoint"
       },
+      "DayLitresOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "litres"
+        ],
+        "title": "DayLitresOut"
+      },
       "DeviceCredentialsOut": {
         "properties": {
           "device": {
@@ -7073,6 +7525,87 @@
           "has_own_password"
         ],
         "title": "DeviceOut"
+      },
+      "ForecastDayOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low",
+            "description": "80% range: low end"
+          },
+          "high": {
+            "type": "number",
+            "title": "High",
+            "description": "80% range: high end"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "litres",
+          "low",
+          "high"
+        ],
+        "title": "ForecastDayOut"
+      },
+      "ForecastOut": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "holt_winters, or seasonal_naive with little history"
+          },
+          "history_days": {
+            "type": "integer",
+            "title": "History Days"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/DayLitresOut"
+            },
+            "type": "array",
+            "title": "Recent",
+            "description": "The real litres of the last 14 days"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "month_end": {
+            "$ref": "#/components/schemas/MonthEndOut"
+          },
+          "bill": {
+            "$ref": "#/components/schemas/BillProjectionOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "history_days",
+          "explanation",
+          "recent",
+          "days",
+          "month_end",
+          "bill"
+        ],
+        "title": "ForecastOut",
+        "description": "The next 7 days and the month's end (FR-65), with why (FR-66)."
       },
       "ForgotIn": {
         "properties": {
@@ -7458,6 +7991,11 @@
             "type": "string",
             "title": "Notes"
           },
+          "auto_shutoff_enabled": {
+            "type": "boolean",
+            "title": "Auto Shutoff Enabled",
+            "default": false
+          },
           "archived_at": {
             "anyOf": [
               {
@@ -7541,6 +8079,18 @@
               }
             ],
             "title": "Notes"
+          },
+          "auto_shutoff_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Shutoff Enabled",
+            "description": "M10 (FR-61): close the valve by itself on a sure leak or a burst"
           }
         },
         "additionalProperties": false,
@@ -7575,6 +8125,95 @@
           "litres"
         ],
         "title": "HomeTotal"
+      },
+      "InsightOut": {
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Alert Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "leak or burst"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "Plain words, made from the data"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence",
+            "description": "0 to 1"
+          },
+          "high_confidence": {
+            "type": "boolean",
+            "title": "High Confidence",
+            "default": false
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opened At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence",
+            "description": "The numbers behind the explanation; points = [time, L/min] for a chart"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "kind",
+          "title",
+          "severity",
+          "state",
+          "explanation",
+          "opened_at",
+          "last_seen_at"
+        ],
+        "title": "InsightOut",
+        "description": "One AI finding about a home, with why (FR-66) and the evidence."
       },
       "InvitationIn": {
         "properties": {
@@ -7836,6 +8475,35 @@
         ],
         "title": "MessageOut"
       },
+      "MonthEndOut": {
+        "properties": {
+          "last_day": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Day"
+          },
+          "litres": {
+            "type": "number",
+            "title": "Litres"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_day",
+          "litres",
+          "low",
+          "high"
+        ],
+        "title": "MonthEndOut"
+      },
       "NotificationOut": {
         "properties": {
           "id": {
@@ -7993,6 +8661,39 @@
             ],
             "title": "Quiet Until",
             "description": "Quiet hours end"
+          },
+          "push_min": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "info",
+                  "warning",
+                  "critical",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Min",
+            "description": "M9: push to the Android app from this severity up"
+          },
+          "push_muted_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Muted Rules",
+            "description": "M9: alert types never pushed"
           }
         },
         "additionalProperties": false,
@@ -8048,6 +8749,26 @@
               }
             ],
             "title": "Quiet Until"
+          },
+          "push_min": {
+            "type": "string",
+            "title": "Push Min",
+            "description": "Push to the Android app from this severity up",
+            "default": "warning"
+          },
+          "push_muted_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Push Muted Rules",
+            "default": []
+          },
+          "push_available": {
+            "type": "boolean",
+            "title": "Push Available",
+            "description": "Is push set up on this server (a Firebase project)?",
+            "default": false
           }
         },
         "type": "object",
@@ -8812,6 +9533,50 @@
             "reason": "Fill up"
           }
         ]
+      },
+      "PushDeviceIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 20,
+            "title": "Token"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform",
+            "default": "android"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PushDeviceIn",
+        "examples": [
+          {
+            "platform": "android",
+            "token": "the phone's Firebase token"
+          }
+        ]
+      },
+      "PushForgetIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PushForgetIn"
       },
       "ReadingOut": {
         "properties": {

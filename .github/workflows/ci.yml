@@ -305,6 +305,8 @@ jobs:
         run: make sim-test-live
       - name: Restart test (all healthy again within 90 s, NFR-17)
         run: make restart-check
+      - name: Speed and resources (NFR-01, 04, 05, 06), printed for the test report
+        run: IDLE=120 make perf
       - name: Backups (NFR-18) - make one, prove it restores, then really restore it
         run: |
           make backup

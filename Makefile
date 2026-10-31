@@ -9,7 +9,7 @@
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
-	worker-logs bills problem alerts demo rtm zap backup backups restore-check restore \
+	worker-logs bills problem alerts demo rtm zap backup backups restore-check restore perf \
 	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
 
 help: ## Show this help
@@ -194,6 +194,9 @@ restart-check: ## Restart everything and check it is all healthy again within 90
 # M12: Database backups (NFR-18). The `backup` service makes one a day by
 # itself; these are for doing it by hand. Guide: docs/backups.md
 # ---------------------------------------------------------------
+
+perf: ## Speed checks: valve round trip, live delay, read speed, memory and CPU (IDLE=600 for 10 min)
+	@./scripts/perf.sh
 
 backup: ## Make a database backup now, into ./backups
 	docker compose exec -T backup /backup/backup.sh once

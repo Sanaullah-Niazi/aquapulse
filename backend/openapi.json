@@ -763,7 +763,7 @@
           "admin"
         ],
         "summary": "Health",
-        "description": "Red or green for the database, the MQTT broker, the ingestor and the\nworker, plus devices online, readings per minute, refused messages, failed\nemails and the last audit check (FR-55, FR-31).",
+        "description": "Red or green for the database, the MQTT broker, the ingestor and the\nworker, plus devices online, readings per minute, refused messages, failed\nemails, the last audit check and the last database backup (FR-55, FR-31, NFR-18).",
         "operationId": "health_api_v1_admin_health_get",
         "responses": {
           "200": {
@@ -7886,7 +7886,7 @@
               }
             ],
             "title": "Last Backup At",
-            "description": "null: automatic backups are not set up yet"
+            "description": "When the backup service last made a good backup; null: none yet (NFR-18)"
           }
         },
         "type": "object",

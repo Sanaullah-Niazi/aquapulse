@@ -9,7 +9,7 @@
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
-	worker-logs bills problem alerts demo rtm zap \
+	worker-logs bills problem alerts demo rtm zap backup backups restore-check restore \
 	web-setup web-dev web-build web-test web-e2e web-site web-site-check app-test apk apk-install admin admin-reset-2fa
 
 help: ## Show this help
@@ -189,6 +189,35 @@ tls-check: ## Check TLS on the broker and the web server, and that port 1883 is 
 
 restart-check: ## Restart everything and check it is all healthy again within 90 s
 	@./scripts/restart-check.sh
+
+# ---------------------------------------------------------------
+# M12: Database backups (NFR-18). The `backup` service makes one a day by
+# itself; these are for doing it by hand. Guide: docs/backups.md
+# ---------------------------------------------------------------
+
+backup: ## Make a database backup now, into ./backups
+	docker compose exec -T backup /backup/backup.sh once
+
+backups: ## List the backups in ./backups (newest first)
+	@ls -lht backups/aquapulse-*.dump 2>/dev/null | awk '{print "  " $$5 "\t" $$NF}' || true
+	@ls backups/aquapulse-*.dump >/dev/null 2>&1 || echo "  No backups yet. Make one with: make backup"
+
+restore-check: ## Prove the newest backup can be restored (into a test database; changes nothing)
+	docker compose exec -T backup /backup/restore.sh check $(FILE)
+
+restore: ## DANGER: replace the database with a backup: make restore FILE=aquapulse-....dump (asks first)
+	@test -n "$(FILE)" || (echo "Use: make restore FILE=aquapulse-YYYYMMDD-HHMMSS.dump  (see: make backups)" && exit 1)
+	@test -f "backups/$(notdir $(FILE))" || (echo "Not found: backups/$(notdir $(FILE))" && exit 1)
+	@if [ "$(CONFIRM)" != "RESTORE" ]; then \
+		read -p "This REPLACES all current data with backups/$(notdir $(FILE)). Type RESTORE to continue: " ans; \
+		[ "$$ans" = "RESTORE" ] || { echo "Cancelled."; exit 1; }; \
+	fi
+	@echo "First, one more backup of the data as it is now (so this can be undone):"
+	docker compose exec -T backup /backup/backup.sh once
+	docker compose stop api ingestor worker broker-auth
+	docker compose exec -T -e CONFIRM=RESTORE backup /backup/restore.sh restore $(notdir $(FILE))
+	docker compose up -d --wait
+	@echo "Done. The data is now as it was in $(notdir $(FILE))."
 
 # ---------------------------------------------------------------
 # M6: Billing and payments

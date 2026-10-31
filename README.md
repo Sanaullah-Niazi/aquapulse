@@ -204,6 +204,7 @@ docs/        SRS, milestone guides, decisions (ADRs), security                (a
 | [docs/test-report.md](docs/test-report.md) | Test results and every non-functional requirement: measured, partly, or not yet |
 | [docs/requirements-traceability.md](docs/requirements-traceability.md) | Which tests prove each requirement (made from the code by `make rtm`) |
 | [docs/security/](docs/security) | Threat model, OWASP ASVS checklist, scan exceptions |
+| [docs/backups.md](docs/backups.md) | Daily database backups, and how to restore one |
 | [docs/ai-evaluation.md](docs/ai-evaluation.md) | Real scores of the leak, unusual-use and forecast models |
 | [docs/hardware/](docs/hardware) | Parts lists and wiring for the ESP32 nodes |
 

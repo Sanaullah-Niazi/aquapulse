@@ -22,6 +22,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Also every Monday, so the backup and restore test runs at least weekly
+  # even when nothing is pushed (NFR-18), and new problems in pinned images show up.
+  schedule:
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
@@ -301,6 +305,14 @@ jobs:
         run: make sim-test-live
       - name: Restart test (all healthy again within 90 s, NFR-17)
         run: make restart-check
+      - name: Backups (NFR-18) - make one, prove it restores, then really restore it
+        run: |
+          make backup
+          make restore-check
+          start=$(date +%s)
+          make restore FILE="$(ls -t backups/aquapulse-*.dump | head -n 1)" CONFIRM=RESTORE
+          echo "Full restore, services healthy again: $(($(date +%s) - start)) s (NFR-18 limit: 1 hour)"
+          make smoke
       - name: Show logs if something failed
         if: failure()
         run: docker compose logs --no-color --tail=200

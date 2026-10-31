@@ -80,7 +80,7 @@ The first run takes longest, because Docker builds the images and the history is
 
 - [docs/test-report.md](../test-report.md): how many tests each part has, the coverage, and every
   non-functional requirement marked measured, partly, not yet, or "needs a person". The not-yet ones
-  are listed honestly at the end (load tests and backups).
+  are listed honestly at the end.
 - [docs/security/asvs-checklist.md](../security/asvs-checklist.md): the OWASP ASVS Level 2 controls for
   login, sessions, access control, validation and logging, each with how it is met and the test that
   shows it. Four are only partly met, and the reason is written next to each.
@@ -91,3 +91,29 @@ The first run takes longest, because Docker builds the images and the history is
   downloads about 1 GB in the middle of the build without showing progress, and a slow connection
   can hang it.
 - The app's "change password" help said 12 characters; the rule is 10 (FR-68). Fixed.
+
+## Part 3: daily database backups (NFR-18)
+
+A new service, `backup`, copies the database into the `backups/` folder every day
+and keeps the last 7. The System Admin's health page shows when the last one was made.
+Full guide: [docs/backups.md](../backups.md).
+
+### Try it
+
+```bash
+git pull
+make up              # starts the new backup service; it makes the first backup straight away
+make backups         # you should see one file
+make restore-check   # restores it into a test database and compares: all ✅
+```
+
+Then log in as admin@example.com: **System health** shows the time under **Last backup**.
+
+| Command | What it does | In CI |
+|---|---|---|
+| `make backup` | A backup now | yes |
+| `make backups` | List the backups | |
+| `make restore-check` | Restore the newest backup into a separate test database, compare the row counts, delete it again. Changes nothing | yes |
+| `make restore FILE=...` | Replace all data with a backup (asks first, and makes one more backup before it starts) | yes: a real restore, then the smoke test again |
+
+CI now also runs every Monday, so the restore test runs at least weekly even when nothing is pushed.

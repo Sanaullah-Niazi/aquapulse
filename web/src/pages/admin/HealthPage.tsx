@@ -107,6 +107,10 @@ export function HealthPage() {
           <p className="muted">
             {h.last_backup_at ? fmt.dateTime(h.last_backup_at) : t("admin.health.noBackup")}
           </p>
+          {h.last_backup_at &&
+            Date.now() - new Date(h.last_backup_at).getTime() > 2 * 24 * 3600 * 1000 && (
+              <p role="alert">{t("admin.health.oldBackup")}</p>
+            )}
         </section>
 
         <section className="card" aria-labelledby="emails-title">

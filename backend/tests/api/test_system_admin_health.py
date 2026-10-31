@@ -69,7 +69,24 @@ async def test_devices_online_are_counted(client, make):
     assert after["devices_active"] == before["devices_active"] + 1
     assert after["devices_online"] == before["devices_online"] + 1
     assert isinstance(after["readings_last_minute"], int)
-    assert after["last_backup_at"] is None  # not set up yet: shown as such, never invented
+
+
+async def test_last_backup_comes_from_the_backup_service(client, make):
+    """NFR-18: the time the backup service wrote after its last good backup."""
+    async with db.sessions()() as session, session.begin():
+        await session.execute(delete(ServiceHeartbeat).where(ServiceHeartbeat.service == "backup"))
+    headers = await make.headers(await make.user("sysadmin"))
+    assert (await _health(client, headers))["last_backup_at"] is None  # none yet: never invented
+    when = datetime(2026, 10, 31, 2, 0, tzinfo=UTC)
+    async with db.sessions()() as session, session.begin():
+        session.add(
+            ServiceHeartbeat(
+                service="backup", seen_at=when, started_at=when, details={"file": "x.dump"}
+            )
+        )
+    body = await _health(client, headers)
+    assert datetime.fromisoformat(body["last_backup_at"]) == when
+    assert {s["name"] for s in body["services"]} == {"database", "broker", "ingestor", "worker"}
 
 
 async def test_only_system_admins(client, make):

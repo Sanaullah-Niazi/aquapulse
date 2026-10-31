@@ -46,7 +46,7 @@ echo "AquaPulse smoke test (M1 to M8)"
 echo ""
 
 # 1. Container health -------------------------------------------------------
-for svc in broker-auth mqtt db mailpit caddy simulator api ingestor worker; do
+for svc in broker-auth mqtt db mailpit caddy simulator api ingestor worker backup; do
   cid="$(docker compose ps -q "$svc" 2>/dev/null)"
   status="$( [ -n "$cid" ] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null )"
   if [ "$status" = "healthy" ]; then pass "$svc container is healthy"; else fail "$svc container is '${status:-not running}' (try: make logs)"; fi

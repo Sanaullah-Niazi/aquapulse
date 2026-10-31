@@ -45,7 +45,7 @@ Which test proves which requirement: [requirements-traceability.md](requirements
 | NFR-15 Logs | no secrets or full emails | ✅ | `backend/tests/security/test_log_redaction.py` |
 | NFR-16 No lost litres | within 0.5% with 10% loss | ✅ | Ingest test with 10% of messages dropped and reboots (FR-23) |
 | NFR-17 Recovery after restart | healthy within 90 s | ✅ | `make restart-check` in CI |
-| NFR-18 Backups | daily backup, tested restore | ⏳ | Not built yet; the System Admin page says "Automatic backups are not set up yet" rather than pretending |
+| NFR-18 Backups | daily backup, tested restore | ✅ | The `backup` service makes a daily `pg_dump` ([backups.md](backups.md)). The CI stack job (every push and every Monday) makes a backup, restores it into a test database and compares the tables, then really restores it and runs the smoke test again; it prints how long the restore took |
 | NFR-19 Availability (public demo) | ≥ 99% monthly | 👤 | Needs the public demo and a free uptime monitor |
 | NFR-20 Safe failure | tank safe with the server down | ✅ | `simulator/tests/test_tank_offline_safety.py`; the tank firmware's own pump rules (`firmware/test/native`) |
 | NFR-21 Ease of use | 60 s task, SUS ≥ 75 | 👤 | Needs 5 test users |
@@ -62,6 +62,5 @@ Which test proves which requirement: [requirements-traceability.md](requirements
 ## Still to do (honest list)
 
 1. Performance and load tests: NFR-01 to NFR-06, NFR-25 and NFR-26 (free tools: k6 and a small MQTT load script).
-2. Automatic database backups with a tested restore (NFR-18).
-3. Things only a person can do: the 5-user usability test (NFR-21), the fresh-clone timing (NFR-28),
+2. Things only a person can do: the 5-user usability test (NFR-21), the fresh-clone timing (NFR-28),
    and the public demo with an uptime monitor (NFR-19).

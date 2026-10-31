@@ -55,7 +55,7 @@ def _service(name: str, beat: ServiceHeartbeat | None, now: datetime) -> Service
 async def health(session: Session, caller: Admin):
     """Red or green for the database, the MQTT broker, the ingestor and the
     worker, plus devices online, readings per minute, refused messages, failed
-    emails and the last audit check (FR-55, FR-31)."""
+    emails, the last audit check and the last database backup (FR-55, FR-31, NFR-18)."""
     now = datetime.now(UTC)
     db_up, broker_up = await asyncio.gather(database_ok(), broker_ok())
     beats = {b.service: b for b in await session.scalars(select(ServiceHeartbeat))}
@@ -102,6 +102,8 @@ async def health(session: Session, caller: Admin):
         rejected_since_start=details.get("rejected", {}),
         notifications_failed_7d=failed or 0,
         last_audit_check=AuditVerifyOut.model_validate(check) if check else None,
+        # Written by the backup service after each good backup (infra/backup/backup.sh).
+        last_backup_at=beats["backup"].seen_at if "backup" in beats else None,
     )
 
 

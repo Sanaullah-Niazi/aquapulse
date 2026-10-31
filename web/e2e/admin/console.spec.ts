@@ -48,7 +48,9 @@ test("a new System Admin must turn on two-factor login, then uses the console", 
     await expect(page.getByText(service)).toBeVisible();
   }
   await expect(page.getByText("Everything is running.")).toBeVisible();
-  await expect(page.getByText("Automatic backups are not set up yet")).toBeVisible();
+  // The backup service made its first backup when the stack started (NFR-18).
+  await expect(page.getByRole("heading", { name: "Last backup" })).toBeVisible();
+  await expect(page.getByText("No backup has been made yet")).toHaveCount(0);
   await expectNoSideScroll(page);
   await expectAccessible(page);
 

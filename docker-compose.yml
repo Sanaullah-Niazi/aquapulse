@@ -326,6 +326,34 @@ services:
       retries: 8
       start_period: 10s
 
+  # --- backup: a database backup every day, into ./backups (M12, NFR-18) ---
+  # Same image as the database, so pg_dump and pg_restore match its version.
+  # See infra/backup/backup.sh and docs/backups.md.
+  backup:
+    image: timescale/timescaledb:2.31.0-pg16
+    entrypoint: ["/backup/backup.sh"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aquapulse}
+      POSTGRES_USER: ${POSTGRES_USER:-aquapulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing. Run "make env" to create it.}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+      BACKUP_EVERY_HOURS: ${BACKUP_EVERY_HOURS:-24}
+      TZ: UTC
+    volumes:
+      - ./infra/backup:/backup:ro
+      - ./backups:/backups
+    healthcheck:
+      # Healthy = the loop ran in the last 15 minutes (it checks every 10).
+      test: ["CMD-SHELL", "test -n \"$$(find /tmp/backup-alive -mmin -15 2>/dev/null)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 120s
+
 # Named volumes keep data when containers are recreated.
 # `make reset` deletes them (all data gone, fresh start).
 volumes:

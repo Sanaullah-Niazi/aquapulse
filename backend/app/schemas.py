@@ -406,7 +406,7 @@ class HealthOut(BaseModel):
     notifications_failed_7d: int = Field(description="Emails not delivered in the last 7 days")
     last_audit_check: AuditVerifyOut | None
     last_backup_at: datetime | None = Field(
-        None, description="null: automatic backups are not set up yet"
+        None, description="When the backup service last made a good backup; null: none yet (NFR-18)"
     )
 
 

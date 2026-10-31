@@ -1,8 +1,9 @@
-# M8: Web app (part 1 of 3)
+# M8: Web app (parts 1 and 2 of 3)
 
 > **Goal:** a real app in the browser, not Swagger. Residents log in (with an optional second step from an authenticator app), see their home live, turn their water off and on, compare their use, follow water quality and open their bills. Everyone can manage their profile and choose their alert emails. It works on a 360 px phone and a big monitor, and you can install it like an app (PWA).
 > **Requirements covered in part 1:** FR-48 (my home), FR-49 (usage and comparison), FR-50 (my bills and payment), FR-51 (my valve), FR-52 (profile and notification choices), FR-53 (responsive, by role: resident screens), FR-54 (live charts), FR-56 (installable PWA; the website guide comes in part 3), FR-57 (accessibility, light and dark, all texts in a translation file), FR-70 (two-factor login).
-> **Next parts:** part 2 adds the owner screens (dashboard, homes, valves, tank, residents, devices, tariffs, bills, alert rules, CSV export). Part 3 adds the System Admin console, makes 2FA required for System Admins, and the guide to host the app on your own website.
+> **Part 2 (owner screens)** is at the end of this guide: [jump to part 2](#m8-part-2-the-owner-screens). It covers FR-30 (CSV export), FR-42 to FR-47 (owner dashboard, homes, valves and locks, residents, devices, tariffs, bills, tank) and the owner side of FR-53.
+> **Next part:** part 3 adds the System Admin console, makes 2FA required for System Admins, and the guide to host the app on your own website.
 > **Time:** about 30 minutes.
 
 ## What you will have at the end
@@ -197,3 +198,129 @@ infra/caddy/Caddyfile                      serves /app/
 | No install button | The browser must trust the certificate: `make trust-ca`, then restart the browser |
 | `make web-e2e`: "Executable doesn't exist" | Run `make web-setup` once |
 | `make web-e2e`: "Set DEMO_PASSWORD" | The tests read it from `.env`; run them from the project folder with `make web-e2e` |
+
+---
+
+# M8 part 2: the owner screens
+
+> **Goal:** the building owner runs the whole building from the app: a live overview, every home, valves and locks, residents, the tank and pump, devices, tariffs, bills and payments, alert rules and building settings, plus CSV files for a spreadsheet.
+> **Requirements covered:** FR-30 (CSV export), FR-42 (dashboard), FR-43 (homes list), FR-44 (one home: valve, lock, residents), FR-45 (tariffs and bills), FR-46 (devices), FR-47 (tank and pump), FR-53 (owner menu, phone and desktop).
+> **Time:** about 30 minutes.
+
+## What is new
+
+| Screen | Address | What you can do |
+|---|---|---|
+| Overview | `/app/` | Litres today and this month (compared with the same days last month), water flowing now, meters online, closed and locked valves, unpaid bills, open alerts by level, the tank gauge, and every home in one table. Numbers change live |
+| Homes | `/app/homes` | Search by unit or resident, sort by any column (a dropdown on phones) |
+| One home | `/app/homes/<id>` | Live numbers, turn the water off or on, **lock** the valve with a reason, usage charts (24 h, 30 days, 12 months) and a CSV download, residents (invite, move-out date, who gets the bills), the home's bills and alerts |
+| Tank and pump | `/app/tank` | Live gauge, pump on or off, automatic or manual mode, start and stop levels, the level over 7 days and pump hours per day with the energy used |
+| Devices | `/app/devices` | Every meter and the tank device: online, last seen, firmware. Register a meter, give a device a new password (shown once, with a QR code) or revoke it |
+| Bills | `/app/bills` | Pick a finished month, make the draft bills, check them, issue them all. "Unpaid" lists what is still owed. CSV downloads of daily usage, bills and payments |
+| One bill | `/app/bills/<id>` | The resident's view plus owner actions: issue, void (with a reason), record a cash or bank payment, reverse a payment, send the shut-off warning for an overdue bill |
+| Tariffs | `/app/tariffs` | Every version. "Make a new version" opens an editor with a live example bill |
+| Alert rules | `/app/alert-rules` | Each check on or off, its numbers within safe limits, and who is emailed for each level |
+| Building settings | `/app/settings` | Name, address, time zone, currency, days to pay, issue bills at once, allow shut-off for overdue bills |
+
+The "AI insights" card on the overview says that predictions come in M10. It shows no numbers until they really work.
+
+### Four ideas worth understanding
+
+**1. One request for the whole overview.** The dashboard needs numbers from every home. Instead of 10 or 100 requests, the new endpoint `GET /buildings/{id}/overview` adds everything up in the database in one go (using the 15-minute totals from M4). After that, each live reading updates the numbers on screen by itself, and the API is asked again only once a minute.
+
+**2. The tariff editor cannot make a gap.** You type only where each slab **ends**. The next slab starts there automatically, and the last slab has no limit. So "0 to 5,000, then 4,000 to ..." cannot happen. The example bill on the right is not worked out in the browser: it is sent to the API's real billing engine (`POST /tariffs/preview`), so it always matches the real bills.
+
+**3. Locks win over everyone.** A locked valve cannot be changed by anyone, the owner included, until it is unlocked. Both locking and unlocking need a reason of at least 10 characters, and both go to the audit log (FR-28).
+
+**4. Safe CSV files.** A spreadsheet runs a cell that starts with `=`, `+`, `-` or `@` as a formula. A resident could name themselves `=HYPERLINK(...)` to attack the owner's computer. So every such text cell gets a `'` in front, and Excel shows it as plain text. Each export is written to the audit log, a range is at most 400 days, and a resident can export only their own home, only from their move-in date.
+
+## Part 1: Get the code
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+gh pr list                                  # find the M8 part 2 PR number
+gh pr merge <NUMBER> --squash --delete-branch
+git switch main
+git pull
+```
+
+## Part 2: Start everything
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+make up
+make smoke
+```
+
+No new migration in this part. `make up` rebuilds the API and the web app.
+
+## Part 3: Try it (your demo)
+
+Open https://localhost:8443/app/ and log in as **owner@example.com** with the demo password from `.env` (`grep DEMO_PASSWORD .env`).
+
+1. **Overview.** Watch "Used today" and the homes table: they change every few seconds as the simulator sends readings.
+2. **Lock a valve.** Homes → Unit 10 → "Lock the valve". Try a short reason: the button stays grey. Type a reason of 10 or more characters, choose "Off", lock it. Log in as `resident10@example.com` in a private window: the switch is locked, with your reason. Unlock it again.
+3. **Tariff with live example.** Tariffs → "Make a new version". Type 6000 in "Litres used in a month": the example shows 5,000 L at 60 plus 1,000 L at 120 = Rs 420.00. Change slab 2 to end at 4000: a message says what is wrong and Save stays grey. Press Cancel (or save, if you want a new version: it must start after your last issued bill).
+4. **Bills.** Bills → month September 2026 → "Make draft bills". Open one bill, record a cash payment, then see "Still to pay" go down. "Unpaid" shows what is left in total.
+5. **CSV.** On Bills, press "Bills (CSV)" and open the file in Numbers or Excel.
+6. **Phone size.** Make the browser narrow (or open it on your phone): the menu folds away, tables become cards, and sorting homes is a dropdown.
+
+## Part 4: Run the tests yourself (optional)
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+make web-test
+make web-e2e       # now about 3 minutes: the owner tests wait a minute between phone and desktop
+make api-test
+```
+
+`make web-e2e` now ends with:
+
+```text
+  45 passed (2.6m)
+```
+
+The owner tests log in once and wait a minute before the desktop run, because the API allows each person 120 requests a minute (FR-72) and the dashboard is busy.
+
+## New API endpoints
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /api/v1/buildings/{id}/overview` | owner | Everything the dashboard shows, in one call |
+| `GET /api/v1/buildings/{id}/export/{kind}.csv` | owner | `kind` = `consumption` (litres per home per day), `bills` or `payments`; `?from=&to=` (at most 400 days) |
+| `GET /api/v1/homes/{id}/export/{kind}.csv` | owner, resident | `consumption` or `bills` for one home; a resident only from their move-in |
+
+`GET /homes/{id}/occupancies` now also returns each resident's name and email, so the owner sees who lives where.
+
+## Also fixed in this part
+
+- If the API is busy (too many requests) or briefly down while the app starts, it now waits and tries again instead of logging you out.
+- `GET /me` lists an owner's buildings oldest first, so the app always opens the same building.
+
+## Files in this part
+
+```text
+backend/app/routers/owner.py          overview and CSV exports
+web/src/pages/owner/                  the ten owner screens
+web/e2e/owner/screens.spec.ts         browser tests for the owner screens
+backend/tests/api/test_building_overview.py
+backend/tests/api/test_csv_data_export.py
+```
+
+## Done criteria (part 2)
+
+- [ ] `make smoke` passes.
+- [ ] As the owner you saw the overview change live.
+- [ ] You locked and unlocked a valve with a reason, and the resident saw the lock.
+- [ ] The tariff editor showed a live example bill and refused a gap.
+- [ ] You made September's draft bills and downloaded a CSV.
+
+## Troubleshooting (part 2)
+
+| Problem | Fix |
+|---|---|
+| "You have no building yet" | The owner has no building. Run `make seed` (demo data), or create one in Swagger as the System Admin |
+| "Make draft bills" is grey | Only a finished month can be billed: pick last month or earlier |
+| Saving a tariff says "Bills up to ... are already issued" | Issued bills never change, so a new tariff must start after them. Choose a later start date (or void those bills first) |
+| A CSV opens with strange letters in Excel | Use Data → From Text/CSV and pick UTF-8 |
+| The overview numbers stop changing | Look at "Live" at the top. If it says "Not live", check `make api-logs` |

@@ -78,6 +78,9 @@ export function refreshTokens(): Promise<boolean> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: token }),
       });
+      if (response.status === 429 || response.status >= 500) {
+        throw await errorFrom(response); // busy or down: the login is still good, keep it
+      }
       if (!response.ok) {
         if (localStorage.getItem(REFRESH_KEY) === token) forgetTokens();
         return false;
@@ -110,6 +113,22 @@ async function send(path: string, { method = "GET", body, auth = true }: Options
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+/** Run `call` again a few times while the API is busy (429), down (5xx) or
+ *  unreachable, waiting longer each time (or as long as the API asks). */
+export async function withRetry<T>(call: () => Promise<T>, tries = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await call();
+    } catch (error) {
+      const temporary = !(error instanceof ApiError) || error.status === 429 || error.status >= 500;
+      if (!temporary || attempt >= tries) throw error;
+      const asked = error instanceof ApiError ? Number(error.headers.get("Retry-After")) : 0;
+      const wait = Math.min(asked > 0 ? asked * 1000 : 2000 * 2 ** (attempt - 1), 30_000);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
 }
 
 /** Call the API and return its JSON answer (or throw an ApiError). */

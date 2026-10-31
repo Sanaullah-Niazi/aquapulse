@@ -44,7 +44,7 @@ flowchart LR
 | M5 Secure MQTT and HTTPS | ✅ done |
 | M6 Billing and payments | ✅ done |
 | M7 Alerts and notifications | ✅ done |
-| M8 Web app | 🚧 in progress (part 1 of 3) |
+| M8 Web app | 🚧 in progress (part 2 of 3 done) |
 | M9 Android app | ⏳ |
 | M10 AI: leak detection and forecasting | ⏳ |
 | M11 ESP32 firmware and hardware | ⏳ |
@@ -142,13 +142,14 @@ Guide: [docs/milestones/M6-billing.md](docs/milestones/M6-billing.md).
 
 Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
 
-**Web app (M8, part 1 of 3).** A React web app you can install on your phone (PWA), at https://localhost:8443/app/.
+**Web app (M8, parts 1 and 2 of 3).** A React web app you can install on your phone (PWA), at https://localhost:8443/app/.
 
 - Log in with an optional second step: a 6-digit code from any free authenticator app, plus 10 one-time recovery codes.
 - Residents see their home live (litres today and this month, water running, pH with a Safe / Check / Unsafe label, temperature, the bill so far), turn their water off and on, compare with last month and with the anonymous building average per person, follow pH and temperature live, and open their bills (PDF, pay online in Stripe test mode).
 - Everyone can change their details and password, and choose which alert emails they get, with quiet hours (critical alerts always come at once).
 - Works from 360 px phones to big screens, light and dark, keyboard and screen-reader friendly. Playwright clicks through it at phone and desktop size and runs an axe accessibility check on every screen.
-- Part 2 adds the owner screens, part 3 the System Admin console and the guide to put it on your own website.
+- Owners run the building from it: live overview, homes, valves and locks, residents, tank and pump, devices, tariffs with a live example bill, bills and payments, alert rules, settings and CSV exports.
+- Part 3 adds the System Admin console and the guide to put it on your own website.
 
 Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
@@ -158,7 +159,7 @@ Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
 backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
-web/         React web app / PWA: resident screens, login with 2FA        (M8)
+web/         React web app / PWA: resident and owner screens, login with 2FA (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)
 infra/       Mosquitto, Caddy, certificates, backups                          (M1+)

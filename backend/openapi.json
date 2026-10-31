@@ -1789,7 +1789,7 @@
           "residents"
         ],
         "summary": "List Occupancies",
-        "description": "Who lived here and when (newest first).",
+        "description": "Who lived here and when (newest first), with their name and email.",
         "operationId": "list_occupancies_api_v1_homes__home_id__occupancies_get",
         "security": [
           {
@@ -4783,6 +4783,249 @@
           }
         }
       }
+    },
+    "/api/v1/buildings/{building_id}/overview": {
+      "get": {
+        "tags": [
+          "owner overview and exports"
+        ],
+        "summary": "Overview",
+        "description": "Everything the building dashboard and the homes list show, in one answer.",
+        "operationId": "overview_api_v1_buildings__building_id__overview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/buildings/{building_id}/export/{kind}.csv": {
+      "get": {
+        "tags": [
+          "owner overview and exports"
+        ],
+        "summary": "Export Building",
+        "description": "Litres per home per day, bills by month, or payments by day received,\nfor at most 400 days.",
+        "operationId": "export_building_api_v1_buildings__building_id__export__kind__csv_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "building_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Building Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "consumption",
+                "bills",
+                "payments"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day",
+              "title": "From"
+            },
+            "description": "First local day"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day (included)",
+              "title": "To"
+            },
+            "description": "Last local day (included)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {}
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/homes/{home_id}/export/{kind}.csv": {
+      "get": {
+        "tags": [
+          "owner overview and exports"
+        ],
+        "summary": "Export Home",
+        "description": "One home's litres per day, or its bills. A resident gets only their\nown stay and their own bills.",
+        "operationId": "export_home_api_v1_homes__home_id__export__kind__csv_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "consumption",
+                "bills"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day",
+              "title": "From"
+            },
+            "description": "First local day"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day (included)",
+              "title": "To"
+            },
+            "description": "Last local day (included)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {}
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7731,6 +7974,16 @@
           "is_billing_contact": {
             "type": "boolean",
             "title": "Is Billing Contact"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name",
+            "default": ""
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "default": ""
           }
         },
         "type": "object",
@@ -7778,6 +8031,353 @@
             "move_out": "2026-12-31"
           }
         ]
+      },
+      "OverviewHomeOut": {
+        "properties": {
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id"
+          },
+          "unit_no": {
+            "type": "string",
+            "title": "Unit No"
+          },
+          "floor": {
+            "type": "integer",
+            "title": "Floor"
+          },
+          "residents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Residents",
+            "description": "Names of the people living there today"
+          },
+          "litres_today": {
+            "type": "number",
+            "title": "Litres Today"
+          },
+          "litres_month": {
+            "type": "number",
+            "title": "Litres Month"
+          },
+          "flow_lpm": {
+            "type": "number",
+            "title": "Flow Lpm",
+            "description": "0 unless a reading in the last minute shows water running"
+          },
+          "ph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph"
+          },
+          "temp_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temp C"
+          },
+          "reading_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading At"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "valve": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valve",
+            "description": "As reported by the device"
+          },
+          "locked": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked",
+            "description": "Locked open or closed, or null"
+          },
+          "lock_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Reason"
+          },
+          "open_alerts": {
+            "type": "integer",
+            "title": "Open Alerts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "home_id",
+          "unit_no",
+          "floor",
+          "residents",
+          "litres_today",
+          "litres_month",
+          "flow_lpm",
+          "ph",
+          "temp_c",
+          "reading_at",
+          "device_id",
+          "online",
+          "last_seen_at",
+          "valve",
+          "locked",
+          "lock_reason",
+          "open_alerts"
+        ],
+        "title": "OverviewHomeOut"
+      },
+      "OverviewOut": {
+        "properties": {
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "currency_code": {
+            "type": "string",
+            "title": "Currency Code"
+          },
+          "litres_today": {
+            "type": "number",
+            "title": "Litres Today"
+          },
+          "litres_month": {
+            "type": "number",
+            "title": "Litres Month"
+          },
+          "litres_last_month_to_date": {
+            "type": "number",
+            "title": "Litres Last Month To Date",
+            "description": "Last month, the same stretch of time from its first day as this month so far"
+          },
+          "flow_lpm": {
+            "type": "number",
+            "title": "Flow Lpm",
+            "description": "All homes together, right now"
+          },
+          "homes": {
+            "type": "integer",
+            "title": "Homes"
+          },
+          "homes_online": {
+            "type": "integer",
+            "title": "Homes Online"
+          },
+          "homes_with_device": {
+            "type": "integer",
+            "title": "Homes With Device"
+          },
+          "valves_closed": {
+            "type": "integer",
+            "title": "Valves Closed"
+          },
+          "valves_locked": {
+            "type": "integer",
+            "title": "Valves Locked"
+          },
+          "alerts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Alerts",
+            "description": "Open alerts by severity"
+          },
+          "tank": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewTankOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unpaid_bills": {
+            "type": "integer",
+            "title": "Unpaid Bills"
+          },
+          "unpaid_text": {
+            "type": "string",
+            "title": "Unpaid Text"
+          },
+          "ph_safe_low": {
+            "type": "number",
+            "title": "Ph Safe Low"
+          },
+          "ph_safe_high": {
+            "type": "number",
+            "title": "Ph Safe High"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewHomeOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "building_id",
+          "name",
+          "timezone",
+          "currency_code",
+          "litres_today",
+          "litres_month",
+          "litres_last_month_to_date",
+          "flow_lpm",
+          "homes",
+          "homes_online",
+          "homes_with_device",
+          "valves_closed",
+          "valves_locked",
+          "alerts",
+          "tank",
+          "unpaid_bills",
+          "unpaid_text",
+          "ph_safe_low",
+          "ph_safe_high",
+          "rows"
+        ],
+        "title": "OverviewOut"
+      },
+      "OverviewTankOut": {
+        "properties": {
+          "tank_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tank Id"
+          },
+          "level_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Pct"
+          },
+          "level_l": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level L"
+          },
+          "pump_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pump On"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tank_id",
+          "level_pct",
+          "level_l",
+          "pump_on",
+          "mode",
+          "online"
+        ],
+        "title": "OverviewTankOut"
       },
       "OwnerIn": {
         "properties": {

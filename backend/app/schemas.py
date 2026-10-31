@@ -334,6 +334,9 @@ class OccupancyOut(Out):
     move_in: date
     move_out: date | None
     is_billing_contact: bool
+    # M8: who it is, for the owner's home screen (empty where not looked up).
+    full_name: str = ""
+    email: str = ""
 
 
 class OccupancyPatch(In):
@@ -1064,3 +1067,60 @@ class TwoFactorDisableIn(TwoFactorCodeIn):
 
 class RecoveryCodesOut(BaseModel):
     recovery_codes: list[str] = Field(description="Shown once. Each works one time.")
+
+
+# ----- owner overview (M8: FR-42, FR-43) -----
+
+
+class OverviewHomeOut(BaseModel):
+    home_id: uuid.UUID
+    unit_no: str
+    floor: int
+    residents: list[str] = Field(description="Names of the people living there today")
+    litres_today: float
+    litres_month: float
+    flow_lpm: float = Field(description="0 unless a reading in the last minute shows water running")
+    ph: float | None
+    temp_c: float | None
+    reading_at: datetime | None
+    device_id: str | None
+    online: bool
+    last_seen_at: datetime | None
+    valve: str | None = Field(description="As reported by the device")
+    locked: Literal["open", "closed"] | None = Field(description="Locked open or closed, or null")
+    lock_reason: str | None
+    open_alerts: int
+
+
+class OverviewTankOut(BaseModel):
+    tank_id: uuid.UUID
+    level_pct: float | None
+    level_l: float | None
+    pump_on: bool | None
+    mode: str
+    online: bool
+
+
+class OverviewOut(BaseModel):
+    building_id: uuid.UUID
+    name: str
+    timezone: str
+    currency_code: str
+    litres_today: float
+    litres_month: float
+    litres_last_month_to_date: float = Field(
+        description="Last month, the same stretch of time from its first day as this month so far"
+    )
+    flow_lpm: float = Field(description="All homes together, right now")
+    homes: int
+    homes_online: int
+    homes_with_device: int
+    valves_closed: int
+    valves_locked: int
+    alerts: dict[str, int] = Field(description="Open alerts by severity")
+    tank: OverviewTankOut | None
+    unpaid_bills: int
+    unpaid_text: str
+    ph_safe_low: float
+    ph_safe_high: float
+    rows: list[OverviewHomeOut]

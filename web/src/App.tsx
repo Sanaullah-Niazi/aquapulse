@@ -7,6 +7,15 @@ import { useAuth } from "./auth";
 import { Layout } from "./components/Layout";
 import { Loading } from "./components/ui";
 import { setLive } from "./live";
+import { AlertRulesPage } from "./pages/owner/AlertRulesPage";
+import { OwnerBillsPage } from "./pages/owner/BillsPage";
+import { DevicesPage } from "./pages/owner/DevicesPage";
+import { HomeDetailPage } from "./pages/owner/HomeDetailPage";
+import { HomesPage } from "./pages/owner/HomesPage";
+import { OverviewPage } from "./pages/owner/OverviewPage";
+import { SettingsPage } from "./pages/owner/SettingsPage";
+import { TankPage } from "./pages/owner/TankPage";
+import { TariffsPage } from "./pages/owner/TariffsPage";
 import { BillPage, MyBillsPage } from "./pages/resident/BillsPages";
 import { MyHomePage } from "./pages/resident/MyHomePage";
 import { QualityPage } from "./pages/resident/QualityPage";
@@ -66,7 +75,21 @@ export function App() {
             <Route path="/bills" element={<MyBillsPage />} />
             <Route path="/bills/:billId" element={<BillPage />} />
           </>
+        ) : me.role === "owner" ? (
+          <>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/homes" element={<HomesPage />} />
+            <Route path="/homes/:homeId" element={<HomeDetailPage />} />
+            <Route path="/tank" element={<TankPage />} />
+            <Route path="/devices" element={<DevicesPage />} />
+            <Route path="/tariffs" element={<TariffsPage />} />
+            <Route path="/bills" element={<OwnerBillsPage />} />
+            <Route path="/bills/:billId" element={<BillPage />} />
+            <Route path="/alert-rules" element={<AlertRulesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </>
         ) : (
+          // The System Admin console comes in the next part of M8.
           <Route path="/" element={<StaffHomePage />} />
         )}
         <Route path="/alerts" element={<AlertsPage />} />

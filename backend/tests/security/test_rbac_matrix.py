@@ -107,6 +107,10 @@ EXPECTED: dict[tuple[str, str], set[str] | str] = {
     ("GET", "/api/v1/homes/{home_id}/bill-estimate"): {OW, RE},
     ("GET", "/api/v1/admin/audit/checks"): {SA},
     ("GET", "/api/v1/admin/notifications"): {SA},
+    # M8 part 2: the owner's building overview (FR-42) and CSV exports (FR-30)
+    ("GET", "/api/v1/buildings/{building_id}/overview"): {OW},
+    ("GET", "/api/v1/buildings/{building_id}/export/{kind}.csv"): {OW},
+    ("GET", "/api/v1/homes/{home_id}/export/{kind}.csv"): {OW, RE},
 }
 
 
@@ -137,6 +141,7 @@ def _url(path: str) -> str:
         bill_id=uuid.uuid4(),
         payment_id=uuid.uuid4(),
         alert_id=uuid.uuid4(),
+        kind="consumption",
     )
 
 

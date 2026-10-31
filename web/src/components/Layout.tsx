@@ -19,7 +19,14 @@ const MENUS: Record<Role, { to: string; key: string }[]> = {
   ],
   owner: [
     { to: "/", key: "nav.overview" },
+    { to: "/homes", key: "nav.homes" },
+    { to: "/tank", key: "nav.tank" },
+    { to: "/devices", key: "nav.devices" },
+    { to: "/bills", key: "nav.ownerBills" },
+    { to: "/tariffs", key: "nav.tariffs" },
     { to: "/alerts", key: "nav.alerts" },
+    { to: "/alert-rules", key: "nav.alertRules" },
+    { to: "/settings", key: "nav.settings" },
   ],
   sysadmin: [
     { to: "/", key: "nav.overview" },

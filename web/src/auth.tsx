@@ -10,6 +10,7 @@ import {
   saveTokens,
   setLoggedOutHandler,
   type Tokens,
+  withRetry,
 } from "./api";
 import type { Me } from "./types";
 
@@ -42,8 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queries.clear();
     });
     if (!hasRefreshToken()) return;
-    refreshTokens()
-      .then((ok) => (ok ? reload() : undefined))
+    // A busy or briefly unreachable API must not log you out: try again a few times.
+    withRetry(async () => ((await refreshTokens()) ? reload() : undefined))
       .catch(() => forgetTokens())
       .finally(() => setLoading(false));
   }, [queries, reload]);

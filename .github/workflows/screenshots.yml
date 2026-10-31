@@ -1,6 +1,8 @@
 # Portfolio screenshots: start the whole demo (make demo: 90 days of history,
-# bills), then a real browser saves a picture of every web screen
-# (make screenshots). Download them from the run's "Artifacts".
+# bills), then a real browser saves a picture of every web screen and of the
+# two ESP32 circuits (make screenshots). A second job runs the real firmware
+# in the Wokwi simulator and keeps what it prints. Download everything from
+# the run's "Artifacts".
 # Runs by hand (Actions > Screenshots > Run workflow) and when the
 # screenshot code changes in a pull request.
 name: Screenshots
@@ -11,6 +13,7 @@ on:
     paths:
       - "web/e2e-shots/**"
       - "web/playwright.shots.config.ts"
+      - "firmware/wokwi/**"
       - ".github/workflows/screenshots.yml"
 
 permissions:
@@ -53,3 +56,44 @@ jobs:
       - name: Stop and clean up
         if: always()
         run: docker compose down -v
+
+  wokwi:
+    name: ESP32 firmware running in the Wokwi simulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.4"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Build for the ESP32 (real board and Wokwi)
+        run: make firmware-build
+      - name: Install the Wokwi command-line tool
+        if: env.WOKWI_CLI_TOKEN != ''
+        run: curl -fsSL https://wokwi.com/ci/install.sh | sh
+      - name: Run both nodes for 20 seconds and keep what they print
+        if: env.WOKWI_CLI_TOKEN != ''
+        run: |
+          mkdir -p docs/screenshots/hardware
+          for node in home-node tank-node; do
+            echo "== $node"
+            ~/.wokwi/bin/wokwi-cli --timeout 20000 --timeout-exit-code 0 \
+              --serial-log-file "docs/screenshots/hardware/$node-serial.txt" \
+              "firmware/wokwi/$node"
+            # The firmware really started: its banner is in the output.
+            grep -q "AquaPulse" "docs/screenshots/hardware/$node-serial.txt"
+          done
+      - name: Keep the simulator output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wokwi-serial
+          path: docs/screenshots/hardware/*-serial.txt
+          if-no-files-found: ignore
+          retention-days: 14

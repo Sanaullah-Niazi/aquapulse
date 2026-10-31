@@ -26,6 +26,7 @@ from . import __version__, db
 from .config import get_settings
 from .routers import (
     admin,
+    ai,
     alerts,
     auth,
     bills,
@@ -128,7 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     for module in (
         auth, me, admin, buildings, residents, live, valves, tanks, devices, stream,
-        tariffs, bills, alerts, myhome, owner,
+        tariffs, bills, alerts, myhome, owner, ai,
     ):  # fmt: skip
         app.include_router(module.router, prefix=API_PREFIX)
 

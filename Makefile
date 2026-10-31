@@ -134,6 +134,11 @@ ingest-logs: ## Follow the ingestor's logs (Ctrl+C to stop)
 	docker compose logs -f --tail=50 ingestor
 
 DAYS ?= 90
+ai-eval: ## M10: score the leak detector on a labelled simulator test set, write docs/ai-evaluation.md (about 3 min)
+	cd simulator && uv run aquapulse-sim eval-set \
+		| (cd ../backend && uv run python -m app.ai.evaluate --check --write ../docs/ai-evaluation.md) \
+		| sed -n '/^| Measure/,/^$$/p'
+
 demo-data: ## Load 90 days of demo history (safe to run again): make demo-data (or DAYS=30)
 	@echo "Making $(DAYS) days of history with the simulator and loading it (1 to 3 minutes)..."
 	docker compose run --rm -T --no-deps simulator aquapulse-sim backfill --days $(DAYS) \

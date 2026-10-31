@@ -32,6 +32,7 @@ def test_every_rule_in_the_srs_is_built_in():
     assert set(RULES) == {
         "ph_unsafe", "temp_abnormal", "device_offline", "tank_low", "tank_overflow",
         "dry_run", "high_usage", "command_failed", "sensor_stuck",
+        "leak", "burst",  # M10: the AI leak detector (FR-63)
     }  # fmt: skip
     severities = {r.id: r.severity for r in RULES.values()}
     assert severities["ph_unsafe"] == severities["tank_overflow"] == "critical"

@@ -8,7 +8,7 @@ import { ErrorBox, Field, Loading } from "../../components/ui";
 import type { NotificationPrefs } from "../../types";
 
 const HOME_RULES = ["ph_unsafe", "temp_abnormal", "device_offline", "high_usage", "command_failed",
-                    "sensor_stuck"];
+                    "sensor_stuck", "leak", "burst"];
 const BUILDING_RULES = ["tank_low", "tank_overflow", "dry_run"];
 
 export function NotificationsPage() {

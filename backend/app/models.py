@@ -682,6 +682,8 @@ class Alert(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     value: Mapped[float | None] = mapped_column(Float)  # the reading that last matched
+    # M10 (FR-66): an AI alert's confidence, explanation numbers and evidence chart.
+    details: Mapped[dict | None] = mapped_column(JSONB)
     seen_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

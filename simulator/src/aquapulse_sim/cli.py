@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -98,6 +99,24 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_eval_set(args: argparse.Namespace) -> None:
+    """Print a labelled leak test set as JSON lines (FR-63). Fixed seed and end time."""
+    import time
+    from datetime import datetime
+
+    from .evalset import EVAL_SEED, write
+
+    cfg = dataclasses.replace(Config.from_env(), seed=EVAL_SEED, homes=args.homes)
+    end = datetime(2026, 6, 1, tzinfo=cfg.tz).timestamp()  # fixed: same set every time
+    started = time.monotonic()
+    count = write(cfg, end, days=args.days, leaks=args.leaks, bursts=args.bursts)
+    print(
+        f"eval-set: {count} readings, {args.leaks} leaks and {args.bursts} bursts over "
+        f"{args.days} days in {time.monotonic() - started:.0f} s",
+        file=sys.stderr,
+    )
+
+
 def cmd_devices(_: argparse.Namespace) -> None:
     for d in _api("GET", "/devices"):
         print(json.dumps(d))
@@ -127,6 +146,12 @@ def main() -> None:
     p = sub.add_parser("backfill", help="print N days of history as JSON lines (no MQTT)")
     p.add_argument("--days", type=int, default=90, choices=range(1, 366), metavar="1..365")
     p.set_defaults(func=cmd_backfill)
+    p = sub.add_parser("eval-set", help="print a labelled leak test set (FR-63, no MQTT)")
+    p.add_argument("--homes", type=int, default=10)
+    p.add_argument("--days", type=int, default=60)
+    p.add_argument("--leaks", type=int, default=50)
+    p.add_argument("--bursts", type=int, default=12)
+    p.set_defaults(func=cmd_eval_set)
     sub.add_parser("devices", help="list devices of the running simulator").set_defaults(
         func=cmd_devices
     )

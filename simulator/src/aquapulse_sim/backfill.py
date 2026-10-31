@@ -56,6 +56,7 @@ class Planned:
     hour: int  # local hour it starts
     minutes: float
     params: dict[str, Any]
+    minute: float = 0  # minutes after the hour
 
 
 PLAN = (
@@ -81,7 +82,14 @@ def _boot_id(cfg: Config, device: Device, boots: int) -> str:
     return str(uuid.uuid5(BOOT_NAMESPACE, f"backfill:{cfg.seed}:{device.id}:{boots}"))
 
 
-def history(cfg: Config, days: int, end: float) -> Iterator[dict[str, Any]]:
+def history(
+    cfg: Config,
+    days: int,
+    end: float,
+    plan: tuple[Planned, ...] = PLAN,
+    step_s: int = STEP_S,
+    homes_only: bool = False,
+) -> Iterator[dict[str, Any]]:
     """Yield label lines and telemetry lines, oldest first."""
     first_day = datetime.fromtimestamp(end, cfg.tz).date() - timedelta(days=days)
     start = datetime.combine(first_day, time(), cfg.tz).timestamp()
@@ -90,24 +98,25 @@ def history(cfg: Config, days: int, end: float) -> Iterator[dict[str, Any]]:
     boots = {d.id: 0 for d in building.devices.values()}
     for device in building.devices.values():
         device.boot_id = _boot_id(cfg, device, 0)  # deterministic, unlike a real boot
-        device.interval_s = STEP_S
+        device.interval_s = step_s
 
     reboots: list[tuple[float, str]] = []
-    for plan in PLAN:
-        day = first_day + timedelta(days=int(plan.at * days))
-        begins = datetime.combine(day, time(plan.hour), cfg.tz).timestamp()
+    for planned in plan:
+        day = first_day + timedelta(days=int(planned.at * days))
+        begins = datetime.combine(day, time(planned.hour), cfg.tz).timestamp()
+        begins += planned.minute * 60
         if not start <= begins < end:
             continue
-        device_id = _device_id(cfg, plan.home)
+        device_id = _device_id(cfg, planned.home)
         scenario = building.scenarios.add(
-            plan.type, device_id, begins, plan.minutes, dict(plan.params)
+            planned.type, device_id, begins, planned.minutes, dict(planned.params)
         )
-        if plan.type == "reboot":
+        if planned.type == "reboot":
             reboots.append((begins, device_id))
         yield {
             "label": {
                 "deviceId": device_id,
-                "kind": plan.type,
+                "kind": planned.type,
                 "start": contract.iso(scenario.start),
                 "end": contract.iso(min(scenario.end, end)),
                 "details": scenario.params,
@@ -115,9 +124,9 @@ def history(cfg: Config, days: int, end: float) -> Iterator[dict[str, Any]]:
         }
 
     now = start
-    while now + STEP_S <= end:
-        now += STEP_S
-        building.tick(now, max_step_s=STEP_S)
+    while now + step_s <= end:
+        now += step_s
+        building.tick(now, max_step_s=step_s)
         for when, device_id in [r for r in reboots if r[0] <= now]:
             reboots.remove((when, device_id))
             device = building.devices[device_id]
@@ -125,6 +134,8 @@ def history(cfg: Config, days: int, end: float) -> Iterator[dict[str, Any]]:
             boots[device_id] += 1
             device.boot_id = _boot_id(cfg, device, boots[device_id])
         for device in building.devices.values():
+            if homes_only and not device.id.startswith("home-"):
+                continue
             payload = device.telemetry(now)
             contract.encode(device.id, "telemetry", payload)  # checked before "sending"
             yield {"topic": contract.topic(device.id, "telemetry"), "payload": payload}

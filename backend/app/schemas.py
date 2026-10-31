@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from zoneinfo import available_timezones
 
 from pydantic import (
@@ -282,6 +282,9 @@ class HomePatch(In):
     floor: Annotated[int, Field(ge=-5, le=200)] | None = None
     occupants: Annotated[int, Field(ge=0, le=50)] | None = None
     notes: Annotated[str, StringConstraints(max_length=500)] | None = None
+    auto_shutoff_enabled: bool | None = Field(
+        None, description="M10 (FR-61): close the valve by itself on a sure leak or a burst"
+    )
 
 
 class HomeOut(Out):
@@ -291,6 +294,7 @@ class HomeOut(Out):
     floor: int
     occupants: int
     notes: str
+    auto_shutoff_enabled: bool = False
     archived_at: datetime | None
     created_at: datetime
 
@@ -1177,3 +1181,26 @@ class OverviewOut(BaseModel):
     ph_safe_low: float
     ph_safe_high: float
     rows: list[OverviewHomeOut]
+
+
+# ----- M10: AI insights (FR-63, FR-66) -----
+
+
+class InsightOut(BaseModel):
+    """One AI finding about a home, with why (FR-66) and the evidence."""
+
+    alert_id: uuid.UUID
+    kind: str = Field(description="leak or burst")
+    title: str
+    severity: str
+    state: str
+    explanation: str = Field(description="Plain words, made from the data")
+    confidence: float | None = Field(None, description="0 to 1")
+    high_confidence: bool = False
+    opened_at: datetime
+    last_seen_at: datetime
+    resolved_at: datetime | None = None
+    evidence: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The numbers behind the explanation; points = [time, L/min] for a chart",
+    )

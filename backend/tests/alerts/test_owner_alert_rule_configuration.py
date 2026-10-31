@@ -28,12 +28,14 @@ def _url(site) -> str:
 async def test_defaults_come_from_the_srs(site, client, make):
     r = await client.get(_url(site), headers=await make.headers(site.owner))
     rules = {rule["rule"]: rule for rule in r.json()["rules"]}
-    assert len(rules) == 9 and all(rule["enabled"] for rule in rules.values())
+    assert len(rules) == 11 and all(rule["enabled"] for rule in rules.values())  # 9 + 2 AI (M10)
     assert rules["ph_unsafe"]["values"] == {"low": 6.5, "high": 8.5, "readings": 5}
     assert rules["ph_unsafe"]["limits"]["low"] == {"default": 6.5, "min": 4.0, "max": 7.0,
                                                    "help": "unsafe below this pH"}  # fmt: skip
     assert rules["tank_low"]["values"] == {"below_pct": 15.0}
     assert rules["high_usage"]["values"] == {"percent": 150, "after_hour": 18}
+    assert rules["leak"]["values"] == {"night_minutes": 60, "continuous_hours": 2}
+    assert rules["burst"]["values"] == {"minutes": 5}
     assert r.json()["recipients"]["critical"] == ["owner", "resident"]
 
 

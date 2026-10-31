@@ -16,6 +16,8 @@ const ruleNames = {
   'high_usage': 'High daily use',
   'command_failed': 'Valve command failed',
   'sensor_stuck': 'Sensor stuck',
+  'leak': 'Possible leak',
+  'burst': 'Burst pipe suspected',
   'tank_low': 'Tank low',
   'tank_overflow': 'Tank overflow risk',
   'dry_run': 'Pump dry-run',

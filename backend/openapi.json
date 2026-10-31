@@ -5126,6 +5126,74 @@
           }
         }
       }
+    },
+    "/api/v1/homes/{home_id}/insights": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Home Insights",
+        "description": "Leak and burst findings of the last `days` days, newest first, each with\na plain-language reason and the readings behind it.",
+        "operationId": "home_insights_api_v1_homes__home_id__insights_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "home_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Home Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InsightOut"
+                  },
+                  "title": "Response Home Insights Api V1 Homes  Home Id  Insights Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7531,6 +7599,11 @@
             "type": "string",
             "title": "Notes"
           },
+          "auto_shutoff_enabled": {
+            "type": "boolean",
+            "title": "Auto Shutoff Enabled",
+            "default": false
+          },
           "archived_at": {
             "anyOf": [
               {
@@ -7614,6 +7687,18 @@
               }
             ],
             "title": "Notes"
+          },
+          "auto_shutoff_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Shutoff Enabled",
+            "description": "M10 (FR-61): close the valve by itself on a sure leak or a burst"
           }
         },
         "additionalProperties": false,
@@ -7648,6 +7733,95 @@
           "litres"
         ],
         "title": "HomeTotal"
+      },
+      "InsightOut": {
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Alert Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "leak or burst"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "Plain words, made from the data"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence",
+            "description": "0 to 1"
+          },
+          "high_confidence": {
+            "type": "boolean",
+            "title": "High Confidence",
+            "default": false
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opened At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence",
+            "description": "The numbers behind the explanation; points = [time, L/min] for a chart"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "kind",
+          "title",
+          "severity",
+          "state",
+          "explanation",
+          "opened_at",
+          "last_seen_at"
+        ],
+        "title": "InsightOut",
+        "description": "One AI finding about a home, with why (FR-66) and the evidence."
       },
       "InvitationIn": {
         "properties": {

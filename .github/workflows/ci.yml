@@ -76,6 +76,30 @@ jobs:
       - name: Unit + contract tests
         run: uv run pytest
 
+  ai-eval:
+    name: AI evaluation on a labelled simulator test set (M10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: "0.11.32"
+      - name: Install exactly the locked versions
+        run: |
+          (cd simulator && uv sync --frozen)
+          (cd backend && uv sync --frozen)
+      - name: Score the detector (fails if a target of FR-63 is missed)
+        run: make ai-eval
+      - name: The committed report must be the one this code makes (real numbers only)
+        run: git diff --exit-code docs/ai-evaluation.md
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ai-evaluation
+          path: docs/ai-evaluation.md
+
   backend:
     name: Backend lint + API, ingestor, billing and alert tests (M3 to M7)
     runs-on: ubuntu-latest

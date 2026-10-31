@@ -113,6 +113,8 @@ async def apply(session: AsyncSession, signals: list[Signal], now: datetime) -> 
             current.value = signal.value
             if signal.message:
                 current.message = signal.message
+            if signal.details is not None:
+                current.details = signal.details
             continue
         alert = await _open(session, signal, now)
         if alert is not None:
@@ -136,6 +138,7 @@ async def _open(session: AsyncSession, signal: Signal, now: datetime) -> Alert |
         title=rule.title,
         message=signal.message or rule.describe,
         value=signal.value,
+        details=signal.details,
         opened_at=now,
         last_seen_at=now,
     )

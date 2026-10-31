@@ -38,6 +38,7 @@ class Signal:
     device_id: str | None = None
     value: float | None = None
     message: str = ""
+    details: dict[str, Any] | None = None  # M10: an AI finding's confidence and evidence
 
     @property
     def severity(self) -> str:

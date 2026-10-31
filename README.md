@@ -165,6 +165,10 @@ Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
 Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
 
+**AI (M10, in progress).** Part 1: leak and burst detection on every live reading, each alert with a plain-language reason and its evidence, and optional automatic shut-off (at most once per hour, never on a locked valve). The scores in [docs/ai-evaluation.md](docs/ai-evaluation.md) are made by `make ai-eval` on a labelled simulator test set, and CI checks them on every push.
+
+Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
+
 ## Repository layout
 
 ```text

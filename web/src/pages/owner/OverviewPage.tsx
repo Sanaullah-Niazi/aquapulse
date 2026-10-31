@@ -99,8 +99,11 @@ export function OverviewPage() {
       </div>
 
       <section className="card" aria-labelledby="ai-title" style={{ marginBottom: "1rem" }}>
-        <h2 id="ai-title">{t("owner.insights")}</h2>
-        <p className="muted" style={{ margin: 0 }}>{t("owner.insightsLater")}</p>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <h2 id="ai-title">{t("owner.insights")}</h2>
+          <Link to="/ai">{t("owner.open")}</Link>
+        </div>
+        <p className="muted" style={{ margin: 0 }}>{t("owner.insightsAbout")}</p>
       </section>
 
       <section className="card">

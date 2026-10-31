@@ -57,7 +57,9 @@ test("login page", async ({ page }, info) => {
 
 test("resident screens", async ({ page }, info) => {
   await login(page, "resident01@example.com");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // The login page has a heading too: wait until the app has left it.
+  await expect(page).not.toHaveURL(/\/login/);
+  await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("Log in");
   const pages: [string, string][] = [
     ["./", "resident-01-my-home"],
     ["usage", "resident-02-usage"],

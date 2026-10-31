@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "author": "AquaPulse",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "flow",
+      "top": -120,
+      "left": -160,
+      "attrs": { "value": "0" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "ph",
+      "top": -120,
+      "left": -40,
+      "attrs": { "value": "300" }
+    },
+    { "type": "wokwi-ds18b20", "id": "temp", "top": -110, "left": 90, "attrs": { "temperature": "24" } },
+    { "type": "wokwi-resistor", "id": "pullup", "top": -40, "left": 140, "attrs": { "value": "4700" } },
+    { "type": "wokwi-led", "id": "valveOpen", "top": 30, "left": 200, "attrs": { "color": "green", "label": "valve: open motor" } },
+    { "type": "wokwi-led", "id": "valveClose", "top": 90, "left": 200, "attrs": { "color": "red", "label": "valve: close motor" } },
+    { "type": "wokwi-text", "id": "note1", "top": -170, "left": -170, "attrs": { "text": "water flow (0-30 L/min)" } },
+    { "type": "wokwi-text", "id": "note2", "top": -170, "left": -50, "attrs": { "text": "pH probe" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "flow:GND", "esp:GND.2", "black", [] ],
+    [ "flow:VCC", "esp:3V3", "red", [] ],
+    [ "flow:SIG", "esp:D35", "orange", [] ],
+    [ "ph:GND", "esp:GND.2", "black", [] ],
+    [ "ph:VCC", "esp:3V3", "red", [] ],
+    [ "ph:SIG", "esp:D34", "purple", [] ],
+    [ "temp:GND", "esp:GND.1", "black", [] ],
+    [ "temp:VCC", "esp:3V3", "red", [] ],
+    [ "temp:DQ", "esp:D4", "green", [] ],
+    [ "pullup:1", "esp:3V3", "red", [] ],
+    [ "pullup:2", "temp:DQ", "green", [] ],
+    [ "esp:D18", "esp:D27", "blue", [ "h20", "v-40" ] ],
+    [ "valveOpen:A", "esp:D25", "green", [] ],
+    [ "valveOpen:C", "esp:GND.1", "black", [] ],
+    [ "valveClose:A", "esp:D26", "red", [] ],
+    [ "valveClose:C", "esp:GND.1", "black", [] ]
+  ],
+  "dependencies": {}
+}

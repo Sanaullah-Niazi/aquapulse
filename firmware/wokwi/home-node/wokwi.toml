@@ -1,0 +1,7 @@
+# Wokwi simulator settings for the home node (M11).
+# Build first (make firmware-build), then in VS Code: F1 -> "Wokwi: Select
+# Config File" -> this file, and F1 -> "Wokwi: Start Simulator".
+[wokwi]
+version = 1
+firmware = '../../.pio/build/home-node-wokwi/firmware.bin'
+elf = '../../.pio/build/home-node-wokwi/firmware.elf'

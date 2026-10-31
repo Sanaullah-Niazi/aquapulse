@@ -47,7 +47,7 @@ flowchart LR
 | M8 Web app | ✅ done |
 | M9 Android app | ✅ done |
 | M10 AI: leak detection and forecasting | ✅ |
-| M11 ESP32 firmware and hardware | ⏳ |
+| M11 ESP32 firmware and hardware | ⏳ (part 1 done) |
 | M12 Demo data, polish and v1.0 release | ⏳ |
 
 ## Getting started (developers)
@@ -168,6 +168,8 @@ Guide: [docs/milestones/M9-android-app.md](docs/milestones/M9-android-app.md).
 **AI (M10).** Part 1: leak and burst detection on every live reading, each alert with a plain-language reason and its evidence, and optional automatic shut-off (at most once per hour, never on a locked valve). Part 2: a 7-day forecast per home and per building (Holt-Winters with an 80% range) with a month-end bill estimate from the real tariff, unusual-use flags (Isolation Forest) with reasons, and a model registry: models retrain every night and a new version goes live only if it is not worse. Part 3: the AI screens in the web app and the Android app (forecast chart with its range, bill estimate, insights with evidence charts, the model list, and the owner's auto shut-off switch). The scores in [docs/ai-evaluation.md](docs/ai-evaluation.md) are made by `make ai-eval` on a labelled simulator test set, and CI checks them on every push.
 
 Guide: [docs/milestones/M10-ai.md](docs/milestones/M10-ai.md).
+
+**ESP32 firmware (M11, in progress).** Part 1: the home-node firmware (flow meter, pH with two-point calibration, temperature, motorised valve, TLS MQTT with Last Will). The device rules are plain C++ tested on a computer, and every message is checked against the device contract. It runs in the free Wokwi simulator against your own broker, and CI builds it with PlatformIO. Guide: [docs/milestones/M11-firmware.md](docs/milestones/M11-firmware.md).
 
 ## Repository layout
 

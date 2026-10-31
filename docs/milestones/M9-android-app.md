@@ -1,8 +1,9 @@
-# M9: Android app (part 1: residents)
+# M9: Android app (parts 1 and 2)
 
 > **Goal:** a real Android app, built with Flutter, that residents and owners install from an APK. After login the server says who you are, and the app shows only your screens.
 > **Requirements covered in part 1:** FR-41 (one Android app, any server, tokens in secure storage, role-based screens, APK built in GitHub Actions), FR-48 to FR-52 on Android (my home, usage and comparison, bills and payment, my valve, profile and notification choices), FR-70 (two-factor code at login).
-> **Coming next:** part 2, the owner screens (FR-42 to FR-45, FR-47 on Android). Part 3, push notifications through Firebase (FR-60) and the APK attached to each GitHub Release.
+> **Part 2 (owner screens)** is at the end: [jump to part 2](#m9-part-2-the-owner-screens). It covers FR-42 to FR-45 and FR-47 on Android.
+> **Coming next:** part 3, push notifications through Firebase (FR-60) and the APK attached to each GitHub Release.
 > **Time:** about 45 minutes the first time (Android Studio and Gradle download a lot once), then 5 minutes.
 
 ## What you will have at the end
@@ -89,8 +90,6 @@ The demo password is `DEMO_PASSWORD` in your `.env` file.
 
 **Two-factor login:** turn it on in the web app (Profile → Two-factor login, M8). Log out of the Android app and log in again: after the password it asks for the 6-digit code.
 
-**Owner accounts** see "Owner screens come in the next update" in part 1. That is part 2.
-
 ## Part 5: Run the tests yourself (optional)
 
 ```bash
@@ -139,3 +138,72 @@ Makefile                              make app-test, make apk, make apk-install
 | `make apk` stops with "Android licenses not accepted" | `flutter doctor --android-licenses` and type `y` |
 | "INSTALL_FAILED_UPDATE_INCOMPATIBLE" | An APK from another computer (or from GitHub) is installed: `adb uninstall io.github.sanaullahniazi.aquapulse`, then `make apk-install` |
 | PDF does not open | Install a PDF viewer on the phone (the emulator has none by default; Google Drive works) |
+
+---
+
+# M9 part 2: the owner screens
+
+> **Requirements covered:** FR-42 (building overview), FR-43 (homes list and home detail), FR-44 (valve control and locks), FR-45 on Android (view bills, make and issue them, record payments), FR-47 (tank and pump), and the owner side of FR-41.
+> **Time:** about 10 minutes.
+
+Owners log in to the same app. The server says "owner", so the app shows owner screens. Residents, devices, tariffs and alert rules stay in the web app (bigger screen, rarely changed).
+
+## Get it
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+gh pr list                                  # find the M9 part 2 PR number
+gh pr merge <NUMBER> --squash --delete-branch
+git switch main
+git pull
+make up
+make apk           # start the emulator first
+make apk-install
+```
+
+## Try it
+
+Log out in the app (Profile → Log out), then log in as `owner@example.com` (same `DEMO_PASSWORD`).
+
+1. **Overview**: litres today and this month (and the change against the same days last month), water flowing now, homes online, closed and locked valves, open alerts by severity, the tank level and pump, and unpaid bills. The numbers move with every reading, without pulling down. Tap the alerts, tank or bills card to jump there.
+2. **Homes**: search "03" or a resident's name; sort by any column (litres, pH, online, alerts...) with the arrow for low to high or high to low. Run `make problem TYPE=ph_drift DEVICE=home-b01-02 MINUTES=30` on the Mac: in a few minutes unit 02's pH shows **Unsafe** with an icon (not only a colour).
+3. Tap a home: live readings, the water switch (the confirm step names the unit and the resident), **Lock the valve** (choose closed or open, and a reason of at least 10 characters, which the resident sees), water use for 24 hours, 30 days or 12 months, the home's bills and alerts. Log in as the resident in the web app to see the lock and its reason.
+4. **Tank**: the gauge follows each tank reading. **Switch to manual** asks first (the API writes it in the audit log); then **Turn pump on / off** appears. **Back to automatic** when done. Below: the 7-day level chart and the pump's hours and energy per day.
+5. **Bills**: choose a month, **Make draft bills**, then **Issue all drafts**. Open a bill: **Issue this bill**, **Void** (with a reason), or **Record a payment** (cash, bank or other). The resident's app shows the new status by itself.
+
+## Run the tests
+
+```bash
+make app-test      # now 23 widget tests
+```
+
+New owner tests: the overview's numbers and a live reading, search and sort on every column, the pH warning word, the valve confirm with the resident's name, a lock refused under 10 characters, the tank's manual-mode confirm and a live gauge, making, issuing and paying bills, and every owner tab on a 360 px phone.
+
+## What is new in the code
+
+```text
+mobile/lib/api/owner_models.dart          overview, tank, building shapes (+ live updates)
+mobile/lib/screens/owner/owner_shell.dart building picker and owner navigation
+mobile/lib/screens/owner/overview.dart    the overview, kept live
+mobile/lib/screens/owner/homes.dart       search and sort
+mobile/lib/screens/owner/home_detail.dart one home, valve, lock, charts
+mobile/lib/screens/owner/tank.dart        tank and pump
+mobile/lib/screens/owner/bills.dart       month bills and the owner's bill actions
+mobile/test/owner/                        owner widget tests
+```
+
+## Done criteria (part 2)
+
+- [ ] As `owner@example.com` you saw the overview change live.
+- [ ] You found a home by searching, locked its valve with a reason, and unlocked it.
+- [ ] You switched the tank to manual (it asked first), ran the pump, and went back to automatic.
+- [ ] You recorded a payment and the bill turned Paid or Partly paid.
+- [ ] `make app-test` passes.
+
+## Troubleshooting (part 2)
+
+| Problem | Fix |
+|---|---|
+| "You have no building yet" | Log in as `owner@example.com` (the demo owner), not a resident or admin. `make seed` creates the demo building again |
+| "Make draft bills" says the building has no tariff | Set rates in the web app first: Tariffs (M8 part 2) |
+| The pump buttons do nothing | The tank device must be online (`make devices`), and pump buttons only work in manual mode |

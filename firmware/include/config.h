@@ -1,4 +1,4 @@
-// Pins and sensor settings for the home node (FR-15). Change these to match
+// Pins and settings for the home node (FR-15) and the tank node (FR-16). Change these to match
 // your wiring; docs/hardware/home-node.md has the wiring diagram.
 #pragma once
 
@@ -35,3 +35,14 @@
 #define WOKWI_PULSE_CHANNEL 0  // LEDC channel (Arduino core 2.x)
 #define WOKWI_FLOW_POT_PIN 35  // 0..30 L/min
 #define WOKWI_MAX_LPM 30.0
+
+// ===================== tank node (FR-16) =====================
+// docs/hardware/tank-node.md has the wiring diagram.
+#define TANK_TRIG_PIN 5    // ultrasonic sensor trigger (JSN-SR04T, waterproof)
+#define TANK_ECHO_PIN 19   // ultrasonic echo (via a 10k/20k divider: the sensor runs on 5 V)
+#define SUMP_PIN 21        // float switch in the sump: LOW = water there (INPUT_PULLUP)
+#define PUMP_RELAY_PIN 23  // relay for the pump contactor: HIGH = pump on
+#define TANK_EMPTY_CM 150.0   // sensor to water when the tank is empty
+#define TANK_FULL_CM 25.0     // sensor to water when the tank is full (keep >= 25 cm: the sensor's dead zone)
+#define TANK_CAPACITY_L 5000.0
+#define LEVEL_READ_MS 1000    // one level reading per second

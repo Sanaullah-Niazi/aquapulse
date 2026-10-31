@@ -131,7 +131,7 @@ static void testMedianAndLevel() {
 
 static void testPump() {
   // FR-16 / FR-07: the same hysteresis as the server, run locally.
-  PumpRules r;  // 25 / 95, overflow 97
+  PumpRules r;  // 25 / 95, overflow 98
   PumpInputs in{20, true, true};
   CHECK(decidePump(r, in, false, false).on);    // below low: on
   in.levelPct = 60;
@@ -154,6 +154,53 @@ static void testPump() {
   in.sensorOk = false;
   r.manual = false;
   CHECK(!decidePump(r, in, true, false).on);    // no level: stop, safe side
+  in = PumpInputs{97, true, true};
+  CHECK(!decidePump(r, in, true, false).overflowProtect);  // 97 is allowed (max highPct)
+}
+
+static void testTankRules() {
+  // Thresholds: the contract's range, and at least 10 points apart (like the simulator).
+  CHECK(thresholdsOk(25, 95));
+  CHECK(thresholdsOk(5, 15));
+  CHECK(!thresholdsOk(30, 35));
+  CHECK(!thresholdsOk(4, 50));
+  CHECK(!thresholdsOk(20, 98));
+  CHECK(!thresholdsOk(60, 40));
+
+  // Manual pump commands (FR-07 AC4): the same reasons as the simulator.
+  PumpRules r;
+  PumpInputs in{50, true, true};
+  CHECK_STR(checkPumpCommand(r, in, true), "NOT_MANUAL_MODE");
+  r.manual = true;
+  CHECK(checkPumpCommand(r, in, true) == nullptr);
+  in.sumpOk = false;
+  CHECK_STR(checkPumpCommand(r, in, true), "UNSAFE_DRY_RUN");
+  CHECK(checkPumpCommand(r, in, false) == nullptr);  // off is always allowed
+  in.sumpOk = true;
+  in.levelPct = 98;
+  CHECK_STR(checkPumpCommand(r, in, true), "UNSAFE_OVERFLOW");
+  in.levelPct = 50;
+  in.sensorOk = false;
+  CHECK_STR(checkPumpCommand(r, in, true), "UNSAFE_OVERFLOW");
+
+  // Level sensor (FR-16 AC2): one wrong echo does not move the level.
+  LevelSensor s(120, 20);  // empty at 120 cm, full at 20 cm
+  for (int i = 0; i < 4; i++) s.add(true, 70);
+  CHECK(!s.ok());          // fewer than 5 readings yet
+  s.add(true, 70);
+  CHECK(s.ok());
+  CHECK_NEAR(s.percent(), 50, 1e-9);
+  s.add(true, 20);         // one bad echo says "full"
+  CHECK_NEAR(s.percent(), 50, 1e-9);
+  CHECK(s.ok());
+  // Lost echoes: still ok (last level kept) until 5 in a row.
+  for (int i = 0; i < 4; i++) s.add(false, 0);
+  CHECK(!s.readingOk());
+  CHECK(s.ok());
+  s.add(false, 0);
+  CHECK(!s.ok());          // 5 in a row: the pump stops (safe side)
+  s.add(true, 70);
+  CHECK(s.ok() && s.readingOk());
 }
 
 static Command valveCmd(const char* id = UUID1) {
@@ -323,6 +370,7 @@ int main(int argc, char** argv) {
   testPh();
   testMedianAndLevel();
   testPump();
+  testTankRules();
   testCommands();
   testMessages();
   printf("%d checks, %d failed\n", checks, failures);

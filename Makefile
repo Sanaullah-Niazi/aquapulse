@@ -274,7 +274,7 @@ firmware-secrets: certs ## Write firmware/include/secrets.h: make firmware-secre
 	python3 scripts/firmware-secrets.py --device "$(or $(DEVICE),home-b01-10)" --password "$(PASSWORD)" \
 		--host "$(or $(HOST),host.wokwi.internal)" --wifi-ssid "$(or $(WIFI),Wokwi-GUEST)" --wifi-password "$(WIFI_PASSWORD)"
 
-firmware-upload: ## Flash a real ESP32 over USB and show its serial output (Ctrl+C to stop)
-	cd firmware && $(PIO) run -e home-node -t upload && $(PIO) device monitor
+firmware-upload: ## Flash a real ESP32 over USB and show its output: make firmware-upload (or NODE=tank)
+	cd firmware && $(PIO) run -e $(or $(NODE),home)-node -t upload && $(PIO) device monitor
 
 test: sim-test api-test web-test app-test firmware-test ## Run all tests (grows with each milestone)

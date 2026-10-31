@@ -236,15 +236,15 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-${{ hashFiles('firmware/platformio.ini') }}
-      - name: Build for the ESP32 (home node, real and Wokwi)
+      - name: Build for the ESP32 (home and tank nodes, real and Wokwi)
         run: make firmware-build
       - name: Keep the Wokwi firmware (download it from this run's Artifacts)
         uses: actions/upload-artifact@v7
         with:
-          name: firmware-home-node-wokwi
+          name: firmware-wokwi
           path: |
-            firmware/.pio/build/home-node-wokwi/firmware.bin
-            firmware/.pio/build/home-node-wokwi/firmware.elf
+            firmware/.pio/build/*-wokwi/firmware.bin
+            firmware/.pio/build/*-wokwi/firmware.elf
           retention-days: 14
 
   stack:

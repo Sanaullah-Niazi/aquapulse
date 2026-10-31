@@ -236,6 +236,28 @@ PumpDecision decidePump(const PumpRules& r, const PumpInputs& in, bool wasOn, bo
   return d;
 }
 
+bool thresholdsOk(double lowPct, double highPct) {
+  return lowPct >= 5 && lowPct <= 90 && highPct >= 15 && highPct <= 97 && highPct - lowPct >= MIN_THRESHOLD_GAP;
+}
+
+const char* checkPumpCommand(const PumpRules& rules, const PumpInputs& in, bool turnOn) {
+  if (!rules.manual) return "NOT_MANUAL_MODE";  // in auto mode the tank decides
+  if (!turnOn) return nullptr;                  // switching off is always safe
+  if (!in.sumpOk) return "UNSAFE_DRY_RUN";
+  if (!in.sensorOk || in.levelPct >= rules.overflowPct) return "UNSAFE_OVERFLOW";
+  return nullptr;
+}
+
+void LevelSensor::add(bool valid, double distanceCm) {
+  lastOk_ = valid && distanceCm > 0;
+  if (!lastOk_) {
+    if (failures_ < SENSOR_FAILURES_BEFORE_STOP) failures_++;
+    return;
+  }
+  failures_ = 0;
+  median_.add(distanceCm);
+}
+
 // ----- commands -----
 
 bool SeenCommands::contains(const char* id) const {

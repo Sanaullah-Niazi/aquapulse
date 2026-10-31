@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "author": "AquaPulse",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "level", "top": -150, "left": -60, "attrs": { "distance": "130" } },
+    { "type": "wokwi-slide-switch", "id": "sump", "top": -60, "left": 160, "attrs": { "value": "1" } },
+    { "type": "wokwi-led", "id": "pump", "top": 60, "left": 200, "attrs": { "color": "blue", "label": "pump relay" } },
+    { "type": "wokwi-text", "id": "note1", "top": -180, "left": -60, "attrs": { "text": "tank level: click the sensor, move the distance (150 cm empty, 25 cm full)" } },
+    { "type": "wokwi-text", "id": "note2", "top": -90, "left": 140, "attrs": { "text": "sump: water / empty" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "level:VCC", "esp:VIN", "red", [] ],
+    [ "level:GND", "esp:GND.1", "black", [] ],
+    [ "level:TRIG", "esp:D5", "orange", [] ],
+    [ "level:ECHO", "esp:D19", "purple", [] ],
+    [ "sump:2", "esp:D21", "green", [] ],
+    [ "sump:1", "esp:GND.1", "black", [] ],
+    [ "sump:3", "esp:3V3", "red", [] ],
+    [ "pump:A", "esp:D23", "blue", [] ],
+    [ "pump:C", "esp:GND.1", "black", [] ]
+  ],
+  "dependencies": {}
+}

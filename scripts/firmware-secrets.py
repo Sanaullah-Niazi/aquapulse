@@ -3,10 +3,12 @@
 It fills in the broker address, the device's ID and password, and the
 project CA from infra/certs/public/ca.crt, so you do not copy them by hand.
 
-The password: a demo device (home-b01-01 ...) uses its simulator password,
-made from SIM_DEVICE_SECRET in .env, the same way the simulator and the
-broker do. A device you registered in the web app has its own random
-password: pass it with PASSWORD=...
+The password: pass the one the web app showed (Devices -> New password, or
+Register) with PASSWORD=... Without it, the demo device's simulator password
+is used (made from SIM_DEVICE_SECRET in .env, as the simulator and the broker
+do). Then the simulator also logs in as that device, and the two keep
+pushing each other off the broker, so giving the device its own password is
+the normal way.
 
 secrets.h is git-ignored: never commit it.
 """

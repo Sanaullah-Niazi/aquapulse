@@ -270,7 +270,7 @@ firmware-test: ## Firmware logic tests on your Mac, and every message checked ag
 firmware-build: ## Build the ESP32 firmware (real board and Wokwi); the first run downloads the tools
 	cd firmware && $(PIO) run
 
-firmware-secrets: certs ## Write firmware/include/secrets.h: make firmware-secrets (or DEVICE=home-b01-04 PASSWORD=... HOST=... WIFI=... WIFI_PASSWORD=...)
+firmware-secrets: certs ## Write firmware/include/secrets.h: make firmware-secrets PASSWORD=... (or DEVICE=home-b01-04 HOST=... WIFI=... WIFI_PASSWORD=...)
 	python3 scripts/firmware-secrets.py --device "$(or $(DEVICE),home-b01-10)" --password "$(PASSWORD)" \
 		--host "$(or $(HOST),host.wokwi.internal)" --wifi-ssid "$(or $(WIFI),Wokwi-GUEST)" --wifi-password "$(WIFI_PASSWORD)"
 

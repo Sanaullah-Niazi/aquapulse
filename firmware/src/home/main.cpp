@@ -22,7 +22,7 @@
 #if __has_include("secrets.h")
 #include "secrets.h"
 #else
-#warning "include/secrets.h not found: building with the example values (fine for CI, not for a real device)"
+#pragma message "include/secrets.h not found: building with the example values (fine for CI, not for a real device)"
 #include "secrets.example.h"
 #endif
 
@@ -146,7 +146,7 @@ void updateValve() {
 
 // ----- commands (contract cmd.v1) -----
 
-void onCommand(String& topic, String& payload) {
+void onCommand(String& /*topic*/, String& payload) {
   JsonDocument doc;
   Command cmd;
   const bool parsed = payload.length() <= MAX_PAYLOAD && !deserializeJson(doc, payload) && doc.is<JsonObject>();

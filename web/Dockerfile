@@ -4,11 +4,13 @@
 # Stage 2 is the same Caddy as before (M1), plus those files in /app-dist.
 # Build context: the repository root (see docker-compose.yml).
 # ---------------------------------------------------------------
-FROM node:22.21.1-slim AS build
+FROM node:26.12.1-slim AS build
 WORKDIR /web
-RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Node 25+ no longer ships corepack, so install the exact pnpm version named
+# in package.json ("packageManager") with npm.
+RUN npm install -g "$(node -p "require('./package.json').packageManager")" \
+ && pnpm install --frozen-lockfile
 COPY web/ ./
 # The folder the app is served from (Caddy: /app/).
 ARG VITE_BASE=/app/

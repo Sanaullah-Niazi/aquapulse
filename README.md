@@ -10,6 +10,10 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 > **Status: v1.0.0 released.** All 12 milestones are built and tested in CI. The Android APK is on the [Releases page](https://github.com/Sanaullah-Niazi/aquapulse/releases). What changed: [CHANGELOG.md](CHANGELOG.md).
 > What is measured and what is not yet: [docs/test-report.md](docs/test-report.md).
 
+![AquaPulse in one picture: the pump fills the roof tank by itself, homes use water, every reading goes securely to the AquaPulse cloud and shows up on the resident's phone and the owner's screen](docs/screenshots/animation/aquapulse-system.gif)
+
+<sub>An illustration (made with `make animation` from [docs/animation/system.html](docs/animation/system.html)). The roof tank and pump follow the real ESP32 firmware run in the Wokwi simulator: pump on below 25 %, off at 96 %, no switching in between.</sub>
+
 ## What it does
 
 AquaPulse turns a normal apartment building into a smart-water building:

@@ -36,6 +36,15 @@ flowchart LR
 
 ## Part 1: Install Flutter and Android Studio (once)
 
+**The quick way:** one script installs everything below (Flutter, Android Studio, the Android SDK, licences, and a virtual phone called `aquapulse`). It takes 20 to 40 minutes and is safe to run again:
+
+```bash
+bash scripts/setup-android-mac.sh
+emulator -avd aquapulse &      # in a new Terminal: starts the virtual phone
+```
+
+**By hand**, if you prefer:
+
 ```bash
 brew install --cask flutter android-studio
 ```

@@ -4,7 +4,7 @@
 # New targets are added milestone by milestone (see docs/milestones).
 # ---------------------------------------------------------------
 .DEFAULT_GOAL := help
-.PHONY: animation help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
+.PHONY: animation animation-sound help check-tools setup env hooks lint secrets up down ps logs smoke reset psql mqtt-watch \
 	sim-logs sim-profile sim-test sim-test-live leak valve-close valve-open test \
 	api-logs seed migrate api-test api-lint openapi \
 	ingest-logs demo-data live firmware-test firmware-build firmware-secrets firmware-upload \
@@ -274,6 +274,9 @@ animation: ## The moving picture of the whole system (docs/animation/system.html
 			docs/screenshots/animation/aquapulse-system.mp4 && echo "docs/screenshots/animation/aquapulse-system.mp4 (for LinkedIn)"; \
 	else echo "No ffmpeg: skipped the MP4 (brew install ffmpeg)"; fi
 	rm -rf .cache/animation-frames
+
+animation-sound: ## Add soft music and sound effects to the MP4 (make animation first; needs ffmpeg)
+	uv run --with numpy python scripts/animation-sound.py docs/screenshots/animation/aquapulse-system.mp4 docs/screenshots/animation/aquapulse-system-sound.mp4
 
 screenshots: ## Portfolio pictures of every web screen, phone and desktop, into docs/screenshots (make demo first)
 	@# Real pages with the demo data, taken by a real browser; nothing is drawn by hand.

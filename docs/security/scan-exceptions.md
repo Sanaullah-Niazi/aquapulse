@@ -28,6 +28,25 @@ these versions. Building our own Caddy with a newer Go is possible (xcaddy) but 
 `make up` much slower for everyone. Dependabot opens a pull request as soon as a new
 Caddy image is out; then these lines are removed.
 
+## OWASP ZAP baseline (`make zap`, NFR-10)
+
+ZAP fails the build only on a High finding; there are none. Its first run in CI
+(2026-10-31) found 4 Medium and 4 Low. Two Medium ones were fixed, the rest are
+accepted here:
+
+| Finding | Where | What we did |
+|---|---|---|
+| Medium: CSP wildcard directive | `/`, `/app/` | **Fixed:** `connect-src 'self'` instead of `'self' wss:`. `'self'` already allows the live WebSocket to the same address |
+| Medium: CSP directive with no fallback | `/api/docs` | **Fixed:** `form-action 'self'` added to the API docs page's policy |
+| Medium: CSP `script-src 'unsafe-inline'` | `/api/docs` only | Accepted. Swagger UI (the API docs page FastAPI makes) starts with a small inline script. The app itself has no `unsafe-inline` |
+| Medium: Sub Resource Integrity missing | `/api/docs` only | Accepted. Swagger UI loads its script and style from the jsDelivr CDN without an integrity hash. Only the docs page, never the app; on a public server you can turn the docs page off |
+| Low: cross-domain JavaScript | `/api/docs` only | Same as above |
+| Low: Spectre site isolation (COOP/COEP/CORP headers) | app files | Accepted for now. Adding them needs testing with the "host the app on your own website" feature (FR-56), which loads from another address |
+| Low: HSTS not set | `/sitemap.xml` (a 404 page) | Accepted. Caddy leaves the headers off its own error pages. ZAP found HSTS on every real page and file it fetched, and `make smoke` checks the headers |
+| Low: ZAP is out of date | | Not about AquaPulse. The ZAP image is pinned on purpose (2.16.1, in `scripts/zap-baseline.sh`) and updated by hand |
+
+Accepted by Claude for sana, 2026-10-31. Check again at the next ZAP update.
+
 ## Fixed when the scans were added (2026-10-31)
 
 The first run of the scans found real problems, all fixed by updating:

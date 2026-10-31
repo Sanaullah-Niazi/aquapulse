@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../api/owner_models.dart';
 import '../../app_state.dart';
 import '../../widgets/common.dart';
+import '../shared/ai.dart';
 import '../shared/alerts.dart';
 import '../shared/bills.dart';
 import '../shared/profile.dart';
@@ -21,8 +22,8 @@ class OwnerShell extends StatefulWidget {
 }
 
 class _OwnerShellState extends State<OwnerShell> {
-  static const _tabs = ['overview', 'homes', 'tank', 'bills', 'alerts', 'profile'];
-  static const _titles = ['Overview', 'Homes', 'Tank and pump', 'Bills', 'Alerts', 'Profile'];
+  static const _tabs = ['overview', 'homes', 'tank', 'bills', 'alerts', 'profile', 'ai'];
+  static const _titles = ['Overview', 'Homes', 'Tank and pump', 'Bills', 'Alerts', 'Profile', 'AI insights'];
   int _tab = 0;
   String? _buildingId;
 
@@ -50,7 +51,8 @@ class _OwnerShellState extends State<OwnerShell> {
             Notice(kind: NoticeKind.info, text: 'You have no building yet. A System Admin creates it for you.'),
           ],
         );
-        final body = id == null && _tab < 4
+        final needsBuilding = _tab < 4 || _tab == 6;
+        final body = id == null && needsBuilding
             ? none
             : switch (_tab) {
                 0 => OverviewScreen(buildingId: id!, open: _open),
@@ -58,11 +60,12 @@ class _OwnerShellState extends State<OwnerShell> {
                 2 => TankScreen(buildingId: id!),
                 3 => OwnerBillsScreen(buildingId: id!),
                 4 => const AlertsScreen(),
+                6 => OwnerAiScreen(buildingId: id!),
                 _ => const ProfileScreen(),
               };
         return Scaffold(
           appBar: AppBar(
-            title: buildings.length > 1 && _tab < 4
+            title: buildings.length > 1 && needsBuilding
                 ? DropdownButton<String>(
                     value: id,
                     underline: const SizedBox(),
@@ -86,6 +89,7 @@ class _OwnerShellState extends State<OwnerShell> {
               NavigationDrawerDestination(icon: Icon(Icons.receipt_long_outlined), label: Text('Bills')),
               NavigationDrawerDestination(icon: Icon(Icons.notifications_outlined), label: Text('Alerts')),
               NavigationDrawerDestination(icon: Icon(Icons.person_outline), label: Text('Profile')),
+              NavigationDrawerDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('AI insights')),
               Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(

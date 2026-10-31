@@ -11,6 +11,7 @@ import { AuditPage } from "./pages/admin/AuditPage";
 import { HealthPage } from "./pages/admin/HealthPage";
 import { OwnersPage } from "./pages/admin/OwnersPage";
 import { SetupTwoFactorPage } from "./pages/admin/SetupTwoFactorPage";
+import { AiPage } from "./pages/owner/AiPage";
 import { AlertRulesPage } from "./pages/owner/AlertRulesPage";
 import { OwnerBillsPage } from "./pages/owner/BillsPage";
 import { DevicesPage } from "./pages/owner/DevicesPage";
@@ -21,6 +22,7 @@ import { SettingsPage } from "./pages/owner/SettingsPage";
 import { TankPage } from "./pages/owner/TankPage";
 import { TariffsPage } from "./pages/owner/TariffsPage";
 import { BillPage, MyBillsPage } from "./pages/resident/BillsPages";
+import { InsightsPage } from "./pages/resident/InsightsPage";
 import { MyHomePage } from "./pages/resident/MyHomePage";
 import { QualityPage } from "./pages/resident/QualityPage";
 import { UsagePage } from "./pages/resident/UsagePage";
@@ -89,6 +91,7 @@ export function App() {
             <Route path="/quality" element={<QualityPage />} />
             <Route path="/bills" element={<MyBillsPage />} />
             <Route path="/bills/:billId" element={<BillPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
           </>
         ) : me.role === "owner" ? (
           <>
@@ -102,6 +105,7 @@ export function App() {
             <Route path="/bills/:billId" element={<BillPage />} />
             <Route path="/alert-rules" element={<AlertRulesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/ai" element={<AiPage />} />
           </>
         ) : (
           <>

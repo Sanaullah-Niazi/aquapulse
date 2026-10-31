@@ -12,6 +12,7 @@ import '../../widgets/alert_list.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
 import '../../widgets/valve_control.dart';
+import '../shared/ai.dart';
 import '../shared/bills.dart';
 import '../shared/home_live.dart';
 
@@ -59,6 +60,11 @@ class HomeDetailScreen extends StatelessWidget {
                 ),
               ),
               UsageCard(homeId: homeId),
+              const Heading('Forecast'),
+              ForecastSection(path: '/homes/$homeId/forecast'),
+              const Heading('AI insights'),
+              InsightsSection(homeId: homeId),
+              AutoShutoffSwitch(homeId: homeId),
               const Heading('Bills'),
               Loader<List<BillSummary>>(
                 load: () async => [

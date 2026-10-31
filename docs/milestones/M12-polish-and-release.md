@@ -117,3 +117,11 @@ Then log in as admin@example.com: **System health** shows the time under **Last 
 | `make restore FILE=...` | Replace all data with a backup (asks first, and makes one more backup before it starts) | yes: a real restore, then the smoke test again |
 
 CI now also runs every Monday, so the restore test runs at least weekly even when nothing is pushed.
+
+## Part 3: speed checks (`make perf`)
+
+`make perf` measures the running demo and prints the results: memory and CPU while idle,
+the valve round trip from 10 homes at once, the delay of live readings, and how fast the
+API answers 11 users at once. CI runs it on every push. The numbers in the
+[test report](../test-report.md) come from CI. Run `make perf IDLE=600` on your Mac for the full
+10-minute idle sample the SRS asks for. Your Mac's numbers will be different from CI's.

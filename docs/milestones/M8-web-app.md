@@ -1,9 +1,9 @@
-# M8: Web app (parts 1 and 2 of 3)
+# M8: Web app (parts 1, 2 and 3)
 
 > **Goal:** a real app in the browser, not Swagger. Residents log in (with an optional second step from an authenticator app), see their home live, turn their water off and on, compare their use, follow water quality and open their bills. Everyone can manage their profile and choose their alert emails. It works on a 360 px phone and a big monitor, and you can install it like an app (PWA).
 > **Requirements covered in part 1:** FR-48 (my home), FR-49 (usage and comparison), FR-50 (my bills and payment), FR-51 (my valve), FR-52 (profile and notification choices), FR-53 (responsive, by role: resident screens), FR-54 (live charts), FR-56 (installable PWA; the website guide comes in part 3), FR-57 (accessibility, light and dark, all texts in a translation file), FR-70 (two-factor login).
 > **Part 2 (owner screens)** is at the end of this guide: [jump to part 2](#m8-part-2-the-owner-screens). It covers FR-30 (CSV export), FR-42 to FR-47 (owner dashboard, homes, valves and locks, residents, devices, tariffs, bills, tank) and the owner side of FR-53.
-> **Next part:** part 3 adds the System Admin console, makes 2FA required for System Admins, and the guide to host the app on your own website.
+> **Part 3 (System Admin console and your website)** is at the very end: [jump to part 3](#m8-part-3-the-system-admin-console-and-your-website). It covers FR-55 (System Admin console), FR-56 (the website build and guide) and FR-70 (2FA required for System Admins).
 > **Time:** about 30 minutes.
 
 ## What you will have at the end
@@ -324,3 +324,131 @@ backend/tests/api/test_csv_data_export.py
 | Saving a tariff says "Bills up to ... are already issued" | Issued bills never change, so a new tariff must start after them. Choose a later start date (or void those bills first) |
 | A CSV opens with strange letters in Excel | Use Data → From Text/CSV and pick UTF-8 |
 | The overview numbers stop changing | Look at "Live" at the top. If it says "Not live", check `make api-logs` |
+
+---
+
+# M8 part 3: the System Admin console and your website
+
+> **Goal:** the System Admin sees at a glance whether everything is running, manages owners and buildings, and reads the audit log, always behind two-factor login. And the same web app can be put on your own website.
+> **Requirements covered:** FR-55 (System Admin console), FR-56 (one build for any website folder, installable, the hosting guide), FR-70 (System Admins must use two-factor login).
+> **Time:** about 20 minutes (plus the website guide, if you want to try it now).
+
+## What is new
+
+| Screen | Address | What you can do |
+|---|---|---|
+| Turn on two-factor login | any address, until it is on | A new System Admin can log in with a password, but sees only this page (and their profile) until two-factor login is on. It cannot be switched off again |
+| System health | `/app/` | Each service green or red: database, MQTT broker, ingestor, worker. Devices online, readings per minute, refused device messages (and why), failed emails, the last audit check. Refreshes every 15 s |
+| Owners and buildings | `/app/owners` | Add an owner, disable one (logged out everywhere at once) or enable them again. Add a building for an owner, or move a building to another owner |
+| Audit log | `/app/audit` | Every entry, newest first, filtered by action and dates, 50 per page. "Check the chain now" re-calculates every hash (FR-28) |
+
+"Last backup" honestly says backups are not set up yet. They come with the hosting work in M12.
+
+### Four ideas worth understanding
+
+**1. Two-factor login is enforced by the API, not just the screen.** Until a System Admin turns it on, every API call except their own profile answers `403` with the header `X-Two-Factor: setup-required`. The app sees that and shows the setup page. Hiding a button would not be enough: someone could call the API directly.
+
+**2. How does the API know the ingestor is alive?** It runs in another container. So the ingestor writes a "heartbeat" row to the database every 15 seconds (with its counters), and the worker writes one after each round. The health page reads those rows: no heartbeat for 60 s (ingestor) or 3 minutes (worker) means red. The database and the broker are checked directly.
+
+**3. Admins are made on the server, not in the app.** `make admin EMAIL=...` creates a System Admin. Whoever can run commands on the server is already in charge, so no web page can create one. If an admin loses their phone and their recovery codes, `make admin-reset-2fa EMAIL=...` lets them set it up again. Both go to the audit log.
+
+**4. One build, any folder.** The app needs to know two things: the folder it lives in (`/app/` on your Mac, `/water/` on your website) and where the server is. The folder is fixed when building; the server address is in `config.js`, read when the app starts, so you can change it without building again.
+
+## Part 1: Get the code
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+gh pr list                                  # find the M8 part 3 PR number
+gh pr merge <NUMBER> --squash --delete-branch
+git switch main
+git pull
+```
+
+## Part 2: Start everything
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+make up
+make smoke
+```
+
+`make up` applies one new migration (`0007`, the heartbeat table). The smoke test now also checks that the API refuses a System Admin without two-factor login, and that the ingestor and the worker have reported in.
+
+## Part 3: Try it (your demo)
+
+1. **Log in as the demo admin.** Open https://localhost:8443/app/ and log in as `admin@example.com` with the demo password (`grep DEMO_PASSWORD .env`). You see only "Turn on two-factor login". Try typing https://localhost:8443/app/audit in the address bar: the same page.
+2. **Turn it on.** Follow the three steps with your authenticator app (Aegis, 2FAS, Google or Microsoft Authenticator). Save the 10 recovery codes. The console opens.
+3. **System health.** Everything should be green. Now stop the worker: `docker compose stop worker`. Within about 3 minutes "Worker" turns red with "No sign of life for ... min". Start it again with `docker compose start worker` and watch it turn green.
+4. **Owners and buildings.** Add an owner (any email, a strong first password). Disable them, then enable them. Add a building for them.
+5. **Audit log.** Type `admin.owner_created` in "Action" and press Show: your new owner is there. Press "Check the chain now": "Untouched: all ... entries checked".
+
+The demo admin now has two-factor login on, for good. If you ever lose the phone: `make admin-reset-2fa EMAIL=admin@example.com`.
+
+## Part 4: Run the tests yourself (optional)
+
+```bash
+cd "/Users/niazi_127.0.0.1/Documents/Water Management System/aquapulse"
+make api-test
+make web-test
+make web-e2e
+make web-site-check
+```
+
+`make web-e2e` now ends with `46 passed`, and `make web-site-check` with `2 passed`.
+
+The browser test for the console uses its own admin, `e2e-admin@example.com`, made with `make admin` and reset each run, so your demo admin is never touched. `make web-site-check` builds the app for `/water/`, serves it the way GitHub Pages does, and checks that Chrome can install it, that a resident can log in from that other address and gets live data, and that a link straight to a page works.
+
+## Put it on your website
+
+Follow [docs/guides/host-on-your-website.md](../guides/host-on-your-website.md). In short: a free Cloudflare tunnel gives your Mac's server a public `https://` address, `make web-site BASE=/water/ API=<that address>` builds the app, you allow your website in `CORS_ORIGINS`, and you copy `web/site/` into the `water` folder of your website.
+
+## New commands
+
+| Command | What it does |
+|---|---|
+| `make admin EMAIL=you@example.com` | Make a System Admin (asks for a password) |
+| `make admin-reset-2fa EMAIL=you@example.com` | Let a System Admin who lost their phone set up two-factor login again |
+| `make web-site BASE=/water/ API=https://...` | Build the app for a folder of your website, into `web/site/` |
+| `make web-site-check` | Try that build on your Mac at http://localhost:8099/water/ |
+
+## New API endpoints
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /api/v1/admin/health` | System Admin | Services, device and reading counts, refused messages, failed emails, the last audit check |
+
+Changed: every endpoint except `/me` now answers `403` with `X-Two-Factor: setup-required` to a System Admin without two-factor login, and `POST /me/2fa/disable` answers `409` for System Admins.
+
+## Files in this part
+
+```text
+backend/app/heartbeat.py               the ingestor's and worker's "I am alive" rows
+backend/app/admins.py                  make admin, make admin-reset-2fa
+backend/app/routers/admin.py           GET /admin/health
+backend/migrations/versions/0007_service_heartbeats.py
+web/src/pages/admin/                   setup, health, owners and buildings, audit log
+web/e2e/admin/console.spec.ts          browser test for the console
+web/e2e-site/                          the website check (a GitHub Pages-like server and its test)
+scripts/web-site.sh                    make web-site
+scripts/web-site-check.sh              make web-site-check
+docs/guides/host-on-your-website.md    the website guide
+```
+
+## Done criteria (part 3)
+
+- [ ] `make smoke` passes.
+- [ ] As `admin@example.com` you could do nothing until two-factor login was on.
+- [ ] The health page turned the worker red when you stopped it, and green again.
+- [ ] You added, disabled and enabled an owner, and found it in the audit log.
+- [ ] "Check the chain now" says the log is untouched.
+- [ ] `make web-site-check` passes.
+
+## Troubleshooting (part 3)
+
+| Problem | Fix |
+|---|---|
+| Lost the phone with the admin's codes | `make admin-reset-2fa EMAIL=admin@example.com`, then log in and set it up again |
+| "Ingestor" is red with "Never reported" | It has not started since this update: `make up`, then wait 15 s |
+| "Wrong code. Check the phone's time." while turning it on | Your Mac's or phone's clock is off. Turn on automatic time on both |
+| `make web-site-check` fails at "Letting ... call the API" | Is `make up` running? The check restarts the API for a moment, then puts it back |
+| `make web-site-check`: "port 8099 is already used" | Something else uses that port. Close it, or stop an earlier check with Ctrl+C |

@@ -120,7 +120,8 @@ def create_app() -> FastAPI:
         allow_origins=origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
-        expose_headers=["X-Two-Factor", "Content-Disposition"],  # read by the web app (M8)
+        # Headers the web app reads (on your website it is another site, M8).
+        expose_headers=["X-Two-Factor", "Content-Disposition", "Retry-After"],
         max_age=600,
     )
 

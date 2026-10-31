@@ -195,6 +195,7 @@ export interface LiveEvent {
 
 export interface Building {
   id: string;
+  owner_id?: string;
   name: string;
   address: string;
   timezone: string;
@@ -361,4 +362,59 @@ export interface AlertRule {
   enabled: boolean;
   values: Record<string, number>;
   limits: Record<string, Record<string, number | string>>;
+}
+
+// ----- System Admin (M8 part 3) -----
+
+export interface Health {
+  ok: boolean;
+  services: { name: "database" | "broker" | "ingestor" | "worker"; ok: boolean; detail: string; seen_at: string | null }[];
+  devices_active: number;
+  devices_online: number;
+  readings_last_minute: number;
+  received_since_start: number | null;
+  rejected_since_start: Record<string, number>;
+  notifications_failed_7d: number;
+  last_audit_check: AuditCheck | null;
+  last_backup_at: string | null;
+}
+
+export interface AuditCheck {
+  ok: boolean;
+  first_broken_id: number | null;
+  entries: number;
+  seconds: number;
+  at: string;
+  requested_by: string | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  at: string;
+  actor_id: string | null;
+  actor_role: string | null;
+  ip: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  building_id: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface NotificationRow {
+  id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+}
+
+export interface UserRow {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role: Role;
+  is_active: boolean;
 }

@@ -161,6 +161,8 @@ async def two_factor_new_codes(
     """10 new recovery codes (the old ones stop working). Needs password and code."""
     if caller.user.totp_enabled_at is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Two-factor login is off")
+    if caller.role == "sysadmin":  # FR-70: System Admins must keep it on
+        raise HTTPException(status.HTTP_409_CONFLICT, "System Admins must keep two-factor login on")
     _check_password(caller, body.password)
     _check_code(caller, settings, body.code)
     codes = await _new_codes(session, caller, settings)
@@ -176,6 +178,8 @@ async def two_factor_disable(
     """Switch two-factor login off. Needs the password and a current code."""
     if caller.user.totp_enabled_at is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Two-factor login is off")
+    if caller.role == "sysadmin":  # FR-70: System Admins must keep it on
+        raise HTTPException(status.HTTP_409_CONFLICT, "System Admins must keep two-factor login on")
     _check_password(caller, body.password)
     _check_code(caller, settings, body.code)
     caller.user.totp_enabled_at = None

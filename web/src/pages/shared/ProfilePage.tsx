@@ -103,7 +103,8 @@ interface Setup {
   qr_svg: string;
 }
 
-function TwoFactor() {
+/** Turn two-factor login on or off, and make new recovery codes (FR-70). */
+export function TwoFactor() {
   const { t } = useTranslation();
   const me = useMe();
   const { reload } = useAuth();
@@ -139,7 +140,8 @@ function TwoFactor() {
     setCodes(r.recovery_codes);
     setSetup(null);
     setCode("");
-    await reload();
+    // /me is read again only after "I saved them": a System Admin's screens
+    // change as soon as 2FA is on, and the codes must be seen first.
   });
   const disable = step(async () => {
     await api("/me/2fa/disable", { method: "POST", body: { password, code } });
@@ -183,21 +185,27 @@ function TwoFactor() {
             ))}
           </div>
           <p style={{ marginTop: "1rem" }}>
-            <button className="primary" onClick={() => setCodes(null)}>
+            <button className="primary" onClick={() => {
+              setCodes(null);
+              void reload();
+            }}>
               {t("profile.recoveryDone")}
             </button>
           </p>
         </>
       ) : me.two_factor ? (
-        <form onSubmit={disable}>
+        <form onSubmit={me.role === "sysadmin" ? renew : disable}>
           <p className="notice ok">{t("profile.twoFactorOn")}</p>
           {passwordField}
           {codeField}
           {error != null && <ErrorBox error={error} />}
+          {me.role === "sysadmin" && <p className="muted small">{t("profile.adminKeepsIt")}</p>}
           <div className="row">
-            <button className="danger" disabled={busy}>
-              {t("profile.turnOff")}
-            </button>
+            {me.role !== "sysadmin" && (
+              <button className="danger" disabled={busy}>
+                {t("profile.turnOff")}
+              </button>
+            )}
             <button type="button" disabled={busy} onClick={(e) => void renew(e)}>
               {t("profile.newCodes")}
             </button>

@@ -7,6 +7,10 @@ import { useAuth } from "./auth";
 import { Layout } from "./components/Layout";
 import { Loading } from "./components/ui";
 import { setLive } from "./live";
+import { AuditPage } from "./pages/admin/AuditPage";
+import { HealthPage } from "./pages/admin/HealthPage";
+import { OwnersPage } from "./pages/admin/OwnersPage";
+import { SetupTwoFactorPage } from "./pages/admin/SetupTwoFactorPage";
 import { AlertRulesPage } from "./pages/owner/AlertRulesPage";
 import { OwnerBillsPage } from "./pages/owner/BillsPage";
 import { DevicesPage } from "./pages/owner/DevicesPage";
@@ -29,7 +33,6 @@ import {
 } from "./pages/shared/AuthPages";
 import { NotificationsPage } from "./pages/shared/NotificationsPage";
 import { ProfilePage } from "./pages/shared/ProfilePage";
-import { StaffHomePage } from "./pages/shared/StaffHomePage";
 
 function NotFound() {
   const { t } = useTranslation();
@@ -57,6 +60,18 @@ export function App() {
         <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
       </Routes>
+    );
+
+  // FR-70: a System Admin without two-factor login gets only the setup page
+  // (and their profile) until it is on. The API refuses everything else too.
+  if (me.role === "sysadmin" && !me.two_factor)
+    return (
+      <Layout>
+        <Routes>
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<SetupTwoFactorPage />} />
+        </Routes>
+      </Layout>
     );
 
   // Logged in: the login and password pages lead home (or where you were going).
@@ -89,8 +104,11 @@ export function App() {
             <Route path="/settings" element={<SettingsPage />} />
           </>
         ) : (
-          // The System Admin console comes in the next part of M8.
-          <Route path="/" element={<StaffHomePage />} />
+          <>
+            <Route path="/" element={<HealthPage />} />
+            <Route path="/owners" element={<OwnersPage />} />
+            <Route path="/audit" element={<AuditPage />} />
+          </>
         )}
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

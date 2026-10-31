@@ -6,7 +6,7 @@ Per-home metering, remote valve control, water-quality monitoring, slab billing 
 [![CI](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanaullah-Niazi/aquapulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> 🚧 **Status: under active development (milestone M8 of 12).**
+> 🚧 **Status: under active development (M8 of 12 milestones done).**
 > This README only describes what already works. Features are added milestone by milestone; see the [roadmap](#roadmap).
 
 ## What it will do
@@ -44,7 +44,7 @@ flowchart LR
 | M5 Secure MQTT and HTTPS | ✅ done |
 | M6 Billing and payments | ✅ done |
 | M7 Alerts and notifications | ✅ done |
-| M8 Web app | 🚧 in progress (part 2 of 3 done) |
+| M8 Web app | ✅ done |
 | M9 Android app | ⏳ |
 | M10 AI: leak detection and forecasting | ⏳ |
 | M11 ESP32 firmware and hardware | ⏳ |
@@ -142,14 +142,15 @@ Guide: [docs/milestones/M6-billing.md](docs/milestones/M6-billing.md).
 
 Guide: [docs/milestones/M7-alerts.md](docs/milestones/M7-alerts.md).
 
-**Web app (M8, parts 1 and 2 of 3).** A React web app you can install on your phone (PWA), at https://localhost:8443/app/.
+**Web app (M8).** A React web app you can install on your phone (PWA), at https://localhost:8443/app/.
 
 - Log in with an optional second step: a 6-digit code from any free authenticator app, plus 10 one-time recovery codes.
 - Residents see their home live (litres today and this month, water running, pH with a Safe / Check / Unsafe label, temperature, the bill so far), turn their water off and on, compare with last month and with the anonymous building average per person, follow pH and temperature live, and open their bills (PDF, pay online in Stripe test mode).
 - Everyone can change their details and password, and choose which alert emails they get, with quiet hours (critical alerts always come at once).
 - Works from 360 px phones to big screens, light and dark, keyboard and screen-reader friendly. Playwright clicks through it at phone and desktop size and runs an axe accessibility check on every screen.
 - Owners run the building from it: live overview, homes, valves and locks, residents, tank and pump, devices, tariffs with a live example bill, bills and payments, alert rules, settings and CSV exports.
-- Part 3 adds the System Admin console and the guide to put it on your own website.
+- System Admins get a console: health of every service (database, broker, ingestor, worker), devices online, readings per minute, refused messages, failed emails and the last audit check; owners and buildings; and the audit log with filters and a "check the chain now" button. Two-factor login is required for them.
+- One build runs from any folder of any website: `make web-site BASE=/water/ API=https://...`. Guide: [docs/guides/host-on-your-website.md](docs/guides/host-on-your-website.md).
 
 Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 
@@ -159,7 +160,7 @@ Guide: [docs/milestones/M8-web-app.md](docs/milestones/M8-web-app.md).
 contracts/   MQTT message formats shared by simulator, backend and firmware  (M2)
 simulator/   digital twin of the building's devices                          (M2)
 backend/     API (M3), ingestor (M4), broker-auth (M5), billing (M6), alerts (M7); AI later
-web/         React web app / PWA: resident and owner screens, login with 2FA (M8)
+web/         React web app / PWA: resident, owner and System Admin screens  (M8)
 mobile/      Flutter Android app                                              (M9)
 firmware/    ESP32 firmware (PlatformIO) + Wokwi simulation                   (M11)
 infra/       Mosquitto, Caddy, certificates, backups                          (M1+)

@@ -380,6 +380,32 @@ class AuditVerifyOut(BaseModel):
     requested_by: uuid.UUID | None = Field(description="null = the daily check by the worker")
 
 
+class ServiceOut(BaseModel):
+    name: str = Field(description="database, broker, ingestor or worker")
+    ok: bool
+    detail: str = Field(description="In words, for the health page")
+    seen_at: datetime | None = Field(None, description="Last heartbeat (ingestor, worker)")
+
+
+class HealthOut(BaseModel):
+    """GET /admin/health (FR-55, FR-31): what a System Admin checks first."""
+
+    ok: bool = Field(description="Every service is up")
+    services: list[ServiceOut]
+    devices_active: int = Field(description="Registered devices that are not revoked")
+    devices_online: int
+    readings_last_minute: int = Field(description="Meter and tank readings stored in 60 s")
+    received_since_start: int | None = Field(description="Messages the ingestor received")
+    rejected_since_start: dict[str, int] = Field(
+        description="Messages the ingestor refused, by reason (since it started)"
+    )
+    notifications_failed_7d: int = Field(description="Emails not delivered in the last 7 days")
+    last_audit_check: AuditVerifyOut | None
+    last_backup_at: datetime | None = Field(
+        None, description="null: automatic backups are not set up yet"
+    )
+
+
 class NotificationOut(BaseModel):
     """One email (FR-60). The address and the text are not shown here."""
 

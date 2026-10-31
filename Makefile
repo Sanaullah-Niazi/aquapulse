@@ -10,10 +10,10 @@
 	ingest-logs demo-data live \
 	certs trust-ca devices sim-passwords broker-logs tls-check restart-check \
 	worker-logs bills problem alerts \
-	web-setup web-dev web-build web-test web-e2e
+	web-setup web-dev web-build web-test web-e2e web-site web-site-check admin admin-reset-2fa
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nAquaPulse commands:\n\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 
 check-tools: ## Check that every M0 tool is installed (with versions)
@@ -104,6 +104,14 @@ api-logs: ## Follow the API's logs (Ctrl+C to stop)
 
 seed: ## Create the demo accounts and building (safe to run again)
 	docker compose exec api python -m app.seed
+
+admin: ## Make a System Admin: make admin EMAIL=you@example.com (asks for a password)
+	@test -n "$(EMAIL)" || (echo "Use: make admin EMAIL=you@example.com" && exit 1)
+	docker compose exec $(if $(ADMIN_PASSWORD),-e ADMIN_PASSWORD) api python -m app.admins add "$(EMAIL)"
+
+admin-reset-2fa: ## Let a System Admin who lost their phone set up two-factor login again
+	@test -n "$(EMAIL)" || (echo "Use: make admin-reset-2fa EMAIL=you@example.com" && exit 1)
+	docker compose exec api python -m app.admins reset-2fa "$(EMAIL)"
 
 migrate: ## Apply new database migrations now (make up does this too)
 	docker compose run --rm migrate
@@ -208,5 +216,11 @@ web-test: ## Type check and unit tests for the web app (no Docker needed)
 web-e2e: ## Click through the app in a real browser, phone and desktop size (make up first)
 	@# The tests log in as the demo accounts, so they need the demo password from .env.
 	cd web && DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' ../.env | cut -d= -f2-)" pnpm e2e
+
+web-site: ## Build the app for your website: make web-site BASE=/water/ API=https://your-server
+	./scripts/web-site.sh "$(BASE)" "$(API)"
+
+web-site-check: ## Try the website build on your Mac at http://localhost:8099/water/ (make up first)
+	./scripts/web-site-check.sh
 
 test: sim-test api-test web-test ## Run all tests (grows with each milestone)

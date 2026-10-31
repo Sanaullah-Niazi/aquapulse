@@ -107,12 +107,27 @@ async def session_alive(session: AsyncSession, user: User, sid: uuid.UUID) -> bo
     )
 
 
+TWO_FACTOR_FIRST = (
+    "System Admins must turn on two-factor login first (Profile, then Two-factor login)"
+)
+
+
 def require(*roles: str):
-    """Dependency factory: only these roles may call the endpoint (else 403)."""
+    """Dependency factory: only these roles may call the endpoint (else 403).
+
+    FR-70: a System Admin without two-factor login gets 403 here too, with the
+    header `X-Two-Factor: setup-required`, so the app sends them to set it up.
+    Only their own account (/me, /me/2fa/...) and logging out still work."""
 
     async def checker(caller: Annotated[Caller, Depends(current_caller)]) -> Caller:
         if caller.role not in roles:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Your role may not do this")
+        if caller.role == "sysadmin" and caller.user.totp_enabled_at is None:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                TWO_FACTOR_FIRST,
+                headers={"X-Two-Factor": "setup-required"},
+            )
         return caller
 
     return checker

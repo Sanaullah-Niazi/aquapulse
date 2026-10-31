@@ -183,8 +183,9 @@ async def test_admin_owner_management_is_audited_and_disabling_logs_out(client, 
     assert (await client.get("/api/v1/me", headers=owner_headers)).status_code == 401
     missing = await client.patch(f"/api/v1/admin/owners/{uuid.uuid4()}", headers=headers, json={})
     assert missing.status_code == 404
+    # (The admin's session was made directly: System Admins log in with a
+    # two-factor code, tested in test_two_factor_authentication_totp.py.)
     assert await audit_actions(actor_id=admin.id) == [
-        "auth.login",
         "admin.owner_created",
         "admin.owner_updated",
     ]

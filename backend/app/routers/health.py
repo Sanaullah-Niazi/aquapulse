@@ -20,7 +20,7 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-async def _database_ok() -> bool:
+async def database_ok() -> bool:
     try:
         async with asyncio.timeout(2):
             async with engine().connect() as conn:
@@ -30,7 +30,7 @@ async def _database_ok() -> bool:
         return False
 
 
-async def _broker_ok() -> bool:
+async def broker_ok() -> bool:
     """A real TLS handshake with the broker, checked against our CA (M5)."""
     settings = get_settings()
     try:
@@ -49,7 +49,7 @@ async def _broker_ok() -> bool:
 @router.get("/readyz", responses={503: {}})
 async def readyz(response: Response) -> dict[str, bool]:
     """Ready: the database and the MQTT broker can be reached. 503 if not."""
-    db_ok, mqtt_ok = await asyncio.gather(_database_ok(), _broker_ok())
+    db_ok, mqtt_ok = await asyncio.gather(database_ok(), broker_ok())
     if not (db_ok and mqtt_ok):
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {"database": db_ok, "broker": mqtt_ok}

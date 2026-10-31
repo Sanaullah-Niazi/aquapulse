@@ -740,3 +740,17 @@ class AuditCheck(Base):
     first_broken_id: Mapped[int | None] = mapped_column(BigInteger)
     seconds: Mapped[float] = mapped_column(Float, nullable=False)
     requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))  # null = daily
+
+
+class ServiceHeartbeat(Base):
+    """A background service's "I am alive" (FR-55): the ingestor and the worker
+    each update their row every few seconds, with a few numbers in `details`."""
+
+    __tablename__ = "service_heartbeats"
+
+    service: Mapped[str] = mapped_column(String(32), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )

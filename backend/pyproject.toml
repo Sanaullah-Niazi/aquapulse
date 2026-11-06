@@ -19,7 +19,7 @@ dependencies = [
     "python-multipart==0.0.32",    # reads the login form used by Swagger's Authorize button
     "aiomqtt==2.5.1",              # MQTT client: the ingestor talks to the devices (M4)
     "jsonschema==4.26.0",          # checks every device message against /contracts (FR-22)
-    "websockets==17.3",            # lets uvicorn serve the live WebSocket (FR-25)
+    "websockets==17.4",            # lets uvicorn serve the live WebSocket (FR-25)
     "segno==1.6.6",                # QR codes with a new device's settings (M5, FR-14)
     "weasyprint==70.0",            # PDF bills from an HTML template (M6, FR-36)
     "jinja2==3.1.6",               # fills the bill template

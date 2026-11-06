@@ -120,7 +120,7 @@ services:
 
   # --- Mailpit: a fake email inbox, so we can see alert emails locally ---
   mailpit:
-    image: axllent/mailpit:v1.32.0
+    image: axllent/mailpit:v1.33.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:8025:8025" # web inbox: http://localhost:8025

@@ -16,7 +16,7 @@ dependencies = [
     "pydantic-settings==2.16.2",   # settings from environment variables
     "email-validator==2.3.0",      # checks email addresses
     "prometheus-client==0.26.0",   # /metrics (FR-31)
-    "python-multipart==0.0.32",    # reads the login form used by Swagger's Authorize button
+    "python-multipart==0.0.33",    # reads the login form used by Swagger's Authorize button
     "aiomqtt==2.5.1",              # MQTT client: the ingestor talks to the devices (M4)
     "jsonschema==4.26.0",          # checks every device message against /contracts (FR-22)
     "websockets==17.3",            # lets uvicorn serve the live WebSocket (FR-25)

@@ -17,13 +17,13 @@ and the date to check it again (at most 3 months later).
 
 | ID | Package | Why it is accepted | Accepted by, on | Check again |
 |---|---|---|---|---|
-| CVE-2026-116587 | go-jose 4.1.5 inside Caddy | Denial of service through crafted RSA keys in a JWK. Caddy reads JWKs only for ACME, and AquaPulse uses its own local certificates (no ACME) | Claude for sana, 2026-10-31 | 2026-12-01 or the next Caddy release |
-| CVE-2026-78669 | golang.org/x/net and Go stdlib inside Caddy | HTTP/2 SETTINGS flood (denial of service). The stack runs on your own computer or behind a tunnel; nothing is lost but the web page for a moment | Claude for sana, 2026-10-31 | same |
-| CVE-2026-78667 | Go stdlib inside Caddy | Range header denial of service. Same reasoning | Claude for sana, 2026-10-31 | same |
-| CVE-2026-97031 | Go stdlib inside Caddy | TLS ECH denial of service. Caddy does not enable ECH in our Caddyfile | Claude for sana, 2026-10-31 | same |
-| CVE-2026-111943 | Go stdlib inside Caddy | Certificate chain check with untrusted intermediates. Caddy acts as a TLS client only when it talks to other servers; ours talks to the API over the private Docker network without TLS, and we do not use client certificates | Claude for sana, 2026-10-31 | same |
+| CVE-2026-116587 | go-jose inside Caddy | Denial of service through crafted RSA keys in a JWK. Caddy reads JWKs only for ACME, and AquaPulse uses its own local certificates (no ACME) | Claude for sana, 2026-10-31 | 2026-12-01 or the next Caddy release |
+| CVE-2026-78661 | golang.org/x/net 0.60.0 inside Caddy | Denial of service through crafted HTML given to the `x/net/html` parser. Caddy only parses HTML in its `templates` and `markdown` features; our Caddyfile uses neither (only `reverse_proxy` and `file_server`), so the parser never runs | Claude for sana, 2026-11-09 | same |
 
-Why accepted and not fixed: Caddy 2.11.7 is the newest release and is built with
+Removed on 2026-11-09: CVE-2026-78669, CVE-2026-78667, CVE-2026-97031 and
+CVE-2026-111943 are fixed in Caddy 2.11.9, so they are no longer accepted.
+
+Why accepted and not fixed: Caddy 2.11.9 is the newest release and is built with
 these versions. Building our own Caddy with a newer Go is possible (xcaddy) but makes
 `make up` much slower for everyone. Dependabot opens a pull request as soon as a new
 Caddy image is out; then these lines are removed.

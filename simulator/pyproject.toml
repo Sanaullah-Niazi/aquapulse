@@ -8,7 +8,7 @@ requires-python = ">=3.12,<3.13"
 license = "MIT"
 dependencies = [
     "aiomqtt==2.5.1",     # async MQTT client (one connection per virtual device)
-    "fastapi==0.162.0",   # tiny control API with Swagger UI (scenarios, start/stop)
+    "fastapi==0.162.4",   # tiny control API with Swagger UI (scenarios, start/stop)
     "uvicorn==0.54.0",    # web server that runs the control API
     "jsonschema==4.26.0", # checks every message against /contracts before it is sent
     "tzdata==2026.6",     # time zones (Asia/Karachi ...) inside the slim Docker image

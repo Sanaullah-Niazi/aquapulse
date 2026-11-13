@@ -4,7 +4,7 @@
 # Stage 2 is the same Caddy as before (M1), plus those files in /app-dist.
 # Build context: the repository root (see docker-compose.yml).
 # ---------------------------------------------------------------
-FROM node:26.12.1-slim AS build
+FROM node:26.13.0-slim AS build
 WORKDIR /web
 COPY web/package.json web/pnpm-lock.yaml ./
 # Node 25+ no longer ships corepack, so install the exact pnpm version named

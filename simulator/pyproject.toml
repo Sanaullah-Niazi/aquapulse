@@ -21,7 +21,7 @@ aquapulse-sim = "aquapulse_sim.cli:main"
 dev = [
     "pytest==9.2.0",
     "pytest-asyncio==1.4.1",
-    "httpx2==2.16.0",     # used by FastAPI's TestClient
+    "httpx2==2.16.2",     # used by FastAPI's TestClient
     "ruff==0.17.3",
 ]
 

@@ -98,7 +98,7 @@ services:
 
   # --- Database: PostgreSQL 16 with the TimescaleDB time-series extension ---
   db:
-    image: timescale/timescaledb:2.31.0-pg16
+    image: timescale/timescaledb:2.32.0-pg16
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aquapulse}
@@ -330,7 +330,7 @@ services:
   # Same image as the database, so pg_dump and pg_restore match its version.
   # See infra/backup/backup.sh and docs/backups.md.
   backup:
-    image: timescale/timescaledb:2.31.0-pg16
+    image: timescale/timescaledb:2.32.0-pg16
     entrypoint: ["/backup/backup.sh"]
     restart: unless-stopped
     depends_on:

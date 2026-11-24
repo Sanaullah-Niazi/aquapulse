@@ -2,6 +2,12 @@
 # Build context is the repo root, so the shared /contracts folder can be copied in.
 FROM python:3.12.16-slim-trixie
 
+# Take the latest Debian security fixes (for example zlib) even before a new
+# Python image is published (FR-74).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # uv installs exactly the versions in uv.lock (reproducible builds).
 RUN pip install --no-cache-dir uv==0.13.4
 

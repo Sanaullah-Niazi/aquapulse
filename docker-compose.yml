@@ -67,7 +67,7 @@ services:
   # TLS only (port 8883), a password for every account, and access rules
   # per topic (infra/mosquitto). There is no plain port 1883 any more.
   mqtt:
-    image: eclipse-mosquitto:2.1.2-alpine
+    image: eclipse-mosquitto:2.1.4-alpine
     restart: unless-stopped
     # start.sh starts Mosquitto and reloads it when the password list changes.
     entrypoint: ["/bin/sh", "/mosquitto/config/start.sh"]
